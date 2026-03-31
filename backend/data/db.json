@@ -1,0 +1,1063 @@
+{
+  "transactions": {
+    "caixa": [
+      {
+        "id": 1,
+        "data": "2026-01-06",
+        "desc": "Venda de Produtos - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 20845,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 2,
+        "data": "2026-01-18",
+        "desc": "Venda de Serviços - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 21776,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 3,
+        "data": "2026-01-08",
+        "desc": "Juros Recebidos - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Juros Recebidos",
+        "nivel": "Receita",
+        "valor": 3230,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 7,
+        "data": "2026-01-07",
+        "desc": "CMV - Custo Mercadoria Vendida - Jan",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 11631,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 8,
+        "data": "2026-01-11",
+        "desc": "CSP - Custo Serviços Prestados - Jan",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 3912,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 12,
+        "data": "2026-01-17",
+        "desc": "Salários e Encargos - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 10936,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 14,
+        "data": "2026-01-17",
+        "desc": "Aluguel - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3110,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 16,
+        "data": "2026-01-03",
+        "desc": "Marketing e Publicidade - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 3442,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 18,
+        "data": "2026-01-23",
+        "desc": "Softwares e Licenças - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 2621,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 20,
+        "data": "2026-01-24",
+        "desc": "Benefícios - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 1650,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 22,
+        "data": "2026-01-19",
+        "desc": "Telefone e Internet - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 474,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 24,
+        "data": "2026-02-24",
+        "desc": "Venda de Produtos - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 18762,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 25,
+        "data": "2026-02-10",
+        "desc": "Venda de Serviços - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 17632,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 26,
+        "data": "2026-02-01",
+        "desc": "Juros Recebidos - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Juros Recebidos",
+        "nivel": "Receita",
+        "valor": 1800,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 30,
+        "data": "2026-02-02",
+        "desc": "CMV - Custo Mercadoria Vendida - Fev",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 11111,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 31,
+        "data": "2026-02-19",
+        "desc": "CSP - Custo Serviços Prestados - Fev",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 4359,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 35,
+        "data": "2026-02-08",
+        "desc": "Salários e Encargos - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 10351,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 37,
+        "data": "2026-02-02",
+        "desc": "Aluguel - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3105,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 39,
+        "data": "2026-02-13",
+        "desc": "Marketing e Publicidade - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 5213,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 41,
+        "data": "2026-02-02",
+        "desc": "Softwares e Licenças - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 2628,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 43,
+        "data": "2026-02-04",
+        "desc": "Benefícios - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 1452,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 45,
+        "data": "2026-02-18",
+        "desc": "Telefone e Internet - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 634,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 47,
+        "data": "2026-03-21",
+        "desc": "Venda de Produtos - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 29249,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 48,
+        "data": "2026-03-11",
+        "desc": "Venda de Serviços - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 13151,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 49,
+        "data": "2026-03-03",
+        "desc": "Juros Recebidos - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Juros Recebidos",
+        "nivel": "Receita",
+        "valor": 3475,
+        "mov": "Entrada",
+        "regime": "Caixa"
+      },
+      {
+        "id": 53,
+        "data": "2026-03-05",
+        "desc": "CMV - Custo Mercadoria Vendida - Mar",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 9552,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 54,
+        "data": "2026-03-17",
+        "desc": "CSP - Custo Serviços Prestados - Mar",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 9285,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 58,
+        "data": "2026-03-21",
+        "desc": "Salários e Encargos - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 8654,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 60,
+        "data": "2026-03-16",
+        "desc": "Aluguel - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3095,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 62,
+        "data": "2026-03-12",
+        "desc": "Marketing e Publicidade - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 3793,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 64,
+        "data": "2026-03-10",
+        "desc": "Softwares e Licenças - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 1069,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 66,
+        "data": "2026-03-24",
+        "desc": "Benefícios - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 2116,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 68,
+        "data": "2026-03-08",
+        "desc": "Telefone e Internet - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 621,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 70,
+        "data": "2026-03-26",
+        "desc": "Juros Pagos - Mar",
+        "cat": "DESPESAS NÃO OPERACIONAIS",
+        "grp": "Despesas Financeiras",
+        "tipo": "Juros Pagos",
+        "nivel": "Despesa Não Operacional",
+        "valor": 603,
+        "mov": "Saída",
+        "regime": "Caixa"
+      },
+      {
+        "id": 72,
+        "data": "2026-03-25",
+        "desc": "PIS/COFINS - Mar",
+        "cat": "DESPESAS NÃO OPERACIONAIS",
+        "grp": "Impostos e Tributos",
+        "tipo": "PIS/COFINS",
+        "nivel": "Despesa Não Operacional",
+        "valor": 1445,
+        "mov": "Saída",
+        "regime": "Caixa"
+      }
+    ],
+    "competencia": [
+      {
+        "id": 4,
+        "data": "2026-01-25",
+        "desc": "Venda de Produtos - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 26563,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 5,
+        "data": "2026-01-24",
+        "desc": "Venda de Serviços - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 11428,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 6,
+        "data": "2026-01-18",
+        "desc": "Rendimentos Financeiros - Jan",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Rendimentos Financeiros",
+        "nivel": "Receita",
+        "valor": 1709,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 9,
+        "data": "2026-01-09",
+        "desc": "CMV - Custo Mercadoria Vendida - Jan",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 11167,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 10,
+        "data": "2026-01-26",
+        "desc": "CSP - Custo Serviços Prestados - Jan",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 7098,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 11,
+        "data": "2026-01-24",
+        "desc": "Mão de Obra Direta - Jan",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Produção",
+        "tipo": "Mão de Obra Direta",
+        "nivel": "Custo",
+        "valor": 7933,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 13,
+        "data": "2026-01-07",
+        "desc": "Salários e Encargos - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 11482.800000000001,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 15,
+        "data": "2026-01-08",
+        "desc": "Aluguel - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3265.5,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 17,
+        "data": "2026-01-03",
+        "desc": "Marketing e Publicidade - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 3614.1000000000004,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 19,
+        "data": "2026-01-14",
+        "desc": "Softwares e Licenças - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 2752.05,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 21,
+        "data": "2026-01-22",
+        "desc": "Benefícios - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 1732.5,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 23,
+        "data": "2026-01-05",
+        "desc": "Telefone e Internet - Jan",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 497.70000000000005,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 27,
+        "data": "2026-02-26",
+        "desc": "Venda de Produtos - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 9225,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 28,
+        "data": "2026-02-24",
+        "desc": "Venda de Serviços - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 20798,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 29,
+        "data": "2026-02-04",
+        "desc": "Rendimentos Financeiros - Fev",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Rendimentos Financeiros",
+        "nivel": "Receita",
+        "valor": 1618,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 32,
+        "data": "2026-02-26",
+        "desc": "CMV - Custo Mercadoria Vendida - Fev",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 5471,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 33,
+        "data": "2026-02-11",
+        "desc": "CSP - Custo Serviços Prestados - Fev",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 9460,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 34,
+        "data": "2026-02-10",
+        "desc": "Mão de Obra Direta - Fev",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Produção",
+        "tipo": "Mão de Obra Direta",
+        "nivel": "Custo",
+        "valor": 7513,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 36,
+        "data": "2026-02-02",
+        "desc": "Salários e Encargos - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 10868.550000000001,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 38,
+        "data": "2026-02-06",
+        "desc": "Aluguel - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3260.25,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 40,
+        "data": "2026-02-17",
+        "desc": "Marketing e Publicidade - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 5473.650000000001,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 42,
+        "data": "2026-02-22",
+        "desc": "Softwares e Licenças - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 2759.4,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 44,
+        "data": "2026-02-04",
+        "desc": "Benefícios - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 1524.6000000000001,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 46,
+        "data": "2026-02-26",
+        "desc": "Telefone e Internet - Fev",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 665.7,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 50,
+        "data": "2026-03-10",
+        "desc": "Venda de Produtos - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Produtos",
+        "nivel": "Receita",
+        "valor": 20641,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 51,
+        "data": "2026-03-08",
+        "desc": "Venda de Serviços - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Operacional",
+        "tipo": "Venda de Serviços",
+        "nivel": "Receita",
+        "valor": 12682,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 52,
+        "data": "2026-03-12",
+        "desc": "Rendimentos Financeiros - Mar",
+        "cat": "RECEITA BRUTA",
+        "grp": "Receita Financeira",
+        "tipo": "Rendimentos Financeiros",
+        "nivel": "Receita",
+        "valor": 2370,
+        "mov": "Entrada",
+        "regime": "Competência"
+      },
+      {
+        "id": 55,
+        "data": "2026-03-14",
+        "desc": "CMV - Custo Mercadoria Vendida - Mar",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Mercadorias",
+        "tipo": "CMV - Custo Mercadoria Vendida",
+        "nivel": "Custo",
+        "valor": 12221,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 56,
+        "data": "2026-03-22",
+        "desc": "CSP - Custo Serviços Prestados - Mar",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Serviços",
+        "tipo": "CSP - Custo Serviços Prestados",
+        "nivel": "Custo",
+        "valor": 9381,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 57,
+        "data": "2026-03-12",
+        "desc": "Mão de Obra Direta - Mar",
+        "cat": "CUSTOS DIRETOS",
+        "grp": "Custo de Produção",
+        "tipo": "Mão de Obra Direta",
+        "nivel": "Custo",
+        "valor": 5230,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 59,
+        "data": "2026-03-04",
+        "desc": "Salários e Encargos - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Salários e Encargos",
+        "nivel": "Despesa Operacional",
+        "valor": 9086.7,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 61,
+        "data": "2026-03-18",
+        "desc": "Aluguel - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Aluguel",
+        "nivel": "Despesa Operacional",
+        "valor": 3249.75,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 63,
+        "data": "2026-03-07",
+        "desc": "Marketing e Publicidade - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Comerciais",
+        "tipo": "Marketing e Publicidade",
+        "nivel": "Despesa Operacional",
+        "valor": 3982.65,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 65,
+        "data": "2026-03-05",
+        "desc": "Softwares e Licenças - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Tecnologia",
+        "tipo": "Softwares e Licenças",
+        "nivel": "Despesa Operacional",
+        "valor": 1122.45,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 67,
+        "data": "2026-03-25",
+        "desc": "Benefícios - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas com Pessoal",
+        "tipo": "Benefícios",
+        "nivel": "Despesa Operacional",
+        "valor": 2221.8,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 69,
+        "data": "2026-03-02",
+        "desc": "Telefone e Internet - Mar",
+        "cat": "DESPESAS OPERACIONAIS",
+        "grp": "Despesas Administrativas",
+        "tipo": "Telefone e Internet",
+        "nivel": "Despesa Operacional",
+        "valor": 652.0500000000001,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 71,
+        "data": "2026-03-15",
+        "desc": "Juros Pagos - Mar",
+        "cat": "DESPESAS NÃO OPERACIONAIS",
+        "grp": "Despesas Financeiras",
+        "tipo": "Juros Pagos",
+        "nivel": "Despesa Não Operacional",
+        "valor": 603,
+        "mov": "Saída",
+        "regime": "Competência"
+      },
+      {
+        "id": 73,
+        "data": "2026-03-03",
+        "desc": "PIS/COFINS - Mar",
+        "cat": "DESPESAS NÃO OPERACIONAIS",
+        "grp": "Impostos e Tributos",
+        "tipo": "PIS/COFINS",
+        "nivel": "Despesa Não Operacional",
+        "valor": 1445,
+        "mov": "Saída",
+        "regime": "Competência"
+      }
+    ]
+  },
+  "plano": [
+    {
+      "cat": "RECEITA BRUTA",
+      "grp": "Receita Operacional",
+      "tipo": "Venda de Produtos",
+      "nivel": "Receita"
+    },
+    {
+      "cat": "RECEITA BRUTA",
+      "grp": "Receita Operacional",
+      "tipo": "Venda de Serviços",
+      "nivel": "Receita"
+    },
+    {
+      "cat": "RECEITA BRUTA",
+      "grp": "Receita Operacional",
+      "tipo": "Outras Receitas Operacionais",
+      "nivel": "Receita"
+    },
+    {
+      "cat": "RECEITA BRUTA",
+      "grp": "Receita Financeira",
+      "tipo": "Juros Recebidos",
+      "nivel": "Receita"
+    },
+    {
+      "cat": "RECEITA BRUTA",
+      "grp": "Receita Financeira",
+      "tipo": "Rendimentos Financeiros",
+      "nivel": "Receita"
+    },
+    {
+      "cat": "CUSTOS DIRETOS",
+      "grp": "Custo de Mercadorias",
+      "tipo": "CMV - Custo Mercadoria Vendida",
+      "nivel": "Custo"
+    },
+    {
+      "cat": "CUSTOS DIRETOS",
+      "grp": "Custo de Serviços",
+      "tipo": "CSP - Custo Serviços Prestados",
+      "nivel": "Custo"
+    },
+    {
+      "cat": "CUSTOS DIRETOS",
+      "grp": "Custo de Produção",
+      "tipo": "Matéria-Prima",
+      "nivel": "Custo"
+    },
+    {
+      "cat": "CUSTOS DIRETOS",
+      "grp": "Custo de Produção",
+      "tipo": "Mão de Obra Direta",
+      "nivel": "Custo"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas com Pessoal",
+      "tipo": "Salários e Encargos",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas com Pessoal",
+      "tipo": "Benefícios",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas com Pessoal",
+      "tipo": "Pró-labore",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Administrativas",
+      "tipo": "Aluguel",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Administrativas",
+      "tipo": "Energia e Utilities",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Administrativas",
+      "tipo": "Telefone e Internet",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Administrativas",
+      "tipo": "Material de Escritório",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Comerciais",
+      "tipo": "Marketing e Publicidade",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Comerciais",
+      "tipo": "Comissões de Vendas",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Despesas Comerciais",
+      "tipo": "Fretes e Logística",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Tecnologia",
+      "tipo": "Softwares e Licenças",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS OPERACIONAIS",
+      "grp": "Tecnologia",
+      "tipo": "Infraestrutura de TI",
+      "nivel": "Despesa Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Despesas Financeiras",
+      "tipo": "Juros Pagos",
+      "nivel": "Despesa Não Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Despesas Financeiras",
+      "tipo": "Taxas Bancárias",
+      "nivel": "Despesa Não Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Impostos e Tributos",
+      "tipo": "Impostos sobre Lucro (IR/CSLL)",
+      "nivel": "Despesa Não Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Impostos e Tributos",
+      "tipo": "PIS/COFINS",
+      "nivel": "Despesa Não Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Outras Não Operacionais",
+      "tipo": "Multas e Penalidades",
+      "nivel": "Despesa Não Operacional"
+    },
+    {
+      "cat": "DESPESAS NÃO OPERACIONAIS",
+      "grp": "Outras Não Operacionais",
+      "tipo": "Perdas Diversas",
+      "nivel": "Despesa Não Operacional"
+    }
+  ],
+  "planoCores": {
+    "RECEITA BRUTA": "green",
+    "CUSTOS DIRETOS": "red",
+    "DESPESAS OPERACIONAIS": "yellow",
+    "DESPESAS NÃO OPERACIONAIS": "purple"
+  },
+  "saldosIniciais": {},
+  "importHistory": [
+    {
+      "name": "dados_exemplo.xlsx",
+      "rows": 73,
+      "base": "Ambas",
+      "date": "30/03/2026"
+    }
+  ]
+}

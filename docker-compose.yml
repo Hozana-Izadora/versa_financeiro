@@ -1,0 +1,99 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:           financas
+      POSTGRES_USER:         postgres
+      POSTGRES_PASSWORD:     ${POSTGRES_SUPERUSER_PASSWORD}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d financas"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+
+  # ── Migration runner ────────────────────────────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+    command: node scripts/migrate.js
+    environment:
+      DATABASE_URL: postgresql://financas_app:${POSTGRES_APP_PASSWORD}@db:5432/financas
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── Node.js API ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:               postgresql://financas_app:${POSTGRES_APP_PASSWORD}@db:5432/financas
+      PORT:                       3001
+      NODE_ENV:                   production
+      JWT_SECRET:                 ${JWT_SECRET}
+      JWT_EXPIRES_IN:             ${JWT_EXPIRES_IN:-15m}
+      REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-7}
+      # In production all traffic comes through nginx on the same origin — CORS is irrelevant.
+      # Set CORS_ORIGIN only if you need a separate dev/staging origin.
+      CORS_ORIGIN:                ${CORS_ORIGIN:-}
+    networks:
+      - internal
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e",
+        "require('http').get('http://localhost:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    cap_drop:
+      - ALL
+
+  # ── nginx + React SPA ───────────────────────────────────────────────────────
+  # With JWT auth, VITE_TENANT_ID is no longer needed — the tenant is in the token.
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    networks:
+      - internal
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
