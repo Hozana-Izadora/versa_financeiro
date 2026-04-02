@@ -2,6 +2,21 @@
 
 Sistema de gerência financeira multi-cliente com DRE por Caixa e Competência.
 
+## Sumário
+
+- [Requisitos](#requisitos)
+- [Instalação — primeira vez](#instalação--primeira-vez)
+- [Execução em desenvolvimento](#execução-em-desenvolvimento)
+- [Deploy em servidor — Docker](#deploy-em-servidor--docker)
+- [Novo cliente — provisionar base de dados](#novo-cliente--provisionar-base-de-dados)
+- [Novo usuário — criar acesso ao sistema](#novo-usuário--criar-acesso-ao-sistema)
+- [Controle de acesso por módulo (roles)](#controle-de-acesso-por-módulo-roles)
+- [Fluxo completo para onboarding de um novo cliente](#fluxo-completo-para-onboarding-de-um-novo-cliente)
+- [Build de produção](#build-de-produção)
+- [Verificação de saúde da API](#verificação-de-saúde-da-api)
+
+---
+
 ## Requisitos
 
 - **Node.js** 18+
@@ -240,6 +255,126 @@ WHERE u.email = 'usuario@exemplo.com' AND r.name = 'somente_leitura';
 ```
 
 O usuário já pode fazer login em `http://localhost:5173` usando e-mail e senha.
+
+---
+
+## Deploy em servidor — Docker
+
+Esta é a forma recomendada para rodar o projeto em produção. O `docker-compose.yml` sobe quatro serviços: **PostgreSQL**, **migrate** (executa as migrations uma única vez), **backend** (Node.js) e **frontend** (nginx + SPA compilado). Nenhuma dependência precisa ser instalada no servidor além do Docker.
+
+### Pré-requisitos
+
+- **Docker** 24+
+- **Docker Compose** v2 (incluso no Docker Desktop; em servidores Linux instale `docker-compose-plugin`)
+
+### 1. Clonar o repositório
+
+```bash
+git clone <url-do-repositorio>
+cd Financeiro
+```
+
+### 2. Criar o arquivo `.env` na raiz do projeto
+
+```bash
+cp backend/.env.example .env   # ponto de partida; edite os valores abaixo
+```
+
+O `.env` para Docker deve conter as seguintes variáveis:
+
+```env
+# Senha do superusuário postgres (usada apenas internamente pelo container)
+POSTGRES_SUPERUSER_PASSWORD=senha_super_segura
+
+# Senha da role financas_app (usada pela API)
+POSTGRES_APP_PASSWORD=senha_app_segura
+
+# Segredo JWT — gere com:
+# node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=cole_aqui_o_segredo_gerado
+
+# Expiração do access token (padrão: 15m)
+JWT_EXPIRES_IN=15m
+
+# Dias de validade do refresh token (padrão: 7)
+REFRESH_TOKEN_EXPIRES_DAYS=7
+
+# Porta HTTP exposta no host (padrão: 80)
+HTTP_PORT=80
+```
+
+> `CORS_ORIGIN` não é necessário em produção — todo o tráfego passa pelo nginx na mesma origem.
+
+### 3. Subir os containers
+
+```bash
+docker compose up -d
+```
+
+Na primeira vez o Docker irá:
+1. Fazer o build das imagens do backend e do frontend
+2. Subir o PostgreSQL e aguardar o healthcheck
+3. Executar as migrations automaticamente via o serviço `migrate`
+4. Iniciar a API e o nginx
+
+Acompanhe os logs até tudo estar saudável:
+
+```bash
+docker compose logs -f
+```
+
+A aplicação estará disponível em `http://<ip-do-servidor>` (ou na porta definida em `HTTP_PORT`).
+
+### 4. Verificar saúde dos serviços
+
+```bash
+docker compose ps
+# Todos os serviços devem aparecer como "healthy" ou "exited 0" (migrate)
+```
+
+```bash
+curl http://localhost/api/health
+# {"status":"ok"}
+```
+
+### 5. Provisionar o primeiro cliente
+
+Com os containers rodando, execute os mesmos comandos de gerência via `docker compose exec`:
+
+```bash
+# Abrir o psql dentro do container do banco
+docker compose exec db psql -U postgres -d financas
+```
+
+```sql
+SELECT admin.provision_tenant('minha_empresa', 'Minha Empresa Ltda');
+```
+
+### 6. Criar o primeiro usuário
+
+```bash
+docker compose exec backend node scripts/createUser.js \
+  --email admin@minha-empresa.com \
+  --password "SenhaForte123!" \
+  --name "Admin" \
+  --client minha_empresa
+```
+
+### Atualizar para uma nova versão
+
+```bash
+git pull
+docker compose build          # reconstrói as imagens
+docker compose up -d          # recria os containers alterados
+# O serviço "migrate" roda automaticamente e aplica novas migrations
+```
+
+### Parar e remover os containers
+
+```bash
+docker compose down           # para e remove os containers (dados preservados em pgdata)
+docker compose down -v        # também remove o volume do banco (IRREVERSÍVEL)
+```
 
 ---
 
