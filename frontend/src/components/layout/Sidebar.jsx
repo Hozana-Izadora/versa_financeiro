@@ -4,11 +4,10 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import Icon from '../ui/Icon.jsx';
 
 const NAV_ITEMS = [
-  { id: 'caixa',        icon: 'account_balance', label: 'Regime de Caixa',       section: 'Análise' },
-  { id: 'competencia',  icon: 'trending_up',      label: 'Regime de Competência', section: 'Análise' },
-  { id: 'lancamentos',  icon: 'receipt_long',     label: 'Lançamentos',           section: 'Dados', badge: true },
-  { id: 'plano',        icon: 'account_tree',     label: 'Plano de Contas',       section: 'Dados' },
-  { id: 'importar',     icon: 'upload_file',      label: 'Importar Dados',        section: 'Dados' },
+  { id: 'caixa',       icon: 'dashboard',     label: 'Dashboard',        section: 'Análise', isDashboard: true },
+  { id: 'lancamentos', icon: 'receipt_long',  label: 'Lançamentos',      section: 'Dados', badge: true },
+  { id: 'plano',       icon: 'account_tree',  label: 'Plano de Contas',  section: 'Dados' },
+  { id: 'importar',    icon: 'upload_file',   label: 'Importar Dados',   section: 'Dados' },
 ];
 
 export default function Sidebar() {
@@ -47,7 +46,9 @@ export default function Sidebar() {
                 key={item.id}
                 onClick={() => actions.setPage(item.id)}
                 className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-sm cursor-pointer text-xs font-medium transition-all mb-0.5 border text-left ${
-                  currentPage === item.id
+                  (item.isDashboard
+                    ? currentPage === 'caixa' || currentPage === 'competencia'
+                    : currentPage === item.id)
                     ? 'bg-blue-50 text-accent border-blue-200'
                     : 'text-text-2 border-transparent hover:bg-slate-50 hover:text-text-base'
                 }`}

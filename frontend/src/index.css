@@ -92,6 +92,12 @@
   .kc-c::after { background: #0891b2; }
   .kc-y::after { background: #d97706; }
 
+  /* KPI Cascade */
+  .kpi-cascade { display: flex; align-items: stretch; }
+  .cascade-sep { display: flex; align-items: center; justify-content: center; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; min-width: 32px; flex-shrink: 0; font-weight: 800; font-size: 1rem; color: #94a3b8; font-family: 'Inter', sans-serif; }
+  .kpi-result { border-color: rgba(37,99,235,0.20) !important; background: rgba(37,99,235,0.03) !important; }
+  .kpi-result::after { background: #2563eb !important; }
+
   /* Upload zone */
   .upload-zone { @apply border-2 border-dashed border-slate-200 rounded-card p-9 text-center cursor-pointer transition-all bg-card relative; }
   .upload-zone:hover, .upload-zone.drag { border-color: #2563eb; background: rgba(37,99,235,0.03); }

@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Bar, Line } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
+  PointElement, ArcElement, Title, Tooltip, Legend, Filler,
+} from 'chart.js';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
 import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths } from '../utils/formatters.js';
@@ -8,7 +11,7 @@ import KpiCard from '../components/ui/KpiCard.jsx';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
 
 const chartOpts = (unit) => ({
   responsive: true, maintainAspectRatio: false,
@@ -22,12 +25,35 @@ const chartOpts = (unit) => ({
   },
 });
 
+const DONUT_COLORS = ['#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#10b981', '#6366f1'];
+
+function CNode({ label, value, sub, color, result, first, last }) {
+  return (
+    <div
+      className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''}`}
+      style={{
+        borderRadius: first ? '8px 0 0 8px' : last ? '0 8px 8px 0' : '0',
+        borderRight: last ? undefined : 'none',
+      }}
+    >
+      <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
+      <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
+      <div className="text-[11px] text-text-3">{sub}</div>
+    </div>
+  );
+}
+
+function CSep({ symbol }) {
+  return <div className="cascade-sep">{symbol}</div>;
+}
+
 export default function Caixa() {
   const { state, actions } = useApp();
   const { transactions, plano, saldosIniciais, filterState } = state;
   const [showPct, setShowPct] = useState(true);
 
   const tx = transactions.caixa;
+
   const filteredTx = useMemo(() => tx.filter(r => {
     const d = new Date(r.data + 'T12:00');
     const yOk = d.getFullYear() === filterState.year;
@@ -49,14 +75,25 @@ export default function Caixa() {
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
   const lastAcum = dre.mAcum[dre.mAcum.length - 1] || 0;
 
-  const kpis = [
-    { label: 'Total de Entradas', value: fmtK(dre.totRec), sub: `${visMonths.length} mês(es)`, icon: 'arrow_downward_alt', colorClass: 'kc-g' },
-    { label: 'Total de Saídas', value: fmtK(dre.totCost + dre.totDespOp + dre.totDespNop), sub: 'Custos + Despesas', icon: 'arrow_upward_alt', colorClass: 'kc-r' },
-    { label: 'Saldo do Período', value: fmtK(totSaldo), sub: totSaldo >= 0 ? 'Positivo' : 'Negativo', icon: 'balance', colorClass: totSaldo >= 0 ? 'kc-g' : 'kc-r' },
-    { label: 'Saldo Acumulado', value: fmtK(lastAcum), sub: `Acumulado ${filterState.year}`, icon: 'trending_up', colorClass: 'kc-b' },
-    { label: 'Margem Bruta', value: fmtPct(pct(dre.totMgB, dre.totRec)), sub: fmtK(dre.totMgB), icon: 'bar_chart', colorClass: 'kc-c' },
-    { label: 'Margem Operacional', value: fmtPct(pct(dre.totMgOp, dre.totRec)), sub: fmtK(dre.totMgOp), icon: 'gps_fixed', colorClass: 'kc-p' },
-  ];
+  // Expense groups for donut + breakdown
+  const expGroups = dre.rows.filter(r => r.type === 'group' && !r.isPos);
+  const totalExp = expGroups.reduce((s, r) => s + Math.abs(r.total), 0);
+
+  const donutData = {
+    labels: expGroups.map(r => r.label),
+    datasets: [{
+      data: expGroups.map(r => Math.abs(r.total)),
+      backgroundColor: DONUT_COLORS.slice(0, expGroups.length),
+      borderWidth: 2, borderColor: '#ffffff', hoverOffset: 6,
+    }],
+  };
+  const donutOpts = {
+    responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)} (${totalExp > 0 ? (ctx.raw / totalExp * 100).toFixed(1) : 0}%)` } },
+    },
+  };
 
   const flowData = {
     labels,
@@ -90,18 +127,67 @@ export default function Caixa() {
 
   return (
     <div className="ani">
-      {/* KPIs */}
-      <div className="grid grid-cols-6 gap-3 mb-4">
-        {kpis.map((k, i) => <KpiCard key={i} {...k} />)}
+
+      {/* ── Cascade: fluxo operacional ── */}
+      <div className="kpi-cascade mb-3.5">
+        <CNode first
+          label="Entradas / Receita"
+          value={fmtK(dre.totRec)}
+          sub={`${visMonths.length} mês(es)`}
+          color="#10b981"
+        />
+        <CSep symbol="−" />
+        <CNode
+          label="Custos Diretos"
+          value={fmtK(dre.totCost)}
+          sub={fmtPct(pct(dre.totCost, dre.totRec)) + ' da receita'}
+          color="#ef4444"
+        />
+        <CSep symbol="−" />
+        <CNode
+          label="Despesas Operacionais"
+          value={fmtK(dre.totDespOp)}
+          sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'}
+          color="#f59e0b"
+        />
+        <CSep symbol="=" />
+        <CNode last result
+          label="Caixa Operacional"
+          value={fmtK(dre.totMgOp)}
+          sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'}
+          color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'}
+        />
       </div>
 
-      {/* Charts */}
+      {/* ── Resumo não-operacional + saldos ── */}
+      <div className="grid grid-cols-3 gap-3 mb-3.5">
+        <KpiCard
+          label="Saídas Não Operacionais"
+          value={fmtK(dre.totDespNop)}
+          sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'}
+          icon="money_off" colorClass="kc-p"
+        />
+        <KpiCard
+          label="Saldo do Período"
+          value={fmtK(totSaldo)}
+          sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'}
+          icon="balance" colorClass={totSaldo >= 0 ? 'kc-g' : 'kc-r'}
+        />
+        <KpiCard
+          label="Saldo Acumulado"
+          value={fmtK(lastAcum)}
+          sub={`Acumulado ${filterState.year}`}
+          icon="trending_up" colorClass="kc-b"
+        />
+      </div>
+
+      {/* ── Charts: fluxo mensal + acumulado ── */}
       <div className="grid grid-cols-[3fr_2fr] gap-3 mb-3.5">
         <div className="panel">
           <div className="panel-hdr">
             <div>
               <div className="font-inter font-semibold text-[13px]">Fluxo de Caixa Mensal</div>
-              <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo do período</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido do período</div>
             </div>
           </div>
           <div className="p-4" style={{ height: 252 }}>
@@ -121,7 +207,56 @@ export default function Caixa() {
         </div>
       </div>
 
-      {/* DRE */}
+      {/* ── Composição das saídas: donut + breakdown ── */}
+      <div className="grid grid-cols-[2fr_3fr] gap-3 mb-3.5">
+        <div className="panel">
+          <div className="panel-hdr">
+            <div>
+              <div className="font-inter font-semibold text-[13px]">Composição das Saídas</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Distribuição por categoria de despesa</div>
+            </div>
+          </div>
+          <div className="p-4 flex items-center justify-center" style={{ height: 240 }}>
+            {expGroups.length > 0
+              ? <Doughnut data={donutData} options={donutOpts} />
+              : <span className="text-text-3 text-sm">Sem dados no período</span>}
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-hdr">
+            <div>
+              <div className="font-inter font-semibold text-[13px]">Detalhamento por Grupo</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Participação % sobre total das saídas e sobre receita</div>
+            </div>
+          </div>
+          <div className="p-4 overflow-y-auto" style={{ maxHeight: 240 }}>
+            {expGroups.map((grp, i) => {
+              const pctExp = totalExp > 0 ? Math.abs(grp.total) / totalExp * 100 : 0;
+              const pctRec = dre.totRec > 0 ? Math.abs(grp.total) / dre.totRec * 100 : 0;
+              return (
+                <div key={grp.label} className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i] }} />
+                      <span className="text-[12px] text-text-base font-medium">{grp.label}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[12px] font-semibold text-fin-red">{fmtK(Math.abs(grp.total))}</span>
+                      <span className="text-[10px] text-text-3 ml-1.5">{pctExp.toFixed(1)}% · {pctRec.toFixed(1)}% rec.</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, pctExp)}%`, background: DONUT_COLORS[i] }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ── DFC horizontal ── */}
       <div className="panel">
         <div className="panel-hdr">
           <div>
@@ -133,16 +268,19 @@ export default function Caixa() {
               <input type="checkbox" checked={showPct} onChange={e => setShowPct(e.target.checked)} />
               Mostrar %
             </label>
-            <button className="btn btn-ghost btn-sm" onClick={exportDRE}><Icon name="download" size="text-[14px]" /> Exportar</button>
+            <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
+              <Icon name="download" size="text-[14px]" /> Exportar
+            </button>
           </div>
         </div>
         <DreTable
           dre={dre}
           showPct={showPct}
-          onDrillItem={(tipo, mov) => { actions.setPage('lancamentos'); }}
-          onDrillGroup={(grp, mov) => { actions.setPage('lancamentos'); }}
+          onDrillItem={() => actions.setPage('lancamentos')}
+          onDrillGroup={() => actions.setPage('lancamentos')}
         />
       </div>
+
     </div>
   );
 }
