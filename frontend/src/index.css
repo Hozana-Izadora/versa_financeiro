@@ -113,6 +113,22 @@
   .tab-btn { @apply py-2.5 px-4 bg-transparent border-0 border-b-2 border-transparent cursor-pointer font-outfit text-[12.5px] font-medium text-text-2 transition-all -mb-px; }
   .tab-btn:hover { @apply text-text-base; }
   .tab-btn.act { @apply text-accent border-accent font-semibold; }
+
+  /* Subtab bar */
+  .subtab-bar { display: flex; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+  .subtab-btn { padding: 10px 16px; font-size: 11.5px; font-weight: 600; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; background: none; border-top: none; border-left: none; border-right: none; font-family: inherit; }
+  .subtab-btn:hover { color: #0f172a; }
+  .subtab-btn.act { color: #2563eb; border-bottom-color: #2563eb; }
+
+  /* Orçamento table */
+  .orc-tbl { @apply w-full border-collapse; font-size: 11.5px; }
+  .orc-tbl th { @apply py-2 px-3.5 text-[9px] uppercase tracking-widest text-right border-b border-slate-100 font-bold whitespace-nowrap; background: #1C2B3A; color: rgba(255,255,255,.8); }
+  .orc-tbl th:first-child { @apply text-left; }
+  .orc-tbl td { @apply py-2 px-3.5 border-b border-slate-100 text-right whitespace-nowrap; }
+  .orc-tbl td:first-child { @apply text-left; background: #fff; }
+  .orc-tbl tr:hover td { background: rgba(0,0,0,.02); }
+  .orc-tbl .r-sec td { background: #1C2B3A !important; color: #fff !important; font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .5px; }
+  .orc-tbl .r-res td { font-weight: 800; background: rgba(109,191,69,.07) !important; border-top: 2px solid rgba(109,191,69,.2) !important; }
 }
 
 @layer utilities {
@@ -122,4 +138,160 @@
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Dark Mode ─────────────────────────────────────────── */
+html.dark,
+html.dark body {
+  background: #0f1623;
+  color: #eef2f7;
+}
+
+html.dark select,
+html.dark input[type="date"],
+html.dark input[type="text"],
+html.dark input[type="number"] {
+  background: #1a2d42 !important;
+  border-color: #1e2d42 !important;
+  color: #eef2f7 !important;
+}
+
+html.dark .panel {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+}
+html.dark .panel-hdr {
+  border-color: #1e2d42 !important;
+}
+
+html.dark .kpi-card {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+}
+html.dark .kpi-card .text-text-3 { color: #8aa3be !important; }
+html.dark .kpi-card .text-text-base { color: #eef2f7 !important; }
+html.dark .kpi-cascade { background: transparent; }
+html.dark .cascade-sep {
+  background: #1a2d42 !important;
+  border-color: #1e2d42 !important;
+  color: #8aa3be !important;
+}
+html.dark .kpi-result {
+  background: rgba(37,99,235,0.1) !important;
+  border-color: rgba(37,99,235,0.3) !important;
+}
+
+html.dark .dre-tbl th {
+  background: #090f1a !important;
+  color: rgba(255,255,255,.85) !important;
+  border-color: #1e2d42 !important;
+}
+html.dark .dre-tbl td {
+  color: #c4d4e4 !important;
+  border-color: #1e2d42 !important;
+}
+html.dark .dre-tbl td:first-child {
+  background: #152030 !important;
+  color: #eef2f7 !important;
+}
+html.dark .dre-tbl tr:hover td { background: rgba(109,191,69,.05) !important; }
+html.dark .dre-tbl tr:hover td:first-child { background: rgba(109,191,69,.08) !important; }
+html.dark .dr-section td { background: #090f1a !important; color: #eef2f7 !important; }
+html.dark .dr-section td:first-child { background: #090f1a !important; }
+html.dark .dr-group td { background: #1a2d42 !important; color: #eef2f7 !important; }
+html.dark .dr-group td:first-child { background: #1a2d42 !important; color: #eef2f7 !important; }
+html.dark .dr-item:hover td { background: rgba(109,191,69,.06) !important; }
+html.dark .dr-total td { background: rgba(37,99,235,0.12) !important; color: #7eb8ff !important; }
+html.dark .dr-total td:first-child { background: rgba(37,99,235,0.12) !important; }
+html.dark .dr-saldo td { color: #6ee7b7 !important; }
+html.dark .dr-saldo td:first-child { background: rgba(16,185,129,.08) !important; color: #6ee7b7 !important; }
+html.dark .dr-saldo-acum td:first-child { background: rgba(16,185,129,.1) !important; color: #6ee7b7 !important; }
+html.dark .dr-ll td:first-child { background: rgba(124,58,237,.08) !important; color: #c4b5fd !important; }
+
+html.dark .tx-tbl th { color: #8aa3be !important; border-color: #1e2d42 !important; }
+html.dark .tx-tbl td { border-color: #1e2d42 !important; color: #c4d4e4 !important; }
+html.dark .tx-tbl tr:hover td { background: rgba(109,191,69,.04) !important; }
+
+html.dark .btn-ghost {
+  background: #1a2d42 !important;
+  border-color: #1e2d42 !important;
+  color: #c4d4e4 !important;
+}
+html.dark .btn-ghost:hover {
+  background: #233d55 !important;
+}
+
+html.dark .notif {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+  color: #eef2f7 !important;
+}
+
+html.dark .tag { opacity: 0.9; }
+html.dark .t-cat {
+  background: #1a2d42 !important;
+  border-color: #2d4060 !important;
+  color: #8aa3be !important;
+}
+
+html.dark .upload-zone {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+}
+
+/* Subtab bar */
+html.dark .subtab-bar {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+}
+html.dark .subtab-btn {
+  color: #8aa3be !important;
+}
+html.dark .subtab-btn.act {
+  color: #6DBF45 !important;
+  border-color: #6DBF45 !important;
+}
+
+/* bg-slate variants used in the app */
+html.dark .bg-slate-100 { background: #1a2d42 !important; }
+html.dark .bg-slate-50  { background: #1a2d42 !important; }
+html.dark .bg-card      { background: #152030 !important; }
+html.dark .bg-bg-3      { background: #0f1623 !important; }
+html.dark .border-slate-100 { border-color: #1e2d42 !important; }
+html.dark .text-text-base   { color: #eef2f7 !important; }
+html.dark .text-text-2      { color: #c4d4e4 !important; }
+html.dark .text-text-3      { color: #8aa3be !important; }
+
+/* Chart modal dark */
+html.dark .chart-modal-inner {
+  background: #152030 !important;
+  border-color: #1e2d42 !important;
+}
+
+/* Margin cards in Competência */
+html.dark .bg-card.border { background: #152030 !important; border-color: #1e2d42 !important; }
+
+/* Orcamento table */
+html.dark .orc-tbl th { background: #090f1a !important; border-color: #1e2d42 !important; color: rgba(255,255,255,.8) !important; }
+html.dark .orc-tbl td { border-color: #1e2d42 !important; color: #c4d4e4 !important; }
+html.dark .orc-tbl td:first-child { background: #152030 !important; color: #eef2f7 !important; }
+html.dark .orc-tbl tr:hover td { background: rgba(109,191,69,.04) !important; }
+html.dark .orc-tbl .r-sec td { background: #090f1a !important; color: #eef2f7 !important; }
+html.dark .orc-tbl .r-res td { background: rgba(109,191,69,.1) !important; color: #eef2f7 !important; }
+html.dark .orc-tbl .r-res td:first-child { background: rgba(109,191,69,.1) !important; }
+
+/* Scenario buttons */
+html.dark .scenario-btn {
+  background: #1a2d42 !important;
+  border-color: #2d4060 !important;
+  color: #c4d4e4 !important;
+}
+html.dark .scenario-btn.act {
+  background: #2563eb !important;
+  color: #fff !important;
+}
+html.dark .filter-btn-orc {
+  background: #1a2d42;
+  border-color: #2d4060;
+  color: #c4d4e4;
 }

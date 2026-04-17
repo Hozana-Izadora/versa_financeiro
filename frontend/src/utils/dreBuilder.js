@@ -58,7 +58,9 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const totLL = totMgOp - totDespNop;
 
   // Accumulated balance
-  let saldoAcum = saldosIniciais[year + '-base'] || 0;
+  // '-base' key stores the regime name (string), not a numeric balance.
+  // Use the opening balance from a dedicated key, or default to 0.
+  let saldoAcum = Number(saldosIniciais[`${year}-abertura`]) || 0;
   for (let m = 0; m < (visMonths[0] ?? 0); m++) {
     saldoAcum += sumMonth(tx, year, m, 'Entrada', null, groupFilter)
       - sumMonth(tx, year, m, 'Saída', null, groupFilter);

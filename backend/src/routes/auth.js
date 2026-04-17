@@ -59,8 +59,9 @@ router.post('/login', async (req, res, next) => {
     return res.status(400).json({ error: 'Email e senha são obrigatórios' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     // 1. Find user
     const userResult = await client.query(
       `SELECT id, email, password_hash, display_name, active
@@ -147,7 +148,7 @@ router.post('/login', async (req, res, next) => {
   } catch (err) {
     next(err);
   } finally {
-    client.release();
+    client?.release();
   }
 });
 
@@ -160,9 +161,9 @@ router.post('/refresh', async (req, res, next) => {
   }
 
   const tokenHash = hashRefreshToken(rawToken);
-  const dbClient = await pool.connect();
-
+  let dbClient;
   try {
+    dbClient = await pool.connect();
     // Find and validate the stored token
     const result = await dbClient.query(
       `SELECT rt.id, rt.user_id, rt.client_id, rt.expires_at
@@ -224,7 +225,7 @@ router.post('/refresh', async (req, res, next) => {
   } catch (err) {
     next(err);
   } finally {
-    dbClient.release();
+    dbClient?.release();
   }
 });
 

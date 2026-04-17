@@ -57,7 +57,7 @@ export default function Login() {
             className="font-inter font-black text-2xl tracking-tight inline-block"
             style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
           >
-            FinançasPro
+            Versa Finanças
           </div>
           <div className="text-[10px] uppercase tracking-[2px] text-text-3 mt-1">Dashboard Gerencial</div>
         </div>

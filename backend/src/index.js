@@ -94,7 +94,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`FinançasPro API running on http://localhost:${PORT}`);
+  console.log(`Versa Finanças API running on http://localhost:${PORT}`);
 });
 
 process.on('SIGTERM', async () => {
