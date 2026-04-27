@@ -12,12 +12,104 @@ const NAV_ITEMS = [
   { id: 'importar',    icon: 'upload_file',              label: 'Importar Dados',   section: 'Dados' },
 ];
 
+const S = {
+  sidebar: (collapsed, mobileOpen) => ({
+    position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
+    display: 'flex', flexDirection: 'column',
+    overflow: 'hidden',
+    background: 'linear-gradient(180deg, #0c1e33 0%, #0f2744 60%, #0a1b2e 100%)',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    transition: 'width 300ms ease, transform 300ms ease',
+    width: 220,
+  }),
+  logoArea: {
+    padding: '20px 18px 16px',
+    borderBottom: '1px solid rgba(255,255,255,0.07)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 68, flexShrink: 0,
+  },
+  logoIcon: {
+    width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+    background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  logoName: {
+    fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 15.5,
+    letterSpacing: '-0.3px', color: '#fff', whiteSpace: 'nowrap',
+  },
+  logoSub: {
+    fontSize: 8.5, letterSpacing: '1.8px', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.35)', marginTop: 1,
+  },
+  companyBadge: {
+    margin: '12px 14px 0',
+    borderRadius: 8,
+    padding: '9px 12px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    flexShrink: 0,
+  },
+  companyLabel: { fontSize: 8.5, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' },
+  companyName: { fontSize: 12, fontWeight: 600, color: '#fff', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  navScroll: { padding: '14px 10px', flex: 1, overflowY: 'auto', overflowX: 'hidden' },
+  sectionLabel: {
+    fontSize: 9, letterSpacing: '1.8px', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.30)', padding: '0 10px', marginBottom: 6, whiteSpace: 'nowrap',
+  },
+  navGroup: { marginBottom: 22 },
+  navBtn: (isActive) => ({
+    width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+    padding: '8.5px 10px', borderRadius: 8, marginBottom: 2,
+    cursor: 'pointer', border: 'none', textAlign: 'left',
+    fontSize: 12.5, fontWeight: isActive ? 600 : 500,
+    fontFamily: 'inherit', transition: 'all .15s',
+    background: isActive ? 'rgba(37,99,235,0.25)' : 'transparent',
+    color: isActive ? '#93c5fd' : 'rgba(255,255,255,0.58)',
+    boxShadow: isActive ? 'inset 0 0 0 1px rgba(37,99,235,0.40)' : 'none',
+  }),
+  badge: {
+    background: '#2563eb', color: '#fff', fontSize: 9,
+    padding: '1px 6px', borderRadius: 99, fontWeight: 700, marginLeft: 'auto',
+  },
+  baseSection: {
+    padding: '10px 18px 12px',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+    flexShrink: 0,
+  },
+  baseLabel: { fontSize: 8.5, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.30)', marginBottom: 7 },
+  pill: (green) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '2px 9px', borderRadius: 99,
+    fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+    background: green ? 'rgba(16,185,129,0.15)' : 'rgba(124,58,237,0.15)',
+    color: green ? '#6ee7b7' : '#c4b5fd',
+    border: `1px solid ${green ? 'rgba(16,185,129,0.25)' : 'rgba(124,58,237,0.25)'}`,
+  }),
+  userSection: {
+    padding: '10px 14px 12px',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+    display: 'flex', alignItems: 'center', gap: 10,
+    flexShrink: 0,
+  },
+  avatar: {
+    width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+    background: 'linear-gradient(135deg,#2563eb,#4f46e5)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 11, fontWeight: 800, color: '#fff',
+  },
+  userName: { fontSize: 12, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  userRole: { fontSize: 10, color: 'rgba(255,255,255,0.38)', marginTop: 1 },
+  iconBtn: {
+    background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6,
+    color: 'rgba(255,255,255,0.38)', display: 'flex', flexShrink: 0, transition: 'color .15s',
+  },
+};
+
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { state, actions } = useApp();
   const { user, logout } = useAuth();
   const { currentPage, transactions } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
-
   const sections = [...new Set(NAV_ITEMS.map(i => i.section))];
 
   const initials = user?.displayName
@@ -29,152 +121,153 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     setMobileOpen(false);
   };
 
+  const isCollapsed = collapsed;
+
   return (
-    <nav
-      className={`
-        bg-bg-2 dark:bg-[#152030] border-r border-slate-100 dark:border-[#1e2d42]
-        flex flex-col fixed top-0 left-0 bottom-0 z-[100]
-        transition-[width,transform] duration-300 overflow-hidden
-        w-[220px]
-        ${collapsed ? 'lg:w-[60px]' : 'lg:w-[220px]'}
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
-      `}
-    >
-      {/* Logo */}
-      <div className="px-[18px] py-[22px] pb-4 border-b border-slate-100 dark:border-[#1e2d42] flex items-center justify-between min-h-[72px]">
-        <div className={`flex items-center gap-2.5 overflow-hidden ${collapsed ? 'lg:hidden' : ''}`}>
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)' }}
-          >
-            <span className="text-white font-black text-[11px]">V</span>
-          </div>
-          <div>
-            <div
-              className="font-inter font-black text-base tracking-tight whitespace-nowrap"
-              style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
-            >
-              Versa Finanças
-            </div>
-            <div className="text-[9px] uppercase tracking-[2px] text-text-3 mt-0.5">Dashboard Gerencial</div>
-          </div>
-        </div>
-
-        {/* Collapsed desktop logo */}
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
         <div
-          className={`w-6 h-6 rounded-md items-center justify-center flex-shrink-0 flex-col
-            ${collapsed ? 'hidden lg:flex' : 'hidden'}`}
-          style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)' }}
-        >
-          <span className="text-white font-black text-[11px]">V</span>
-        </div>
-
-        {/* Mobile close button */}
-        <button
-          className="lg:hidden text-text-3 hover:text-text-base p-1 flex-shrink-0"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 90 }}
+          className="lg:hidden"
           onClick={() => setMobileOpen(false)}
-        >
-          <Icon name="close" size="text-[18px]" />
-        </button>
-      </div>
-
-      {/* Empresa badge */}
-      {user?.clientName && !collapsed && (
-        <div className={`mx-3.5 mt-3 rounded-lg px-3 py-2 border ${
-          'bg-slate-50 dark:bg-[rgba(255,255,255,0.05)] border-slate-100 dark:border-[rgba(255,255,255,0.08)]'
-        }`}>
-          <div className="text-[9px] uppercase tracking-[1px] text-text-3">Empresa</div>
-          <div className="text-[11.5px] font-semibold text-text-base dark:text-[#fff] mt-0.5 truncate">{user.clientName}</div>
-        </div>
+        />
       )}
 
-      {/* Nav */}
-      <div className="px-2.5 py-3.5 flex-1 overflow-y-auto overflow-x-hidden">
-        {sections.map(section => (
-          <div key={section} className="mb-5">
-            <div className={`text-[9px] uppercase tracking-[2px] text-text-3 px-2.5 mb-1.5 whitespace-nowrap ${collapsed ? 'lg:hidden' : ''}`}>
-              {section}
+      <nav
+        style={{
+          ...S.sidebar(isCollapsed, mobileOpen),
+          width: isCollapsed ? 60 : 220,
+          transform: mobileOpen ? 'translateX(0)' : undefined,
+        }}
+        className={!mobileOpen ? '-translate-x-full lg:translate-x-0' : ''}
+      >
+        {/* Logo */}
+        <div style={S.logoArea}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', ...(isCollapsed ? { display: 'none' } : {}) }}
+               className={isCollapsed ? 'lg:hidden' : ''}>
+            <div style={S.logoIcon}>
+              <Icon name="bar_chart" size="text-[16px]" style={{ color: '#fff' }} />
             </div>
-            {NAV_ITEMS.filter(i => i.section === section).map(item => {
-              const isActive = item.isDashboard
-                ? currentPage === 'caixa'
-                : currentPage === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNav(item.id)}
-                  title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-2 py-2 rounded-sm cursor-pointer text-xs font-medium transition-all mb-0.5 border text-left
-                    ${collapsed ? 'lg:justify-center lg:px-0' : 'px-2.5'}
-                    ${isActive
-                      ? 'bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-accent border-blue-200 dark:border-[rgba(37,99,235,0.3)]'
-                      : 'text-text-2 dark:text-[rgba(255,255,255,0.55)] border-transparent hover:bg-slate-50 dark:hover:bg-[rgba(255,255,255,0.04)] hover:text-text-base dark:hover:text-[rgba(255,255,255,0.85)]'
-                    }`}
-                >
-                  <Icon name={item.icon} size="text-[16px]" className="flex-shrink-0" />
-                  <span className={`flex-1 whitespace-nowrap ${collapsed ? 'lg:hidden' : ''}`}>
-                    {item.label}
-                  </span>
-                  {item.badge && txCount > 0 && (
-                    <span className={`bg-accent text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold ${collapsed ? 'lg:hidden' : ''}`}>
-                      {txCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            <div>
+              <div style={S.logoName}>Versa Finanças</div>
+              <div style={S.logoSub}>Dashboard Gerencial</div>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* Base indicator */}
-      <div className={`px-[18px] py-3 border-t border-slate-100 dark:border-[#1e2d42] ${collapsed ? 'lg:hidden' : ''}`}>
-        <div className="text-[9px] uppercase tracking-[1.5px] text-text-3 mb-1.5">Base ativa</div>
-        <div className="flex gap-1.5 flex-wrap">
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap" style={{ background: 'rgba(16,185,129,0.10)', color: '#10b981', borderColor: 'rgba(16,185,129,0.25)' }}>
-            Caixa ({transactions.caixa.length})
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap" style={{ background: 'rgba(124,58,237,0.10)', color: '#7c3aed', borderColor: 'rgba(124,58,237,0.25)' }}>
-            Comp. ({transactions.competencia.length})
-          </span>
-        </div>
-      </div>
+          {/* Collapsed icon */}
+          <div
+            style={{ ...S.logoIcon, ...(isCollapsed ? {} : { display: 'none' }) }}
+            className={isCollapsed ? 'hidden lg:flex' : 'hidden'}
+          >
+            <Icon name="bar_chart" size="text-[16px]" style={{ color: '#fff' }} />
+          </div>
 
-      {/* User + logout + collapse toggle */}
-      <div className={`px-[18px] py-3 border-t border-slate-100 dark:border-[#1e2d42] flex items-center gap-2.5 ${collapsed ? 'lg:flex-col lg:px-2 lg:gap-2' : ''}`}>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
-          style={{ background: 'linear-gradient(135deg,#2563eb,#4f46e5)' }}
-        >
-          {initials}
+          {/* Mobile close */}
+          <button
+            className="lg:hidden"
+            style={{ ...S.iconBtn, marginLeft: 'auto' }}
+            onClick={() => setMobileOpen(false)}
+          >
+            <Icon name="close" size="text-[18px]" />
+          </button>
         </div>
 
-        <div className={`flex-1 min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
-          <div className="text-[11px] font-semibold text-text-base dark:text-[#fff] truncate">
-            {user?.displayName || user?.email}
+        {/* Company badge */}
+        {user?.clientName && !isCollapsed && (
+          <div style={S.companyBadge} className={isCollapsed ? 'lg:hidden' : ''}>
+            <div style={S.companyLabel}>Empresa</div>
+            <div style={S.companyName}>{user.clientName}</div>
           </div>
-          <div className="text-[9px] text-text-3 truncate">
-            {user?.role === 'admin' ? 'Administrador' : user?.role === 'viewer' ? 'Visualizador' : 'Usuário'}
-          </div>
+        )}
+
+        {/* Nav */}
+        <div style={S.navScroll}>
+          {sections.map(section => (
+            <div key={section} style={S.navGroup}>
+              <div style={S.sectionLabel} className={isCollapsed ? 'lg:hidden' : ''}>{section}</div>
+              {NAV_ITEMS.filter(i => i.section === section).map(item => {
+                const isActive = item.isDashboard ? currentPage === 'caixa' : currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNav(item.id)}
+                    title={isCollapsed ? item.label : undefined}
+                    style={{
+                      ...S.navBtn(isActive),
+                      ...(isCollapsed ? { justifyContent: 'center', padding: '9px 0' } : {}),
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.58)'; } }}
+                  >
+                    <Icon name={item.icon} size="text-[17px]" style={{ flexShrink: 0, color: isActive ? '#93c5fd' : undefined }} />
+                    {!isCollapsed && (
+                      <>
+                        <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
+                        {item.badge && txCount > 0 && (
+                          <span style={S.badge}>{txCount}</span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
 
-        <button
-          onClick={logout}
-          title="Sair"
-          className="text-text-3 hover:text-fin-red transition-colors flex-shrink-0"
-        >
-          <Icon name="logout" size="text-[16px]" />
-        </button>
+        {/* Base indicator */}
+        {!isCollapsed && (
+          <div style={S.baseSection}>
+            <div style={S.baseLabel}>Base ativa</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <span style={S.pill(true)}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                Caixa ({transactions.caixa.length})
+              </span>
+              <span style={S.pill(false)}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#7c3aed', flexShrink: 0 }} />
+                Comp. ({transactions.competencia.length})
+              </span>
+            </div>
+          </div>
+        )}
 
-        {/* Desktop collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expandir' : 'Recolher'}
-          className="hidden lg:flex text-text-3 hover:text-text-base transition-colors flex-shrink-0"
-        >
-          <Icon name={collapsed ? 'chevron_right' : 'chevron_left'} size="text-[16px]" />
-        </button>
-      </div>
-    </nav>
+        {/* User footer */}
+        <div style={{ ...S.userSection, ...(isCollapsed ? { flexDirection: 'column', padding: '10px 6px 12px' } : {}) }}>
+          <div style={S.avatar}>{initials}</div>
+
+          {!isCollapsed && (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={S.userName}>{user?.displayName || user?.email}</div>
+              <div style={S.userRole}>
+                {user?.role === 'admin' ? 'Administrador' : user?.role === 'viewer' ? 'Visualizador' : 'Usuário'}
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={logout}
+            title="Sair"
+            style={S.iconBtn}
+            onMouseEnter={e => e.currentTarget.style.color = '#fca5a5'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.38)'}
+          >
+            <Icon name="logout" size="text-[16px]" />
+          </button>
+
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            title={isCollapsed ? 'Expandir' : 'Recolher'}
+            style={S.iconBtn}
+            className="hidden lg:flex"
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.38)'}
+          >
+            <Icon name={isCollapsed ? 'chevron_right' : 'chevron_left'} size="text-[16px]" />
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

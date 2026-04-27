@@ -11,6 +11,8 @@ services:
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -30,6 +32,17 @@ services:
     #   - SETUID
     #   - SETGID
 
+  # --- PgAdmin ───────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@email.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - internal
   # ── Migration runner ────────────────────────────────────────────────────────
   migrate:
     build:

@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
-import { MONTHS } from '../utils/formatters.js';
+import { MONTHS, fmt } from '../utils/formatters.js';
 import Icon from '../components/ui/Icon.jsx';
 
 const COLUMN_ALIASES = [
@@ -20,9 +20,347 @@ const TABS = [
   ['mapeamento', 'tune', 'Mapeamento'],
 ];
 
+// ── helpers for chave ────────────────────────────────────────────────────────
+function chaveLabel(chave) {
+  if (!chave) return '';
+  if (chave.endsWith('-abertura')) return `Abertura — ${chave.slice(0, 4)}`;
+  const m = chave.match(/^(\d{4})-(\d{2})$/);
+  if (m) return `${MONTHS[parseInt(m[2], 10) - 1]}/${m[1]}`;
+  return chave;
+}
+
+function chaveType(chave) {
+  return chave?.endsWith('-abertura') ? 'abertura' : 'mensal';
+}
+
+function buildChave(tipo, year, month) {
+  if (tipo === 'abertura') return `${year}-abertura`;
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtOp(op) {
+  if (op === 'INSERT') return { label: 'Adicionado', cls: 'text-emerald-600' };
+  if (op === 'UPDATE') return { label: 'Atualizado', cls: 'text-blue-600' };
+  if (op === 'DELETE') return { label: 'Removido',   cls: 'text-red-500' };
+  return { label: op, cls: 'text-text-3' };
+}
+
+// ── SaldosTab ────────────────────────────────────────────────────────────────
+function SaldosTab({ actions }) {
+  const [entries, setEntries]       = useState([]);
+  const [auditLog, setAuditLog]     = useState([]);
+  const [showLog, setShowLog]       = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [editRow, setEditRow]       = useState(null); // { chave, tipo, year, month, valor }
+  const [addForm, setAddForm]       = useState(null); // null | { tipo, year, month, valor }
+  const currentYear = new Date().getFullYear();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [e, l] = await Promise.all([api.getSaldosEntries(), api.getSaldosLog()]);
+      setEntries(e);
+      setAuditLog(l);
+    } catch (err) {
+      actions.notify('Erro ao carregar saldos: ' + err.message, 'ne');
+    } finally {
+      setLoading(false);
+    }
+  }, [actions]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openAdd() {
+    setAddForm({ tipo: 'abertura', year: currentYear, month: 1, valor: '' });
+    setEditRow(null);
+  }
+
+  function openEdit(entry) {
+    const tipo  = chaveType(entry.chave);
+    const year  = parseInt(entry.chave.slice(0, 4), 10);
+    const month = tipo === 'mensal' ? parseInt(entry.chave.slice(5), 10) : 1;
+    setEditRow({ oldChave: entry.chave, tipo, year, month, valor: String(entry.valor) });
+    setAddForm(null);
+  }
+
+  async function saveEntry(form, oldChave) {
+    const chave = buildChave(form.tipo, form.year, form.month);
+    const valor = parseFloat(form.valor) || 0;
+    try {
+      const updated = await api.upsertSaldoEntry({ chave, valor, oldChave: oldChave || chave });
+      setEntries(updated);
+      const [l] = await Promise.all([api.getSaldosLog()]);
+      setAuditLog(l);
+      await actions.refreshAll();
+      actions.notify('Saldo salvo com sucesso.', 'ns');
+      setEditRow(null);
+      setAddForm(null);
+    } catch (err) {
+      actions.notify('Erro: ' + err.message, 'ne');
+    }
+  }
+
+  async function deleteEntry(chave) {
+    if (!confirm(`Remover saldo "${chaveLabel(chave)}"?`)) return;
+    try {
+      const updated = await api.deleteSaldoEntry(chave);
+      setEntries(updated);
+      const l = await api.getSaldosLog();
+      setAuditLog(l);
+      await actions.refreshAll();
+      actions.notify('Saldo removido.', 'ni');
+    } catch (err) {
+      actions.notify('Erro: ' + err.message, 'ne');
+    }
+  }
+
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
+
+  function EntryForm({ form, setForm, onSave, onCancel, oldChave }) {
+    return (
+      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-4 mb-3">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Tipo</div>
+            <select
+              value={form.tipo}
+              onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="abertura">Saldo de Abertura</option>
+              <option value="mensal">Ajuste Mensal</option>
+            </select>
+          </div>
+          <div>
+            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Ano</div>
+            <select
+              value={form.year}
+              onChange={e => setForm(f => ({ ...f, year: parseInt(e.target.value) }))}
+              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {form.tipo === 'mensal' && (
+            <div>
+              <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Mês</div>
+              <select
+                value={form.month}
+                onChange={e => setForm(f => ({ ...f, month: parseInt(e.target.value) }))}
+                className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+            </div>
+          )}
+          <div>
+            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Valor (R$)</div>
+            <input
+              type="number" step="0.01"
+              value={form.valor}
+              onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+              placeholder="0,00"
+              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+              style={{ width: 140, fontFamily: 'Geist Mono, monospace' }}
+            />
+          </div>
+          <div className="flex gap-1.5 pb-0.5">
+            <button className="btn btn-green btn-sm" onClick={() => onSave(form, oldChave)}>
+              <Icon name="check" size="text-[13px]" /> Salvar
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="font-inter font-bold text-sm">Saldos Iniciais de Caixa</div>
+          <div className="text-[11px] text-text-3 mt-0.5">
+            Gerencie saldos de abertura e ajustes mensais para cálculo correto do acumulado
+          </div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={openAdd}>
+          <Icon name="add" size="text-[14px]" /> Adicionar
+        </button>
+      </div>
+
+      {/* Add form */}
+      {addForm && (
+        <EntryForm
+          form={addForm}
+          setForm={setAddForm}
+          onSave={(f) => saveEntry(f, null)}
+          onCancel={() => setAddForm(null)}
+          oldChave={null}
+        />
+      )}
+
+      {/* Entries table */}
+      <div className="panel mb-4">
+        <div className="panel-hdr">
+          <div className="font-inter font-semibold text-[13px]">Registros</div>
+          <span className="text-[11px] text-text-3">{entries.length} entrada{entries.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center text-text-3 text-sm">Carregando...</div>
+        ) : entries.length === 0 ? (
+          <div className="p-10 text-center text-text-3">
+            <Icon name="account_balance_wallet" size="text-[36px]" className="opacity-25 block mx-auto mb-3" />
+            <div className="font-inter text-[13px] text-text-2 mb-1">Nenhum saldo cadastrado</div>
+            <div className="text-[11px]">Clique em "Adicionar" para incluir o saldo de abertura.</div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-700">
+                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Tipo</th>
+                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Período</th>
+                  <th className="text-right px-4 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Valor</th>
+                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Atualizado por</th>
+                  <th className="text-left px-4 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Em</th>
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map(entry => (
+                  <React.Fragment key={entry.chave}>
+                    <tr className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          chaveType(entry.chave) === 'abertura'
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                        }`}>
+                          {chaveType(entry.chave) === 'abertura' ? 'Abertura' : 'Ajuste Mensal'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-text-base">{chaveLabel(entry.chave)}</td>
+                      <td className="px-4 py-3 text-right font-mono font-semibold" style={{ color: entry.valor >= 0 ? '#10b981' : '#ef4444' }}>
+                        {fmt(entry.valor)}
+                      </td>
+                      <td className="px-4 py-3 text-text-3">{entry.updatedBy || '—'}</td>
+                      <td className="px-4 py-3 text-text-3">{fmtDateTime(entry.updatedAt)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 justify-end">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ padding: '3px 8px' }}
+                            onClick={() => openEdit(entry)}
+                          >
+                            <Icon name="edit" size="text-[13px]" />
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm text-red-400 hover:text-red-600"
+                            style={{ padding: '3px 8px' }}
+                            onClick={() => deleteEntry(entry.chave)}
+                          >
+                            <Icon name="delete" size="text-[13px]" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {editRow?.oldChave === entry.chave && (
+                      <tr>
+                        <td colSpan={6} className="px-4 pb-2">
+                          <EntryForm
+                            form={editRow}
+                            setForm={setEditRow}
+                            onSave={(f) => saveEntry(f, editRow.oldChave)}
+                            onCancel={() => setEditRow(null)}
+                            oldChave={editRow.oldChave}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Audit log */}
+      <div className="panel">
+        <div
+          className="panel-hdr cursor-pointer select-none"
+          onClick={() => setShowLog(v => !v)}
+        >
+          <div>
+            <div className="font-inter font-semibold text-[13px]">Histórico de Alterações</div>
+            <div className="text-[10px] text-text-3 mt-0.5">{auditLog.length} registro{auditLog.length !== 1 ? 's' : ''}</div>
+          </div>
+          <Icon
+            name="expand_more"
+            size="text-[18px]"
+            className="text-text-3 transition-transform duration-200"
+            style={{ transform: showLog ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </div>
+
+        {showLog && (
+          auditLog.length === 0 ? (
+            <div className="p-6 text-center text-text-3 text-[12px]">Nenhuma alteração registrada ainda.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-700">
+                    <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Data/Hora</th>
+                    <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Período</th>
+                    <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Operação</th>
+                    <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Antes</th>
+                    <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Depois</th>
+                    <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Usuário</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLog.map(log => {
+                    const op = fmtOp(log.operacao);
+                    return (
+                      <tr key={log.id} className="border-b border-slate-50 dark:border-slate-800">
+                        <td className="px-4 py-2.5 text-text-3">{fmtDateTime(log.changed_at)}</td>
+                        <td className="px-4 py-2.5 font-medium text-text-base">{chaveLabel(log.chave)}</td>
+                        <td className={`px-4 py-2.5 font-semibold ${op.cls}`}>{op.label}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-text-3">
+                          {log.old_valor !== null ? fmt(Number(log.old_valor)) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-mono text-text-base">
+                          {log.new_valor !== null ? fmt(Number(log.new_valor)) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-text-3">{log.changed_by}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Importar() {
   const { state, actions } = useApp();
-  const { importHistory, saldosIniciais, filterState } = state;
+  const { importHistory, filterState } = state;
   const [activeTab, setActiveTab] = useState('upload');
   const [uploadBase, setUploadBase] = useState('caixa');
   const [dragging, setDragging] = useState(false);
@@ -54,22 +392,6 @@ export default function Importar() {
       await api.reset();
       await actions.refreshAll();
       actions.notify('Dados limpos.', 'ni');
-    } catch (e) {
-      actions.notify(e.message, 'ne');
-    }
-  }
-
-  async function saveSaldos() {
-    const base = parseFloat(document.getElementById('si-base')?.value || 0) || 0;
-    const monthValues = {};
-    MONTHS.forEach((_, i) => {
-      const k = `${filterState.year}-${String(i + 1).padStart(2, '0')}`;
-      monthValues[k] = parseFloat(document.getElementById(`si-${i}`)?.value || 0) || 0;
-    });
-    try {
-      const res = await api.updateSaldos({ year: filterState.year, base, monthValues });
-      actions.dispatch({ type: 'SET_SALDOS', payload: res });
-      actions.notify('Saldos salvos! Acumulado atualizado.', 'ns');
     } catch (e) {
       actions.notify(e.message, 'ne');
     }
@@ -167,60 +489,7 @@ export default function Importar() {
       )}
 
       {/* Saldos tab */}
-      {activeTab === 'saldos' && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="font-inter font-bold text-sm">Saldos Iniciais de Caixa</div>
-              <div className="text-[11px] text-text-3 mt-0.5">Para cálculo correto do saldo acumulado</div>
-            </div>
-            <button className="btn btn-green btn-sm" onClick={saveSaldos}><Icon name="check" size="text-[14px]" /> Salvar</button>
-          </div>
-
-          <div className="panel p-[18px_20px] mb-3.5">
-            <div className="font-inter font-semibold text-[13px] mb-2.5">Saldo Base do Ano — {filterState.year}</div>
-            <div className="flex items-center gap-2.5">
-              <label className="text-xs text-text-2">R$</label>
-              <input
-                type="number" id="si-base" step="0.01"
-                defaultValue={saldosIniciais[filterState.year + '-base'] || 0}
-                style={{ width: 200, fontFamily: 'Geist Mono, monospace', fontSize: 15, fontWeight: 600 }}
-              />
-              <span className="text-[11px] text-text-3">Saldo em caixa em 01/01/{filterState.year}</span>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px]">Ajustes Mensais — {filterState.year}</div>
-                <div className="text-[10px] text-text-3 mt-0.5">Opcional: ajuste manual por mês</div>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-                {MONTHS.map((m, i) => {
-                  const k = `${filterState.year}-${String(i + 1).padStart(2, '0')}`;
-                  return (
-                    <div key={i} className="bg-white border border-slate-100 rounded-sm px-3.5 py-3">
-                      <div className="text-[10px] text-text-3 mb-1.5">{m} {filterState.year}</div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] text-text-3">R$</span>
-                        <input
-                          type="number" id={`si-${i}`} step="0.01"
-                          defaultValue={saldosIniciais[k] || 0}
-                          className="flex-1"
-                          style={{ fontFamily: 'Geist Mono, monospace', fontSize: 13 }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'saldos' && <SaldosTab actions={actions} />}
 
       {/* Histórico tab */}
       {activeTab === 'historico' && (

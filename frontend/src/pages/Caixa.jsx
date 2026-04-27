@@ -62,6 +62,7 @@ export default function Caixa() {
   const { transactions, plano, saldosIniciais, filterState, darkMode } = state;
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
+  const [filterCat, setFilterCat] = useState('');
   const [modalChart, setModalChart] = useState(null);
 
   const tx = transactions.caixa;
@@ -94,6 +95,8 @@ export default function Caixa() {
 
   const dreComp = useMemo(() => buildDRE(filteredTxComp, plano, visMonths, 'competencia', filterState, saldosIniciais),
     [filteredTxComp, plano, visMonths, filterState, saldosIniciais]);
+
+  const catOptions = useMemo(() => [...new Set(plano.map(p => p.cat))].sort(), [plano]);
 
   const labels = visMonths.map(m => MONTHS[m]);
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
@@ -333,32 +336,43 @@ export default function Caixa() {
         </>
       ) : null}
 
-      {/* ── DFC Demonstrativo (shown in both tabs, full-width in Demonstrativo) ── */}
-      <div className="panel">
-        <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px]">
-              {subTab === 0 ? 'Demonstrativo de Fluxo de Caixa — Análise Horizontal' : 'Demonstrativo do Fluxo de Caixa Estruturado (DFCE)'}
+      {subTab === 1 && (
+        <div className="panel">
+          <div className="panel-hdr">
+            <div>
+              <div className="font-inter font-semibold text-[13px]">Demonstrativo do Fluxo de Caixa Estruturado (DFCE)</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Clique nos grupos para recolher · Clique nos itens para ver lançamentos</div>
             </div>
-            <div className="text-[10px] text-text-3 mt-0.5">Clique nas categorias para expandir · Clique nos itens para ver lançamentos</div>
+            <div className="flex gap-2 items-center flex-wrap justify-end">
+              <select
+                value={filterCat}
+                onChange={e => setFilterCat(e.target.value)}
+                className="text-[11px] border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+                style={{ minWidth: 160 }}
+              >
+                <option value="">Todas as categorias</option>
+                {catOptions.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <label className="text-[11px] text-text-3 flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" checked={showPct} onChange={e => setShowPct(e.target.checked)} />
+                Mostrar %
+              </label>
+              <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
+                <Icon name="download" size="text-[14px]" /> Exportar
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1.5 items-center">
-            <label className="text-[11px] text-text-3 flex items-center gap-1 cursor-pointer">
-              <input type="checkbox" checked={showPct} onChange={e => setShowPct(e.target.checked)} />
-              Mostrar %
-            </label>
-            <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
-              <Icon name="download" size="text-[14px]" /> Exportar
-            </button>
-          </div>
+          <DreTable
+            dre={dre}
+            showPct={showPct}
+            filterCat={filterCat || null}
+            onDrillItem={() => actions.setPage('lancamentos')}
+            onDrillGroup={() => actions.setPage('lancamentos')}
+          />
         </div>
-        <DreTable
-          dre={dre}
-          showPct={showPct}
-          onDrillItem={() => actions.setPage('lancamentos')}
-          onDrillGroup={() => actions.setPage('lancamentos')}
-        />
-      </div>
+      )}
     </div>
   );
 }

@@ -22,14 +22,6 @@ export default function Shell({ children }) {
 
   return (
     <div className="flex h-screen">
-      {/* Mobile backdrop */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-[90] lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}
