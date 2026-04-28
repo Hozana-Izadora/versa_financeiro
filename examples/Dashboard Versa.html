@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Versa — Dashboard Financeiro</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --black:#1C1C1C;--green:#6DBF45;--green2:#5aaa36;
+  --white:#FFFFFF;--gray-bg:#F4F6F8;--gray-1:#E8ECF0;--gray-2:#C8D0DA;
+  --gray-3:#8A96A3;--gray-4:#4A5568;--text:#1C2B3A;--red:#E53E3E;--blue:#2B6CB0;
+  --sidebar:220px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--gray-bg);color:var(--text);display:flex;height:100vh;overflow:hidden;}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar);background:var(--black);display:flex;flex-direction:column;flex-shrink:0;position:relative;overflow:hidden;}
+.sidebar::after{content:'';position:absolute;bottom:-60px;right:-60px;width:180px;height:180px;background:var(--green);opacity:.06;border-radius:50%;}
+.logo{padding:22px 18px 18px;border-bottom:1px solid rgba(255,255,255,.07);}
+.logo-mark{display:flex;align-items:center;gap:8px;}
+.logo-v{width:28px;height:28px;background:var(--green);clip-path:polygon(50% 100%,0% 0%,20% 0%,50% 60%,80% 0%,100% 0%);flex-shrink:0;}
+.logo-name{font-size:16px;font-weight:800;color:#fff;}
+.logo-sub{font-size:7px;font-weight:500;color:var(--green);letter-spacing:1.8px;text-transform:uppercase;margin-top:2px;}
+.empresa-badge{margin:10px 14px 0;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 11px;border:1px solid rgba(255,255,255,.08);}
+.empresa-label{font-size:9px;color:var(--gray-3);text-transform:uppercase;letter-spacing:1px;}
+.empresa-name{font-size:11.5px;font-weight:600;color:#fff;margin-top:2px;}
+nav{flex:1;padding:18px 0;}
+.nav-sec-lbl{font-size:9px;font-weight:600;color:var(--gray-3);text-transform:uppercase;letter-spacing:1.5px;padding:0 18px 7px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 18px;cursor:pointer;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.5);transition:all .2s;border-left:3px solid transparent;}
+.nav-item:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.04);}
+.nav-item.active{color:#fff;font-weight:600;background:rgba(109,191,69,.1);border-left-color:var(--green);}
+.nav-icon{font-size:14px;width:17px;text-align:center;}
+.sidebar-footer{padding:12px 18px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:9px;}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--black);}
+.user-name{font-size:11px;font-weight:600;color:#fff;}
+.user-role{font-size:10px;color:var(--gray-3);}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--white);border-bottom:1px solid var(--gray-1);padding:10px 22px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;}
+.topbar-title{font-size:13.5px;font-weight:700;color:var(--text);flex:1;}
+.topbar-title span{color:var(--green);}
+.filter-group{display:flex;gap:4px;}
+.filter-btn{padding:5px 11px;border-radius:6px;border:1px solid var(--gray-1);background:var(--white);font-size:11px;font-weight:500;color:var(--gray-4);cursor:pointer;font-family:inherit;transition:all .15s;}
+.filter-btn:hover{border-color:var(--green);color:var(--green);}
+.filter-btn.active{background:var(--green);color:#fff;border-color:var(--green);font-weight:600;}
+.filter-select{padding:5px 9px;border-radius:6px;border:1px solid var(--gray-1);background:var(--white);font-size:11px;color:var(--gray-4);font-family:inherit;cursor:pointer;outline:none;}
+.export-btn{padding:5px 13px;border-radius:6px;background:var(--black);color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;}
+.dm-btn{padding:5px 11px;border-radius:6px;border:1px solid var(--gray-1);background:var(--white);font-size:11px;font-weight:600;color:var(--gray-4);cursor:pointer;font-family:inherit;white-space:nowrap;}
+.saldo-wrap{display:flex;align-items:center;gap:6px;background:var(--gray-bg);border:1px solid var(--gray-1);border-radius:7px;padding:4px 10px;}
+.saldo-wrap label{font-size:9px;color:var(--gray-3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;}
+.saldo-input{background:transparent;border:none;color:var(--text);font-family:inherit;font-size:12.5px;font-weight:700;width:96px;text-align:right;outline:none;}
+
+/* ── SUBTABS ── */
+.subtab-bar{display:flex;background:var(--white);border-bottom:1px solid var(--gray-1);flex-shrink:0;padding:0 22px;}
+.subtab-btn{padding:9px 16px;font-size:11.5px;font-weight:600;color:var(--gray-3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;}
+.subtab-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* ── CONTENT ── */
+.content{flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:13px;}
+.tab-pane{display:none;flex-direction:column;gap:13px;}
+.tab-pane.active{display:flex;}
+.sub-pane{display:none;flex-direction:column;gap:13px;}
+.sub-pane.active{display:flex;flex-direction:column;flex:1;}
+
+/* ── KPI ── */
+.kpi-row{display:flex;gap:10px;flex-wrap:wrap;}
+.kpi-card{background:var(--white);border-radius:10px;border:1px solid var(--gray-1);padding:13px 15px;flex:1;min-width:120px;position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--green);}
+.kpi-card.red::before{background:var(--red);}
+.kpi-card.neu::before{background:var(--gray-2);}
+.kpi-card.blue::before{background:var(--blue);}
+.kpi-label{font-size:9px;font-weight:600;color:var(--gray-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px;}
+.kpi-value{font-size:18px;font-weight:800;color:var(--text);line-height:1;}
+.kpi-delta{font-size:9.5px;font-weight:600;margin-top:4px;}
+.kpi-delta.up{color:var(--green2);}
+.kpi-delta.down{color:var(--red);}
+.kpi-delta.neut{color:var(--gray-3);}
+
+/* ── CARDS ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.card{background:var(--white);border-radius:10px;border:1px solid var(--gray-1);overflow:hidden;}
+.card-hd{padding:11px 15px;border-bottom:1px solid var(--gray-1);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px;}
+.card-title{font-size:11.5px;font-weight:700;color:var(--text);}
+.badge{font-size:9.5px;font-weight:600;background:rgba(109,191,69,.12);color:var(--green2);padding:2px 7px;border-radius:20px;}
+.card-bd{padding:13px 15px;}
+.ch{position:relative;height:185px;cursor:zoom-in;}
+.legend{display:flex;gap:10px;align-items:center;}
+.ldot{width:8px;height:8px;border-radius:2px;}
+.llbl{font-size:9.5px;color:var(--gray-4);}
+.exp-demo-btn{display:flex;align-items:center;gap:5px;padding:5px 13px;border-radius:6px;background:var(--green);color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow:auto;flex:1;}
+.tbl-wrap-demo{overflow:auto;} /* demonstrativos — altura livre */
+table{width:100%;border-collapse:collapse;font-size:11px;}
+thead th{background:var(--black);color:rgba(255,255,255,.8);padding:8px 11px;text-align:right;font-size:9px;text-transform:uppercase;letter-spacing:.7px;font-weight:700;position:sticky;top:0;z-index:2;white-space:nowrap;}
+thead th:first-child{text-align:left;min-width:250px;position:sticky;left:0;background:var(--black);z-index:3;}
+tbody td{padding:7px 11px;border-bottom:1px solid var(--gray-1);text-align:right;color:var(--gray-4);white-space:nowrap;}
+tbody td:first-child{text-align:left;position:sticky;left:0;background:var(--white);z-index:1;}
+tbody tr:hover td{background:rgba(109,191,69,.04);}
+tbody tr:hover td:first-child{background:rgba(109,191,69,.06);}
+tr.r-sec td{background:#1C2B3A!important;color:#fff!important;font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;padding:7px 11px!important;}
+tr.r-sec td:first-child{background:#1C2B3A!important;}
+tr.r-grp td{background:var(--gray-bg)!important;font-weight:700;color:var(--text)!important;}
+tr.r-grp td:first-child{background:var(--gray-bg)!important;}
+tr.r-det{display:none;}
+tr.r-det.open{display:table-row;}
+tr.r-det td{color:var(--gray-3);font-size:10.5px;}
+tr.r-det td:first-child{padding-left:36px;}
+tr.r-det2{display:none;}
+tr.r-det2.open{display:table-row;}
+tr.r-det2 td{color:var(--gray-3);font-size:10px;}
+tr.r-res td{font-weight:800;background:rgba(109,191,69,.07)!important;border-top:2px solid rgba(109,191,69,.2)!important;color:var(--text)!important;font-size:11.5px;}
+tr.r-res td:first-child{background:rgba(109,191,69,.07)!important;}
+.tog{cursor:pointer;user-select:none;display:flex;align-items:center;gap:5px;}
+.tog::before{content:'▶';font-size:8px;color:var(--green);transition:transform .2s;display:inline-block;}
+.tog.open::before{transform:rotate(90deg);}
+.pos{color:var(--green2);font-weight:600;}
+.nv{color:var(--red);font-weight:600;}
+
+/* ── PIZZA ── */
+.pizza-wrap{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:center;}
+.pz-item{display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-1);}
+.pz-item:last-child{border-bottom:none;}
+.pz-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0;margin-right:6px;}
+.pz-name{flex:1;font-size:11px;font-weight:500;color:var(--text);}
+.pz-val{font-size:11px;font-weight:700;color:var(--text);}
+.pz-pct{font-size:9.5px;color:var(--gray-3);margin-left:7px;}
+
+/* ── PLANO DE CONTAS ── */
+.pg{border:1px solid var(--gray-1);border-radius:8px;overflow:hidden;margin-bottom:8px;}
+.pg-hd{background:var(--black);color:#fff;padding:9px 13px;font-size:10.5px;font-weight:700;display:flex;align-items:center;gap:7px;}
+.pg-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.p-row{display:grid;grid-template-columns:56px 1fr 74px 96px;gap:9px;align-items:center;padding:7px 13px;border-bottom:1px solid var(--gray-1);font-size:11px;}
+.p-row:last-child{border-bottom:none;}
+.p-row:hover{background:rgba(109,191,69,.04);}
+.p-row.sub{padding-left:26px;background:rgba(248,250,252,.6);}
+.p-code{font-weight:700;color:var(--green2);font-size:10px;}
+.p-name{font-weight:500;color:var(--text);}
+.p-type{font-size:9px;font-weight:600;padding:2px 6px;border-radius:20px;text-align:center;}
+.p-type.rec{background:rgba(109,191,69,.12);color:var(--green2);}
+.p-type.des{background:rgba(229,62,62,.1);color:var(--red);}
+.p-type.ded{background:rgba(43,108,176,.1);color:var(--blue);}
+.p-nat{font-size:9.5px;color:var(--gray-3);}
+.p-hdr{display:grid;grid-template-columns:56px 1fr 74px 96px;gap:9px;padding:5px 13px;background:var(--gray-bg);font-size:9px;font-weight:700;color:var(--gray-3);text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--gray-1);}
+
+/* ── MODAL ── */
+.chart-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.chart-modal.open{display:flex;}
+.chart-modal-inner{background:var(--white);border-radius:14px;padding:24px;width:88vw;max-width:1100px;height:76vh;display:flex;flex-direction:column;gap:14px;position:relative;}
+.chart-modal-title{font-size:14px;font-weight:700;color:var(--text);}
+.chart-modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-3);line-height:1;}
+.chart-modal-close:hover{color:var(--text);}
+.chart-modal-canvas{flex:1;position:relative;}
+
+/* ── DARK MODE ── */
+body.dark{--gray-bg:#0f1623;--gray-1:#1e2d42;--gray-2:#2d4060;--gray-3:#8aa3be;--gray-4:#c4d4e4;--text:#eef2f7;--white:#152030;}
+body.dark .sidebar{background:#090f1a;}
+body.dark .topbar,body.dark .subtab-bar{background:#152030;border-color:#1e2d42;}
+body.dark .topbar-title,body.dark .card-title,body.dark .kpi-value{color:#eef2f7;}
+body.dark .kpi-label{color:#8aa3be;}
+body.dark .card{background:#152030;border-color:#1e2d42;}
+body.dark .kpi-card{background:#152030;border-color:#1e2d42;}
+body.dark thead th{background:#090f1a;color:rgba(255,255,255,.85);}
+body.dark tbody td{color:#c4d4e4;border-color:#1e2d42;}
+body.dark tbody td:first-child{background:#152030;color:#eef2f7;}
+body.dark tr.r-sec td{background:#090f1a!important;color:#eef2f7!important;}
+body.dark tr.r-sec td:first-child{background:#090f1a!important;}
+body.dark tr.r-grp td{background:#1a2d42!important;color:#eef2f7!important;}
+body.dark tr.r-grp td:first-child{background:#1a2d42!important;color:#eef2f7!important;}
+body.dark tr.r-det td{color:#a0b8cc!important;}
+body.dark tr.r-det td:first-child{background:#152030!important;color:#a0b8cc!important;}
+body.dark tr.r-res td{background:rgba(109,191,69,.12)!important;color:#eef2f7!important;}
+body.dark tr.r-res td:first-child{background:rgba(109,191,69,.12)!important;}
+body.dark tbody tr:hover td{background:rgba(109,191,69,.07);}
+body.dark tbody tr:hover td:first-child{background:rgba(109,191,69,.1);}
+body.dark .saldo-wrap{background:#1a2d42;border-color:#1e2d42;}
+body.dark .saldo-wrap label{color:#8aa3be;}
+body.dark .saldo-input{color:#eef2f7;}
+body.dark .filter-btn{background:#152030;border-color:#1e2d42;color:#c4d4e4;}
+body.dark .filter-select{background:#152030;border-color:#1e2d42;color:#c4d4e4;}
+body.dark .dm-btn{background:#152030;border-color:#1e2d42;color:#c4d4e4;}
+body.dark .empresa-badge{background:rgba(255,255,255,.05);}
+body.dark .pg{border-color:#1e2d42;}
+body.dark .p-name{color:#eef2f7;}
+body.dark .p-nat{color:#8aa3be;}
+body.dark .p-row:hover{background:rgba(109,191,69,.07);}
+body.dark .p-row.sub{background:rgba(15,22,35,.6);}
+body.dark .p-hdr{background:#1a2d42;color:#8aa3be;}
+body.dark .pz-name,body.dark .pz-val,body.dark #pzTitle{color:#eef2f7;}
+body.dark .pz-item{border-color:#1e2d42;}
+body.dark .chart-modal-inner{background:#152030;}
+body.dark .chart-modal-title{color:#eef2f7;}
+body.dark .llbl{color:#c4d4e4;}
+
+/* multi-month dropdown */
+.month-picker-wrap{position:relative;}
+.month-picker-btn{padding:5px 9px;border-radius:6px;border:1px solid var(--gray-1);background:var(--white);font-size:11px;color:var(--gray-4);font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.month-picker-dropdown{display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--white);border:1px solid var(--gray-1);border-radius:8px;padding:8px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:200px;}
+.month-picker-dropdown.open{display:block;}
+body.dark .month-picker-dropdown{background:#152030;border-color:#1e2d42;}
+.month-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
+.month-chip{padding:5px 4px;border-radius:5px;border:1px solid var(--gray-1);font-size:10.5px;font-weight:500;color:var(--gray-4);cursor:pointer;text-align:center;background:transparent;font-family:inherit;transition:all .12s;}
+.month-chip:hover{border-color:var(--green);color:var(--green);}
+.month-chip.sel{background:var(--green);color:#fff;border-color:var(--green);font-weight:700;}
+/* chart datalabels via plugin-free inline */
+.chart-label-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+.content::-webkit-scrollbar{width:5px;}
+.content::-webkit-scrollbar-thumb{background:var(--gray-2);border-radius:10px;}
+.tbl-wrap::-webkit-scrollbar{width:4px;height:4px;}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--gray-2);border-radius:10px;}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">
+      <div class="logo-v"></div>
+      <div style="display:flex;flex-direction:column;line-height:1;">
+        <span class="logo-name">VERSA</span>
+        <span class="logo-sub">Assessoria Financeira</span>
+      </div>
+    </div>
+    <div class="empresa-badge">
+      <div class="empresa-label">Empresa</div>
+      <div class="empresa-name">Grupo Exemplo Ltda.</div>
+    </div>
+  </div>
+  <nav>
+    <div class="nav-sec-lbl" style="margin-bottom:4px;">Dashboard</div>
+    <div class="nav-item active" onclick="goMain('caixa',this)"><span class="nav-icon">💰</span> Caixa</div>
+    <div class="nav-item" onclick="goMain('competencia',this)"><span class="nav-icon">📊</span> Competência</div>
+    <div class="nav-item" onclick="goMain('orcamento',this)"><span class="nav-icon">🎯</span> Orçamento</div>
+    <div style="height:12px;"></div>
+    <div class="nav-sec-lbl">Configurações</div>
+    <div class="nav-item" onclick="goMain('plano',this)"><span class="nav-icon">📋</span> Plano de Contas</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="avatar">V</div>
+    <div style="flex:1;"><div class="user-name">Equipe Versa</div><div class="user-role">Administrador</div></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="ttl">Dashboard de <span>Caixa</span></div>
+    <div class="filter-group">
+      <button class="filter-btn active" onclick="setF(this)">Mês</button>
+      <button class="filter-btn" onclick="setF(this)">Trim.</button>
+      <button class="filter-btn" onclick="setF(this)">Sem.</button>
+      <button class="filter-btn" onclick="setF(this)">Ano</button>
+    </div>
+    <select class="filter-select"><option>Todas as Filiais</option><option>Matriz</option><option>Filial SP</option></select>
+    <span style="font-size:9px;color:var(--gray-3);white-space:nowrap;padding:0 2px;">📅 3 meses realizados</span>
+    <!-- Multi-month picker -->
+    <div class="month-picker-wrap" id="monthPickerWrap">
+      <button class="month-picker-btn" onclick="toggleMonthPicker()">
+        <span id="monthPickerLabel">Mar 2026</span> ▾
+      </button>
+      <div class="month-picker-dropdown" id="monthPickerDropdown">
+        <div style="font-size:9px;font-weight:700;color:var(--gray-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;">2026 — selecione um ou mais meses</div>
+        <div class="month-grid" id="monthGrid"></div>
+        <div style="margin-top:8px;display:flex;justify-content:flex-end;">
+          <button onclick="applyMonths()" style="padding:4px 12px;background:var(--green);color:#fff;border:none;border-radius:5px;font-size:10.5px;font-weight:600;cursor:pointer;font-family:inherit;">Aplicar</button>
+        </div>
+      </div>
+    </div>
+    <div class="saldo-wrap" id="saldoWrap">
+      <label>Saldo Inicial R$</label>
+      <input class="saldo-input" id="saldoInput" type="text" value="84.000"/>
+      <label style="margin-left:6px;border-left:1px solid var(--gray-2);padding-left:8px;">em</label>
+      <input type="date" id="saldoDate" value="2026-03-01" style="background:transparent;border:none;color:var(--text);font-family:inherit;font-size:10.5px;font-weight:600;outline:none;cursor:pointer;"/>
+    </div>
+    <button class="dm-btn" id="dmBtn" onclick="toggleDark()">🌙 Escuro</button>
+    <button class="export-btn">⬇ Exportar PDF</button>
+  </div>
+
+  <div class="subtab-bar" id="stBar">
+    <button class="subtab-btn active" id="stB0" onclick="goSub(0)">Visão Geral</button>
+    <button class="subtab-btn" id="stB1" onclick="goSub(1)">Demonstrativo</button>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ CAIXA ══ -->
+    <div class="tab-pane active" id="tab-caixa">
+      <div class="sub-pane active" id="cx0">
+        <div class="kpi-row">
+          <div class="kpi-card neu"><div class="kpi-label">Saldo Inicial</div><div class="kpi-value" id="kpiSaldoIni">R$ 84K</div><div class="kpi-delta neut">01/03/2026</div></div>
+          <div class="kpi-card"><div class="kpi-label">Receita Líquida</div><div class="kpi-value">R$ 261K</div><div class="kpi-delta up">▲ 4,8% vs mês ant.</div></div>
+          <div class="kpi-card red"><div class="kpi-label" style="font-size:8.5px">(–) Gastos Operacionais</div><div class="kpi-value" style="color:var(--red)">R$ 210K</div><div class="kpi-delta neut">80,5% da Rec. Líq.</div></div>
+          <div class="kpi-card"><div class="kpi-label" style="font-size:8.5px">= Resultado Operacional</div><div class="kpi-value">R$ 51K <span style="font-size:11px;color:var(--gray-3)">19,5%</span></div><div class="kpi-delta up">▲ 1,1pp vs mês ant.</div></div>
+          <div class="kpi-card neu"><div class="kpi-label" style="font-size:8.5px">(±) Res. Não Operacional</div><div class="kpi-value" style="color:var(--red)">– R$ 9,7K</div><div class="kpi-delta neut">Desp. financeiras líq.</div></div>
+          <div class="kpi-card"><div class="kpi-label" style="font-size:8.5px">= Resultado Líquido</div><div class="kpi-value">R$ 41K <span style="font-size:11px;color:var(--gray-3)">15,8%</span></div><div class="kpi-delta down">▼ 0,4pp</div></div>
+          <div class="kpi-card blue"><div class="kpi-label">Saldo Final</div><div class="kpi-value" id="kpiSaldoFin">R$ 125K</div><div class="kpi-delta up">▲ 48,8% vs ini.</div></div>
+        </div>
+        <div class="g2">
+          <div class="card"><div class="card-hd"><div class="card-title">Resultado Operacional — mês a mês</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cCxResOp"></canvas></div></div></div>
+          <div class="card"><div class="card-hd"><div class="card-title">Resultado Líquido — mês a mês</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cCxResLiq"></canvas></div></div></div>
+        </div>
+        <div class="g2">
+          <div class="card"><div class="card-hd"><div class="card-title">Saldo Acumulado — mês a mês</div><div class="badge">a partir do saldo inicial</div></div><div class="card-bd"><div class="ch"><canvas id="cSaldoAcum"></canvas></div></div></div>
+          <div class="card"><div class="card-hd"><div class="card-title">Entradas vs Saídas</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cEntSai"></canvas></div></div></div>
+        </div>
+        <div class="card"><div class="card-hd"><div class="card-title">Ciclo Financeiro — PMR, PMP e Ciclo de Caixa</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch" style="height:220px;"><canvas id="cCiclo"></canvas></div></div></div>
+        <div class="card"><div class="card-hd"><div class="card-title">Margem Operacional — Caixa vs Competência</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch" style="height:220px;"><canvas id="cMargComp"></canvas></div></div></div>
+      </div>
+      <div class="sub-pane" id="cx1">
+        <div class="card" style="flex:1;display:flex;flex-direction:column;">
+          <div class="card-hd">
+            <div class="card-title">Demonstrativo do Fluxo de Caixa Estruturado — Março 2026</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9.5px;color:var(--gray-3)">▶ expandir por categoria / fornecedor</span>
+              <div class="badge">DFCE</div>
+              <button class="exp-demo-btn" onclick="exportTable('dfceB','DFCE_Marco_2026')">⬇ Exportar</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" style="flex:1;"><table><thead><tr><th>Categoria / Descrição</th><th>Realizado R$</th><th>% Rec. Líq.</th><th>Mês Anterior</th><th>Variação</th></tr></thead><tbody id="dfceB"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><div class="card-title">Saldo Acumulado — visão do demonstrativo</div><div class="badge">meses selecionados</div></div>
+          <div class="card-bd"><div class="ch" style="height:160px;"><canvas id="cSaldoAcumDemo"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ COMPETÊNCIA ══ -->
+    <div class="tab-pane" id="tab-competencia">
+      <div class="sub-pane active" id="comp0">
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label">Receita Líquida</div><div class="kpi-value">R$ 278K</div><div class="kpi-delta up">▲ 6,1% vs mês ant.</div></div>
+          <div class="kpi-card"><div class="kpi-label">Margem Bruta</div><div class="kpi-value">48,2%</div><div class="kpi-delta down">▼ 1,3pp vs meta</div></div>
+          <div class="kpi-card red"><div class="kpi-label" style="font-size:8.5px">(–) Gastos Operacionais</div><div class="kpi-value" style="color:var(--red)">R$ 215K</div><div class="kpi-delta neut">77,3% da Rec. Líq.</div></div>
+          <div class="kpi-card"><div class="kpi-label" style="font-size:8.5px">= Resultado Operacional</div><div class="kpi-value">R$ 63K <span style="font-size:11px;color:var(--gray-3)">22,6%</span></div><div class="kpi-delta up">▲ 0,8pp vs meta</div></div>
+          <div class="kpi-card neu"><div class="kpi-label" style="font-size:8.5px">(±) Res. Não Operacional</div><div class="kpi-value" style="color:var(--red)">– R$ 12,7K</div><div class="kpi-delta neut">Resultado financeiro</div></div>
+          <div class="kpi-card"><div class="kpi-label" style="font-size:8.5px">= Resultado Líquido</div><div class="kpi-value">R$ 50,3K <span style="font-size:11px;color:var(--gray-3)">18,1%</span></div><div class="kpi-delta neut">— igual à meta</div></div>
+        </div>
+        <div class="g2">
+          <div class="card"><div class="card-hd"><div class="card-title">Resultado Operacional — mês a mês</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cCompResOp"></canvas></div></div></div>
+          <div class="card"><div class="card-hd"><div class="card-title">Resultado Líquido — mês a mês</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cCompResLiq"></canvas></div></div></div>
+        </div>
+        <div class="card"><div class="card-hd"><div class="card-title">Evolução das Margens</div><div class="badge">últimos 6 meses</div></div><div class="card-bd"><div class="ch"><canvas id="cMargens"></canvas></div></div></div>
+        <div class="card">
+          <div class="card-hd"><div class="card-title">Composição das Despesas Operacionais</div><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:9.5px;color:var(--gray-3)">Clique numa fatia para detalhar</span><button onclick="openPizzaModal()" style="background:none;border:1px solid var(--gray-1);border-radius:6px;padding:3px 9px;font-size:11px;color:var(--gray-4);cursor:pointer;font-family:inherit;">⤢ Expandir</button></div></div>
+          <div class="card-bd">
+            <div class="pizza-wrap">
+              <div style="position:relative;height:210px;"><canvas id="cPizza"></canvas></div>
+              <div><div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px;" id="pzTitle">Total: R$ 215.000</div><div id="pzDetail"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub-pane" id="comp1">
+        <div class="card" style="flex:1;display:flex;flex-direction:column;">
+          <div class="card-hd">
+            <div class="card-title">DRE Gerencial — Março 2026</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:9.5px;color:var(--gray-3)">▶ expandir por categoria / fornecedor</span>
+              <div class="badge">DRE</div>
+              <button class="exp-demo-btn" onclick="exportTable('dreB','DRE_Marco_2026')">⬇ Exportar</button>
+            </div>
+          </div>
+          <div class="tbl-wrap" style="flex:1;"><table><thead><tr><th>Conta / Categoria</th><th>Realizado R$</th><th>Orçado R$</th><th>Variação R$</th><th>Variação %</th></tr></thead><tbody id="dreB"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ ORÇAMENTO ══ -->
+    <div class="tab-pane" id="tab-orcamento">
+
+      <!-- KPIs em pares meta/realizado -->
+      <div class="kpi-row">
+        <div class="kpi-card" style="min-width:170px;">
+          <div class="kpi-label">Receita Bruta</div>
+          <div style="display:flex;gap:12px;margin-top:4px;">
+            <div><div style="font-size:8.5px;color:var(--gray-3);margin-bottom:2px;">META</div><div style="font-size:15px;font-weight:700;color:var(--gray-4)">R$ 300K</div></div>
+            <div><div style="font-size:8.5px;color:var(--green2);margin-bottom:2px;">REALIZADO</div><div style="font-size:15px;font-weight:800;color:var(--text)">R$ 312K</div></div>
+          </div>
+          <div class="kpi-delta up" style="margin-top:4px;">▲ +4,0% vs meta</div>
+        </div>
+        <div class="kpi-card red" style="min-width:170px;">
+          <div class="kpi-label">Desp. Operacionais</div>
+          <div style="display:flex;gap:12px;margin-top:4px;">
+            <div><div style="font-size:8.5px;color:var(--gray-3);margin-bottom:2px;">META</div><div style="font-size:15px;font-weight:700;color:var(--gray-4)">R$ 181K</div></div>
+            <div><div style="font-size:8.5px;color:var(--red);margin-bottom:2px;">REALIZADO</div><div style="font-size:15px;font-weight:800;color:var(--text)">R$ 189K</div></div>
+          </div>
+          <div class="kpi-delta down" style="margin-top:4px;">▼ +4,4% acima da meta</div>
+        </div>
+        <div class="kpi-card" style="min-width:160px;">
+          <div class="kpi-label">Margem Operacional</div>
+          <div style="display:flex;gap:12px;margin-top:4px;">
+            <div><div style="font-size:8.5px;color:var(--gray-3);margin-bottom:2px;">META</div><div style="font-size:15px;font-weight:700;color:var(--gray-4)">20,3%</div></div>
+            <div><div style="font-size:8.5px;color:var(--green2);margin-bottom:2px;">REALIZADO</div><div style="font-size:15px;font-weight:800;color:var(--text)">22,6%</div></div>
+          </div>
+          <div class="kpi-delta up" style="margin-top:4px;">▲ +2,3pp vs meta</div>
+        </div>
+        <div class="kpi-card red" style="min-width:160px;">
+          <div class="kpi-label">Gastos Não Operacionais</div>
+          <div style="display:flex;gap:12px;margin-top:4px;">
+            <div><div style="font-size:8.5px;color:var(--gray-3);margin-bottom:2px;">META</div><div style="font-size:15px;font-weight:700;color:var(--gray-4)">R$ 12K</div></div>
+            <div><div style="font-size:8.5px;color:var(--red);margin-bottom:2px;">REALIZADO</div><div style="font-size:15px;font-weight:800;color:var(--text)">R$ 12,7K</div></div>
+          </div>
+          <div class="kpi-delta down" style="margin-top:4px;">▼ +5,8% acima da meta</div>
+        </div>
+        <div class="kpi-card" style="min-width:160px;">
+          <div class="kpi-label">Resultado Líquido</div>
+          <div style="display:flex;gap:12px;margin-top:4px;">
+            <div><div style="font-size:8.5px;color:var(--gray-3);margin-bottom:2px;">META</div><div style="font-size:15px;font-weight:700;color:var(--gray-4)">R$ 49K</div></div>
+            <div><div style="font-size:8.5px;color:var(--green2);margin-bottom:2px;">REALIZADO</div><div style="font-size:15px;font-weight:800;color:var(--text)">R$ 50,3K</div></div>
+          </div>
+          <div class="kpi-delta up" style="margin-top:4px;">▲ +2,7% vs meta</div>
+        </div>
+      </div>
+
+      <!-- Seletor de cenários -->
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:11px;font-weight:600;color:var(--gray-4);">Cenário de Receita:</span>
+        <div id="scenarioBtns" style="display:flex;gap:6px;">
+          <button class="filter-btn" onclick="setScenario(0,this)" style="border-color:var(--red);color:var(--red)">📉 Pessimista</button>
+          <button class="filter-btn active" onclick="setScenario(1,this)" style="">📊 Moderado</button>
+          <button class="filter-btn" onclick="setScenario(2,this)" style="border-color:var(--green);color:var(--green2)">📈 Otimista</button>
+          <button class="filter-btn" onclick="setScenario(3,this)" style="border-color:var(--blue);color:var(--blue)">🚀 Muito Otimista</button>
+        </div>
+        <span id="scenarioLabel" style="font-size:10px;color:var(--gray-3);font-style:italic;">Projeção do faturamento realizado + previsto para os meses restantes</span>
+      </div>
+
+      <div class="g2">
+        <!-- Receita Bruta com anotação de total projetado -->
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">Receita Bruta — Realizado vs Orçado</div>
+            <div id="orcTotalBadge" style="font-size:10px;font-weight:700;background:rgba(109,191,69,.12);color:var(--green2);padding:3px 10px;border-radius:20px;white-space:nowrap;">Total proj.: R$ 3.718K</div>
+          </div>
+          <div class="card-bd"><div class="ch" style="height:190px;"><canvas id="cOrcAnual"></canvas></div></div>
+        </div>
+        <!-- Projeção de Gastos por Categoria (drill-down) -->
+        <div class="card">
+          <div class="card-hd" style="flex-wrap:wrap;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;">
+              <div class="card-title">Gastos por Categoria — Meta vs Realizado</div>
+              <div id="gastoBreadcrumb" style="font-size:10px;color:var(--gray-3);display:none;">
+                <span style="cursor:pointer;color:var(--blue);text-decoration:underline;" onclick="gastoDrillUp()">← Voltar</span>
+                <span id="gastoLevel" style="margin-left:4px;"></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:9.5px;color:var(--gray-3)">Clique numa barra para detalhar</span>
+              <div class="legend">
+                <div style="display:flex;align-items:center;gap:4px"><div class="ldot" style="background:var(--gray-2)"></div><span class="llbl">Meta</span></div>
+                <div style="display:flex;align-items:center;gap:4px"><div class="ldot" style="background:var(--green)"></div><span class="llbl">Realizado</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="card-bd"><div class="ch" style="height:220px;cursor:pointer;"><canvas id="cOrcGastos"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- Resultado Líquido expandido com seletor de métrica -->
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">Evolução — Meta vs Realizado</div>
+          <div id="metricBtns" style="display:flex;gap:5px;">
+            <button class="filter-btn active" onclick="setMetric(0,this)">Res. Líquido</button>
+            <button class="filter-btn" onclick="setMetric(1,this)">Margem Bruta</button>
+            <button class="filter-btn" onclick="setMetric(2,this)">Margem Op.</button>
+            <button class="filter-btn" onclick="setMetric(3,this)">Margem Líq.</button>
+          </div>
+        </div>
+        <div class="card-bd"><div class="ch" style="height:240px;"><canvas id="cOrcResLiq"></canvas></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Acompanhamento Orçamentário — Março 2026</div><div class="badge">Rolling Forecast</div></div>
+        <div class="tbl-wrap"><table><thead><tr><th style="width:24%">Categoria</th><th>Orçado Mês</th><th>Realizado Mês</th><th>Variação R$</th><th>Variação %</th><th>Orçado Ano</th><th>Projeção Ano</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr class="r-sec"><td colspan="8">RECEITAS</td></tr>
+          <tr class="r-grp"><td>Receita Bruta</td><td>300.000</td><td>312.000</td><td class="pos">+12.000</td><td class="pos">+4,0%</td><td>3.468.000</td><td class="pos">3.718.000</td><td class="pos">✔ Acima</td></tr>
+          <tr class="r-grp"><td>Receita Líquida</td><td>267.000</td><td>278.000</td><td class="pos">+11.000</td><td class="pos">+4,1%</td><td>3.085.200</td><td class="pos">3.316.000</td><td class="pos">✔ Acima</td></tr>
+          <tr class="r-sec"><td colspan="8">CUSTOS E DESPESAS</td></tr>
+          <tr class="r-grp"><td>CMV / CPV</td><td>135.000</td><td>144.000</td><td class="nv">-9.000</td><td class="nv">-6,7%</td><td>1.560.000</td><td class="nv">1.716.000</td><td class="nv">✖ Acima</td></tr>
+          <tr class="r-res"><td>= Margem Bruta</td><td>132.000</td><td>134.000</td><td class="pos">+2.000</td><td class="pos">+1,5%</td><td>1.525.200</td><td class="pos">1.600.000</td><td class="pos">✔ Acima</td></tr>
+          <tr class="r-grp"><td>Pessoal</td><td>80.000</td><td>82.000</td><td class="nv">-2.000</td><td class="nv">-2,5%</td><td>924.000</td><td class="nv">978.000</td><td class="nv">✖ Acima</td></tr>
+          <tr class="r-grp"><td>Estrutura</td><td>45.000</td><td>43.000</td><td class="pos">+2.000</td><td class="pos">+4,4%</td><td>520.200</td><td class="pos">512.000</td><td class="pos">✔ Abaixo</td></tr>
+          <tr class="r-grp"><td>Desp. Variáveis</td><td>26.000</td><td>28.000</td><td class="nv">-2.000</td><td class="nv">-7,7%</td><td>300.300</td><td class="nv">334.000</td><td class="nv">✖ Acima</td></tr>
+          <tr class="r-grp"><td>Terceiros</td><td>27.500</td><td>28.000</td><td class="nv">-500</td><td class="nv">-1,8%</td><td>317.900</td><td class="nv">334.000</td><td class="nv">✖ Acima</td></tr>
+          <tr class="r-res"><td>= Resultado Líquido</td><td>49.000</td><td>50.300</td><td class="pos">+1.300</td><td class="pos">+2,7%</td><td>566.200</td><td class="pos">600.000</td><td class="pos">✔ Acima</td></tr>
+        </tbody></table></div>
+      </div>
+    </div>
+
+    <!-- ══ PLANO DE CONTAS ══ -->
+    <div class="tab-pane" id="tab-plano">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Plano de Contas — Grupo Exemplo Ltda.</div><div class="badge">Ativo</div></div>
+        <div class="card-bd" style="padding:0;">
+          <div class="pg"><div class="pg-hd"><div class="pg-dot"></div>1. RECEITAS OPERACIONAIS</div><div class="p-hdr"><div>Código</div><div>Descrição</div><div>Tipo</div><div>Natureza</div></div>
+            <div class="p-row"><div class="p-code">1.1</div><div class="p-name">Faturamento — Serviços Prestados</div><div class="p-type rec">Receita</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">1.2</div><div class="p-name">Faturamento — Venda de Produtos</div><div class="p-type rec">Receita</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">1.3</div><div class="p-name">Devolução de Vendas</div><div class="p-type ded">Dedução</div><div class="p-nat">Analítica</div></div>
+          </div>
+          <div class="pg"><div class="pg-hd"><div class="pg-dot"></div>2. CUSTOS DIRETOS</div><div class="p-hdr"><div>Código</div><div>Descrição</div><div>Tipo</div><div>Natureza</div></div>
+            <div class="p-row"><div class="p-code">2.1</div><div class="p-name">Simples Nacional</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">2.2</div><div class="p-name">ISS retido</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">2.3</div><div class="p-name">Parcelamento de Imposto</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">2.4</div><div class="p-name">Multas e Taxas Fiscais</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">2.5</div><div class="p-name">Materiais Aplicados</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">2.6</div><div class="p-name">Comissão sobre Vendas</div><div class="p-type des">Custo</div><div class="p-nat">Analítica</div></div>
+          </div>
+          <div class="pg"><div class="pg-hd"><div class="pg-dot"></div>3. DESPESAS FIXAS</div><div class="p-hdr"><div>Código</div><div>Descrição</div><div>Tipo</div><div>Natureza</div></div>
+            <div class="p-row"><div class="p-code">3.1</div><div class="p-name">Pessoal — Salários e Encargos</div><div class="p-type des">Despesa</div><div class="p-nat">Sintética</div></div>
+            <div class="p-row sub"><div class="p-code">3.1.1</div><div class="p-name">Pró-labore</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.1.2</div><div class="p-name">Prestador de Serviço</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.1.3</div><div class="p-name">FGTS / INSS / IRRF</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.1.4</div><div class="p-name">Transporte Alternativo</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">3.2</div><div class="p-name">Estrutura — Aluguel e Instalações</div><div class="p-type des">Despesa</div><div class="p-nat">Sintética</div></div>
+            <div class="p-row sub"><div class="p-code">3.2.1</div><div class="p-name">Energia Elétrica</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.2.2</div><div class="p-name">Internet / Telefone</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.2.3</div><div class="p-name">Programas e Softwares</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">3.3</div><div class="p-name">Terceiros — Contabilidade e Assessoria</div><div class="p-type des">Despesa</div><div class="p-nat">Sintética</div></div>
+            <div class="p-row sub"><div class="p-code">3.3.1</div><div class="p-name">Contabilidade</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row sub"><div class="p-code">3.3.2</div><div class="p-name">Coworking / Endereço Fiscal</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+          </div>
+          <div class="pg"><div class="pg-hd"><div class="pg-dot"></div>4. DESPESAS VARIÁVEIS</div><div class="p-hdr"><div>Código</div><div>Descrição</div><div>Tipo</div><div>Natureza</div></div>
+            <div class="p-row"><div class="p-code">4.1</div><div class="p-name">Combustível</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">4.2</div><div class="p-name">Manutenção de Veículos</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">4.3</div><div class="p-name">Taxas e Emolumentos</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">4.4</div><div class="p-name">Marketing e Publicidade</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+          </div>
+          <div class="pg"><div class="pg-hd"><div class="pg-dot"></div>5. NÃO OPERACIONAL</div><div class="p-hdr"><div>Código</div><div>Descrição</div><div>Tipo</div><div>Natureza</div></div>
+            <div class="p-row"><div class="p-code">5.1</div><div class="p-name">Distribuição de Lucros / Retirada Sócio</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">5.2</div><div class="p-name">Passivo — Empréstimos e Parcelas</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">5.3</div><div class="p-name">Investimentos — Máq./Veíc./Equip.</div><div class="p-type des">Despesa</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">5.4</div><div class="p-name">Receitas Não Operacionais</div><div class="p-type rec">Receita</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">5.5</div><div class="p-name">Aporte de Capital / Sócio</div><div class="p-type rec">Receita</div><div class="p-nat">Analítica</div></div>
+            <div class="p-row"><div class="p-code">5.6</div><div class="p-name">Transferências Bancárias (neutro)</div><div class="p-type ded">Neutro</div><div class="p-nat">Analítica</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODAL -->
+<div class="chart-modal" id="chartModal">
+  <div class="chart-modal-inner">
+    <div class="chart-modal-title" id="modalTitle"></div>
+    <button class="chart-modal-close" id="modalClose">✕</button>
+    <!-- standard chart canvas -->
+    <div class="chart-modal-canvas" id="modalChartWrap"><canvas id="modalCanvas"></canvas></div>
+    <!-- pizza two-column layout (hidden by default) -->
+    <div id="modalPizzaWrap" style="display:none;flex:1;display:none;gap:24px;align-items:center;">
+      <div style="flex:1;position:relative;"><canvas id="modalPizzaCanvas"></canvas></div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:10px;">
+        <div id="modalPzTitle" style="font-size:13px;font-weight:700;color:var(--text);">Total: R$ 215.000</div>
+        <div id="modalPzDetail" style="font-size:12px;"></div>
+        <div style="font-size:10px;color:var(--gray-3);margin-top:4px;">Clique numa fatia para detalhar → clique novamente para voltar</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Navigation ──────────────────────────────────
+let curMain='caixa', curSub=0;
+const hasSub=['caixa','competencia'];
+const prefixMap={caixa:'cx',competencia:'comp'};
+
+function goMain(id,el){
+  document.querySelectorAll('.tab-pane').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  el.classList.add('active');
+  curMain=id;
+  const titles={caixa:'Caixa',competencia:'Competência',orcamento:'Orçamento',plano:'Plano de Contas'};
+  document.getElementById('ttl').innerHTML='Dashboard de <span>'+titles[id]+'</span>';
+  document.getElementById('stBar').style.display=hasSub.includes(id)?'flex':'none';
+  document.getElementById('saldoWrap').style.display=id==='caixa'?'flex':'none';
+  goSub(0);
+}
+
+function goSub(i){
+  curSub=i;
+  document.getElementById('stB0').classList.toggle('active',i===0);
+  document.getElementById('stB1').classList.toggle('active',i===1);
+  const p=prefixMap[curMain];
+  if(!p)return;
+  [0,1].forEach(j=>{
+    const el=document.getElementById(p+j);
+    if(el) el.classList.toggle('active',j===i);
+  });
+}
+
+function setF(el){
+  el.closest('.filter-group').querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Multi-month picker ──────────────────────────
+const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let selectedMonths=new Set([2]); // Março (0-indexed)
+
+function buildMonthGrid(){
+  const g=document.getElementById('monthGrid');
+  g.innerHTML=MONTHS.map((m,i)=>
+    `<button class="month-chip${selectedMonths.has(i)?' sel':''}" onclick="toggleMonth(${i},this)">${m}</button>`
+  ).join('');
+}
+
+function toggleMonth(i,el){
+  if(selectedMonths.has(i)){if(selectedMonths.size>1)selectedMonths.delete(i);}
+  else selectedMonths.add(i);
+  el.classList.toggle('sel',selectedMonths.has(i));
+}
+
+function toggleMonthPicker(){
+  document.getElementById('monthPickerDropdown').classList.toggle('open');
+}
+
+function applyMonths(){
+  document.getElementById('monthPickerDropdown').classList.remove('open');
+  const sorted=[...selectedMonths].sort((a,b)=>a-b);
+  const label=sorted.length===1?MONTHS[sorted[0]]+' 2026':sorted.map(i=>MONTHS[i]).join(', ')+' 2026';
+  document.getElementById('monthPickerLabel').textContent=label;
+}
+
+document.addEventListener('click',e=>{
+  const wrap=document.getElementById('monthPickerWrap');
+  if(wrap&&!wrap.contains(e.target)) document.getElementById('monthPickerDropdown').classList.remove('open');
+});
+
+buildMonthGrid();
+
+// ── Saldo data ref ──────────────────────────────
+document.getElementById('saldoDate').addEventListener('change',function(){
+  const d=new Date(this.value+'T12:00:00');
+  const label=d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  document.querySelector('#cx0 .kpi-card.neu .kpi-delta').textContent=label;
+});
+
+// ── Dark Mode ───────────────────────────────────
+function toggleDark(){
+  const on=document.body.classList.toggle('dark');
+  document.getElementById('dmBtn').textContent=on?'☀️ Claro':'🌙 Escuro';
+  const gc=on?'#1e2d42':'#F0F2F5', tc=on?'#8aa3be':'#8A96A3';
+  Object.values(Chart.instances).forEach(c=>{
+    if(c.canvas.id==='modalCanvas')return;
+    if(c.options.scales?.y?.grid) c.options.scales.y.grid.color=gc;
+    if(c.options.scales?.x?.ticks) c.options.scales.x.ticks.color=tc;
+    if(c.options.scales?.y?.ticks) c.options.scales.y.ticks.color=tc;
+    c.update();
+  });
+}
+
+// ── Saldo Inicial reativo ───────────────────────
+const FLUXOS=[38,36,37,38,40,41]; // fluxo mensal em K
+function calcAcum(saldoK){
+  const a=[];let s=saldoK;
+  FLUXOS.forEach(v=>{s+=v;a.push(+s.toFixed(0));});
+  return a;
+}
+document.getElementById('saldoInput').addEventListener('input',function(){
+  const raw=this.value.replace(/\./g,'').replace(',','.');
+  const saldoK=(parseFloat(raw)||0)/1000;
+  document.getElementById('kpiSaldoIni').textContent='R$ '+(saldoK).toFixed(0)+'K';
+  const novoAcum=calcAcum(saldoK);
+  document.getElementById('kpiSaldoFin').textContent='R$ '+novoAcum[novoAcum.length-1]+'K';
+  const ch=Chart.getChart(document.getElementById('cSaldoAcum'));
+  if(ch){
+    ch.data.datasets[0].data=novoAcum;
+    const a=novoAcum[0],b=novoAcum[novoAcum.length-1],n=novoAcum.length;
+    ch.data.datasets[1].data=novoAcum.map((_,i)=>+(a+(b-a)/(n-1)*i).toFixed(0));
+    ch.update();
+  }
+});
+
+// ── Charts ──────────────────────────────────────
+const GR='#6DBF45',GY='#C8D0DA',RD='#E53E3E',BL='#2B6CB0';
+const MES=['Out','Nov','Dez','Jan','Fev','Mar'];
+const fnt={size:10,family:"'Plus Jakarta Sans'"};
+const dO=()=>({
+  responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#1C1C1C',titleColor:'#fff',bodyColor:'#aaa',padding:9,cornerRadius:5}},
+  scales:{x:{grid:{display:false},ticks:{font:fnt,color:'#8A96A3'}},y:{grid:{color:'#F0F2F5'},ticks:{font:fnt,color:'#8A96A3'}}}
+});
+const lgO={display:true,labels:{color:'#4A5568',font:{size:10,family:"'Plus Jakarta Sans'"},boxWidth:9,borderRadius:2}};
+
+function barLine(id,data,colBar,colLine,lbBar,lbLine,tickCb){
+  const trend=data.map((_,i)=>{const a=data[0],b=data[data.length-1];return+(a+(b-a)/(data.length-1)*i).toFixed(1);});
+  const opts={...dO(),plugins:{...dO().plugins,legend:lgO}};
+  if(tickCb) opts.scales={...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:tickCb}}};
+  new Chart(document.getElementById(id),{type:'bar',data:{labels:MES,datasets:[
+    {label:lbBar,data,backgroundColor:colBar,borderRadius:4,order:2},
+    {label:lbLine,data:trend,type:'line',borderColor:colLine,borderWidth:2,pointRadius:0,tension:.4,fill:false,order:1}
+  ]},options:opts});
+}
+
+const brl=v=>'R$'+v+'K', pct=v=>v+'%';
+
+// Caixa
+barLine('cCxResOp',[44,46,48,49,50,51],GR,BL,'Res. Operacional','Tendência',brl);
+barLine('cCxResLiq',[34,36,37,38,40,41],BL,GR,'Res. Líquido','Tendência',brl);
+
+// Saldo Acumulado (inicial 84K)
+const initAcum=calcAcum(84);
+const acumTrend=initAcum.map((_,i)=>{const a=initAcum[0],b=initAcum[initAcum.length-1];return+(a+(b-a)/(initAcum.length-1)*i).toFixed(0);});
+new Chart(document.getElementById('cSaldoAcum'),{type:'bar',data:{labels:MES,datasets:[
+  {label:'Saldo Acumulado (R$ mil)',data:initAcum,backgroundColor:GR,borderRadius:4,order:2},
+  {label:'Tendência',data:acumTrend,type:'line',borderColor:BL,borderWidth:2,pointRadius:3,pointBackgroundColor:BL,tension:.4,fill:false,order:1}
+]},options:{...dO(),plugins:{...dO().plugins,legend:lgO},scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:brl}}}}});
+
+new Chart(document.getElementById('cEntSai'),{type:'bar',data:{labels:MES,datasets:[
+  {label:'Entradas',data:[232,238,245,252,249,261],backgroundColor:GR,borderRadius:4},
+  {label:'Saídas',  data:[226,231,238,243,213,219],backgroundColor:RD,borderRadius:4}
+]},options:{...dO(),plugins:{...dO().plugins,legend:lgO}}});
+
+// Saldo Acumulado no demonstrativo
+new Chart(document.getElementById('cSaldoAcumDemo'),{type:'line',data:{labels:MES,datasets:[
+  {label:'Saldo Acumulado (R$ mil)',data:initAcum,borderColor:BL,backgroundColor:'rgba(43,108,176,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:BL,borderWidth:2.5}
+]},options:{...dO(),plugins:{...dO().plugins,legend:{display:false}},scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:brl}}}}});
+
+// Competência
+barLine('cCompResOp',[52,54,57,59,61,63],GR,BL,'Res. Operacional','Tendência',brl);
+barLine('cCompResLiq',[41,43,45,47,48,50],BL,GR,'Res. Líquido','Tendência',brl);
+
+// Margens + Faturamento — eixo secundário bem separado
+new Chart(document.getElementById('cMargens'),{type:'bar',data:{labels:MES,datasets:[
+  {label:'Faturamento (R$ mil)',data:[268,275,280,291,288,312],backgroundColor:'rgba(109,191,69,.12)',borderColor:'rgba(109,191,69,.25)',borderWidth:1,borderRadius:3,order:3,yAxisID:'yF'},
+  {label:'Margem Bruta',  data:[46.1,47.0,47.5,48.0,47.8,48.2],borderColor:GR,type:'line',tension:.4,pointRadius:3,pointBackgroundColor:GR,order:1,yAxisID:'y',borderWidth:2},
+  {label:'M. Operacional',data:[21.0,21.5,22.0,21.8,22.2,22.6],borderColor:BL,type:'line',tension:.4,pointRadius:3,pointBackgroundColor:BL,order:1,yAxisID:'y',borderWidth:2},
+  {label:'M. Líquida',   data:[17.2,17.5,17.9,17.8,18.0,18.1],borderColor:RD,type:'line',tension:.4,pointRadius:3,pointBackgroundColor:RD,order:1,yAxisID:'y',borderWidth:2}
+]},options:{...dO(),plugins:{...dO().plugins,legend:lgO},scales:{
+  x:{grid:{display:false},ticks:{font:fnt,color:'#8A96A3'}},
+  y:{grid:{color:'#F0F2F5'},ticks:{font:fnt,color:'#8A96A3',callback:pct},position:'left',min:0,max:65},
+  yF:{display:true,position:'right',grid:{display:false},min:0,max:650,ticks:{font:fnt,color:'rgba(109,191,69,.5)',callback:v=>v?'R$'+v+'K':''}}
+}}});
+
+// ── Caixa: Ciclo Financeiro ─────────────────────
+new Chart(document.getElementById('cCiclo'),{type:'bar',data:{labels:MES,datasets:[
+  {label:'PMR — Prazo Médio Recebimento (dias)',data:[28,26,24,25,23,22],backgroundColor:'rgba(109,191,69,.7)',borderRadius:4,order:2},
+  {label:'PMP — Prazo Médio Pagamento (dias)', data:[35,34,36,35,37,38],backgroundColor:'rgba(43,108,176,.7)',borderRadius:4,order:2},
+  {label:'Ciclo de Caixa (dias)',data:[18,16,14,15,12,10],type:'line',borderColor:RD,borderWidth:2.5,pointRadius:4,pointBackgroundColor:RD,tension:.4,fill:false,order:1},
+]},options:{...dO(),plugins:{...dO().plugins,legend:lgO},scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:v=>v+'d'}}}}});
+
+// ── Caixa: Margem Operacional Caixa vs Competência ──
+new Chart(document.getElementById('cMargComp'),{type:'line',data:{labels:MES,datasets:[
+  {label:'Margem Op. Caixa',       data:[17.2,17.8,18.1,18.4,19.0,19.5],borderColor:GR,backgroundColor:'rgba(109,191,69,.08)',tension:.4,fill:true,pointRadius:4,pointBackgroundColor:GR,borderWidth:2.5},
+  {label:'Margem Op. Competência', data:[21.0,21.5,22.0,21.8,22.2,22.6],borderColor:BL,backgroundColor:'rgba(43,108,176,.06)',tension:.4,fill:true,pointRadius:4,pointBackgroundColor:BL,borderWidth:2.5},
+]},options:{...dO(),plugins:{...dO().plugins,legend:lgO},scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:pct}}}}});
+
+// ── Orçamento: Cenários ─────────────────────────
+const MES12=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const orcRealizado=[291,288,312,null,null,null,null,null,null,null,null,null];
+const orcOrcado=[285,290,300,305,308,310,315,318,320,325,328,335];
+const cenarios={
+  0:{label:'Pessimista',  proj:[null,null,null,295,298,300,302,304,305,308,310,312], total:'3.423K', color:'rgba(229,62,62,.55)'},
+  1:{label:'Moderado',    proj:[null,null,null,305,308,310,315,318,320,325,328,335], total:'3.718K', color:'rgba(200,208,218,.6)'},
+  2:{label:'Otimista',    proj:[null,null,null,320,325,330,335,340,342,345,348,355], total:'3.919K', color:'rgba(109,191,69,.55)'},
+  3:{label:'Muito Otimista',proj:[null,null,null,340,348,355,360,365,368,372,378,385], total:'4.162K', color:'rgba(43,108,176,.55)'},
+};
+let curScenario=1;
+let orcAnualChart=null;
+
+function buildOrcAnualChart(){
+  if(orcAnualChart){orcAnualChart.destroy();}
+  const c=cenarios[curScenario];
+  const BREAKEVEN=280;
+  orcAnualChart=new Chart(document.getElementById('cOrcAnual'),{type:'bar',data:{labels:MES12,datasets:[
+    {label:'Realizado',  data:orcRealizado, backgroundColor:GR, borderRadius:4, order:2},
+    {label:'Orçado',     data:orcOrcado,   backgroundColor:GY, borderRadius:4, order:2},
+    {label:c.label+' (projeção)', data:c.proj, backgroundColor:c.color, borderRadius:4, borderWidth:1, borderColor:'rgba(0,0,0,.1)', order:2},
+    {label:'Ponto de Equilíbrio (R$280K)', data:Array(12).fill(BREAKEVEN), type:'line', borderColor:'#F5A623', borderWidth:2, borderDash:[7,4], pointRadius:0, tension:0, fill:false, order:1},
+  ]},options:{...dO(),plugins:{...dO().plugins,legend:lgO}}});
+}
+
+function setScenario(idx,el){
+  document.querySelectorAll('#scenarioBtns .filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  curScenario=idx;
+  buildOrcAnualChart();
+  document.getElementById('orcTotalBadge').textContent='Total proj.: R$ '+cenarios[idx].total;
+  const labels=['Projeção conservadora — crescimento abaixo do histórico','Projeção baseada no histórico recente','Projeção com aceleração de vendas','Projeção com forte expansão de receita'];
+  document.getElementById('scenarioLabel').textContent=labels[idx];
+}
+buildOrcAnualChart();
+
+// ── Orçamento: Gastos Drill-Down ────────────────
+const gastosTree={
+  root:{label:'Todos os Grupos',items:[
+    {key:'fixas',     label:'Despesas Fixas',    meta:152.5,real:153,  color:'#2B6CB0'},
+    {key:'variaveis', label:'Despesas Variáveis',meta:26,   real:28,   color:'#E53E3E'},
+    {key:'custos',    label:'Custos Diretos',    meta:34,   real:34,   color:'#9B59B6'},
+    {key:'naoOp',     label:'Não Operacional',   meta:39,   real:39.7, color:'#F5A623'},
+  ]},
+  custos:{label:'Custos Diretos',items:[
+    {key:null,label:'Simples Nacional', meta:17.5,real:18,  color:'#c39bd3'},
+    {key:null,label:'ISS retido',       meta:8.5, real:8.5, color:'#9B59B6'},
+    {key:null,label:'Parcelamento',     meta:7.0, real:7.5, color:'#6c3483'},
+    {key:null,label:'Materiais Aplic.', meta:1.5, real:0,   color:'#a29bfe'},
+  ]},
+  fixas:{label:'Despesas Fixas',items:[
+    {key:'pessoal',   label:'Pessoal',   meta:80,  real:82,  color:'#5b9bd5'},
+    {key:'estrutura', label:'Estrutura', meta:45,  real:43,  color:'#2B6CB0'},
+    {key:'terceiros', label:'Terceiros', meta:27.5,real:28,  color:'#1a4a7a'},
+  ]},
+  variaveis:{label:'Despesas Variáveis',items:[
+    {key:null,label:'Combustível',       meta:13, real:15,  color:'#f07070'},
+    {key:null,label:'Manut. Veículos',   meta:8,  real:12,  color:'#E53E3E'},
+    {key:null,label:'Taxas/Emolumentos', meta:3,  real:9,   color:'#a02020'},
+    {key:null,label:'Marketing',         meta:2,  real:2,   color:'#ff9999'},
+  ]},
+  naoOp:{label:'Não Operacional',items:[
+    {key:null,label:'Distribuição Lucros', meta:27, real:27,  color:'#f5c26b'},
+    {key:null,label:'Parcela Empréstimo',  meta:8,  real:8,   color:'#F5A623'},
+    {key:null,label:'Investimentos',       meta:4,  real:4.7, color:'#b07718'},
+  ]},
+  pessoal:{label:'Pessoal',items:[
+    {key:null,label:'Prestador Serviço', meta:34, real:35,  color:'#a8e07f'},
+    {key:null,label:'Pró-labore',        meta:25, real:25,  color:'#6DBF45'},
+    {key:null,label:'FGTS / INSS',       meta:10, real:10,  color:'#3d8c24'},
+    {key:null,label:'Transporte Alt.',   meta:11, real:12,  color:'#5aaa36'},
+  ]},
+  estrutura:{label:'Estrutura',items:[
+    {key:null,label:'Aluguel',   meta:18, real:18, color:'#5b9bd5'},
+    {key:null,label:'Software',  meta:9,  real:9,  color:'#2B6CB0'},
+    {key:null,label:'Energia',   meta:9,  real:8,  color:'#1a4a7a'},
+    {key:null,label:'Internet',  meta:9,  real:8,  color:'#0d2d4f'},
+  ]},
+  terceiros:{label:'Terceiros',items:[
+    {key:null,label:'Contabilidade', meta:16.5,real:17, color:'#f5c26b'},
+    {key:null,label:'Coworking',     meta:6,   real:6,  color:'#F5A623'},
+    {key:null,label:'Consultoria',   meta:5,   real:5,  color:'#b07718'},
+  ]},
+};
+
+let gastosChart=null;
+let gastosStack=['root'];
+
+function buildGastosChart(nodeKey){
+  if(gastosChart){gastosChart.destroy();}
+  const node=gastosTree[nodeKey];
+  const labels=node.items.map(i=>i.label);
+  const metas=node.items.map(i=>i.meta);
+  const reals=node.items.map(i=>i.real);
+  const realColors=reals.map((v,i)=>v>metas[i]?'rgba(229,62,62,.8)':'rgba(109,191,69,.8)');
+  const bc=document.getElementById('gastoBreadcrumb');
+  const gl=document.getElementById('gastoLevel');
+  if(gastosStack.length>1){bc.style.display='flex';gl.textContent='› '+node.label;}
+  else{bc.style.display='none';}
+  gastosChart=new Chart(document.getElementById('cOrcGastos'),{type:'bar',data:{labels,datasets:[
+    {label:'Meta',      data:metas, backgroundColor:'rgba(200,208,218,.8)', borderRadius:4},
+    {label:'Realizado', data:reals, backgroundColor:realColors, borderRadius:4},
+  ]},options:{...dO(),plugins:{...dO().plugins,legend:lgO,
+    tooltip:{...dO().plugins.tooltip,callbacks:{
+      afterLabel:ctx=>node.items[ctx.dataIndex].key?'Clique para detalhar →':''
+    }}
+  },
+  scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:v=>'R$'+v+'K'}}},
+  onClick(evt,elements){
+    if(!elements.length)return;
+    const child=node.items[elements[0].index].key;
+    if(child&&gastosTree[child]){gastosStack.push(child);buildGastosChart(child);}
+  }}});
+}
+
+function gastoDrillUp(){
+  if(gastosStack.length>1)gastosStack.pop();
+  buildGastosChart(gastosStack[gastosStack.length-1]);
+}
+
+buildGastosChart('root');
+
+// ── Orçamento: Métrica selecionável ─────────────
+const metricData={
+  0:{label:'Resultado Líquido (R$ mil)', real:[47,43,50,null,null,null,null,null,null,null,null,null], proj:[null,null,null,49,50,51,52,53,54,55,56,57], meta:49, isCurrency:true},
+  1:{label:'Margem Bruta (%)',           real:[47.2,46.8,48.2,null,null,null,null,null,null,null,null,null], proj:[null,null,null,48.5,49.0,49.2,49.5,49.8,50.0,50.2,50.5,50.8], meta:49.5, isCurrency:false},
+  2:{label:'Margem Operacional (%)',     real:[21.0,21.5,22.6,null,null,null,null,null,null,null,null,null], proj:[null,null,null,22.0,22.2,22.5,22.8,23.0,23.2,23.4,23.6,23.8], meta:20.3, isCurrency:false},
+  3:{label:'Margem Líquida (%)',         real:[17.2,17.5,18.1,null,null,null,null,null,null,null,null,null], proj:[null,null,null,17.8,18.0,18.2,18.4,18.6,18.8,19.0,19.2,19.4], meta:17.5, isCurrency:false},
+};
+let curMetric=0;
+let orcResLiqChart=null;
+
+function buildOrcResLiqChart(){
+  if(orcResLiqChart){orcResLiqChart.destroy();}
+  const m=metricData[curMetric];
+  const cb=m.isCurrency?v=>'R$'+v+'K':pct;
+  orcResLiqChart=new Chart(document.getElementById('cOrcResLiq'),{type:'bar',data:{labels:MES12,datasets:[
+    {label:'Realizado',  data:m.real, backgroundColor:GR, borderRadius:4, order:2},
+    {label:'Projeção',   data:m.proj, backgroundColor:'rgba(200,208,218,.65)', borderRadius:4, order:2},
+    {label:'Meta',       data:Array(12).fill(m.meta), type:'line', borderColor:BL, borderWidth:2, borderDash:[6,3], pointRadius:0, tension:0, fill:false, order:1},
+  ]},options:{...dO(),plugins:{...dO().plugins,legend:lgO},scales:{...dO().scales,y:{...dO().scales.y,ticks:{...dO().scales.y.ticks,callback:cb}}}}});
+}
+
+function setMetric(idx,el){
+  document.querySelectorAll('#metricBtns .filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  curMetric=idx;
+  buildOrcResLiqChart();
+}
+buildOrcResLiqChart();
+
+// ── Pizza Despesas ──────────────────────────────
+const despG=[
+  {label:'Pessoal',        value:82000,color:'#6DBF45'},
+  {label:'Estrutura',      value:43000,color:'#2B6CB0'},
+  {label:'Desp. Variáveis',value:36000,color:'#E53E3E'},
+  {label:'Terceiros',      value:28000,color:'#F5A623'},
+  {label:'Impostos',       value:26000,color:'#9B59B6'},
+];
+const totalD=despG.reduce((a,g)=>a+g.value,0);
+const subG={
+  'Pessoal':[{label:'Prestador de Serviço',value:35000,color:'#a8e07f'},{label:'Pró-labore',value:25000,color:'#6DBF45'},{label:'Transporte Alt.',value:12000,color:'#5aaa36'},{label:'FGTS/INSS',value:10000,color:'#3d8c24'}],
+  'Estrutura':[{label:'Aluguel',value:18000,color:'#5b9bd5'},{label:'Softwares',value:9000,color:'#2B6CB0'},{label:'Energia',value:8000,color:'#1a4a7a'},{label:'Internet',value:8000,color:'#0d2d4f'}],
+  'Desp. Variáveis':[{label:'Combustível',value:15000,color:'#f07070'},{label:'Manut. Veículos',value:12000,color:'#E53E3E'},{label:'Taxas',value:9000,color:'#a02020'}],
+  'Terceiros':[{label:'Contabilidade',value:17000,color:'#f5c26b'},{label:'Coworking',value:6000,color:'#F5A623'},{label:'Consultoria',value:5000,color:'#b07718'}],
+  'Impostos':[{label:'Simples Nacional',value:18000,color:'#c39bd3'},{label:'ISS',value:5000,color:'#9B59B6'},{label:'Multas/Taxas',value:3000,color:'#6c3483'}],
+};
+function renderPz(groups,total){
+  document.getElementById('pzDetail').innerHTML=groups.map(g=>`
+    <div class="pz-item"><div style="display:flex;align-items:center;flex:1;gap:5px;"><div class="pz-dot" style="background:${g.color}"></div><span class="pz-name">${g.label}</span></div><span class="pz-val">R$ ${g.value.toLocaleString('pt-BR')}</span><span class="pz-pct">${((g.value/total)*100).toFixed(1)}%</span></div>`).join('');
+}
+renderPz(despG,totalD);
+const pizza=new Chart(document.getElementById('cPizza'),{type:'doughnut',data:{
+  labels:despG.map(g=>g.label),
+  datasets:[{data:despG.map(g=>g.value),backgroundColor:despG.map(g=>g.color),borderWidth:2,borderColor:'#fff',hoverOffset:8}]
+},options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#1C1C1C',titleColor:'#fff',bodyColor:'#aaa',padding:9,cornerRadius:5,
+    callbacks:{label:ctx=>' R$ '+ctx.parsed.toLocaleString('pt-BR')+' ('+((ctx.parsed/totalD)*100).toFixed(1)+'%)'}}}
+}});
+let pzMode='main';
+document.getElementById('cPizza').addEventListener('click',function(e){
+  const pts=pizza.getElementsAtEventForMode(e,'nearest',{intersect:true},false);
+  if(pzMode==='sub'||!pts.length){
+    pizza.data.datasets[0].data=despG.map(g=>g.value);
+    pizza.data.labels=despG.map(g=>g.label);
+    pizza.data.datasets[0].backgroundColor=despG.map(g=>g.color);
+    pizza.update();pzMode='main';
+    document.getElementById('pzTitle').textContent='Total: R$ '+totalD.toLocaleString('pt-BR');
+    renderPz(despG,totalD);return;
+  }
+  const grp=despG[pts[0].index];const subs=subG[grp.label]||[];if(!subs.length)return;
+  pizza.data.datasets[0].data=subs.map(s=>s.value);
+  pizza.data.labels=subs.map(s=>s.label);
+  pizza.data.datasets[0].backgroundColor=subs.map(s=>s.color);
+  pizza.update();pzMode='sub';
+  document.getElementById('pzTitle').textContent=grp.label+': R$ '+grp.value.toLocaleString('pt-BR')+' — clique para voltar';
+  renderPz(subs,grp.value);
+});
+
+// ── Export CSV ──────────────────────────────────
+function exportTable(tbodyId,filename){
+  const rows=document.getElementById(tbodyId).querySelectorAll('tr');
+  let csv='';
+  rows.forEach(tr=>{
+    if(getComputedStyle(tr).display==='none')return;
+    const cols=[...tr.querySelectorAll('td')].map(td=>'"'+td.innerText.replace(/"/g,'""')+'"');
+    csv+=cols.join(',')+'\n';
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename+'.csv';a.click();
+}
+
+// ── Chart Modal ─────────────────────────────────
+let modalChart=null;
+const chartTitles={
+  cCxResOp:'Resultado Operacional (Caixa)',cCxResLiq:'Resultado Líquido (Caixa)',
+  cSaldoAcum:'Saldo Acumulado',cEntSai:'Entradas vs Saídas',
+  cCompResOp:'Resultado Operacional (Competência)',cCompResLiq:'Resultado Líquido (Competência)',
+  cMargens:'Evolução das Margens',cOrcAnual:'Orçamento Anual 2026',
+};
+document.querySelectorAll('.ch canvas').forEach(canvas=>{
+  if(canvas.id==='cPizza')return;
+  canvas.addEventListener('click',function(){
+    const src=Chart.getChart(this);if(!src)return;
+    document.getElementById('modalTitle').textContent=chartTitles[this.id]||'Gráfico';
+    document.getElementById('chartModal').classList.add('open');
+    if(modalChart){modalChart.destroy();modalChart=null;}
+    const cfg=src.config;
+    const clonedData={labels:[...cfg.data.labels],datasets:cfg.data.datasets.map(ds=>({...ds,data:[...(ds.data||[])]}))};
+    const dark=document.body.classList.contains('dark');
+    const newOpts=JSON.parse(JSON.stringify(cfg.options||{}));
+    if(newOpts.scales?.y?.grid) newOpts.scales.y.grid.color=dark?'#1e2d42':'#F0F2F5';
+    if(cfg.options?.scales?.y?.ticks?.callback) newOpts.scales.y.ticks.callback=cfg.options.scales.y.ticks.callback;
+    newOpts.responsive=true;newOpts.maintainAspectRatio=false;
+    modalChart=new Chart(document.getElementById('modalCanvas'),{type:cfg.type,data:clonedData,options:newOpts});
+  });
+});
+let modalPizzaChart=null, modalPzMode='main';
+
+function renderModalPz(groups,total){
+  const dark=document.body.classList.contains('dark');
+  const tc=dark?'#eef2f7':'#1C2B3A', sc=dark?'#8aa3be':'#8A96A3', bc=dark?'#1e2d42':'#E8ECF0';
+  document.getElementById('modalPzDetail').innerHTML=groups.map(g=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid ${bc};">
+      <div style="display:flex;align-items:center;gap:7px;flex:1;">
+        <div style="width:11px;height:11px;border-radius:3px;background:${g.color};flex-shrink:0;"></div>
+        <span style="font-weight:500;color:${tc}">${g.label}</span>
+      </div>
+      <span style="font-weight:700;color:${tc}">R$ ${g.value.toLocaleString('pt-BR')}</span>
+      <span style="color:${sc};margin-left:10px;min-width:42px;text-align:right">${((g.value/total)*100).toFixed(1)}%</span>
+    </div>`).join('');
+}
+
+function openPizzaModal(){
+  document.getElementById('modalTitle').textContent='Composição das Despesas Operacionais';
+  document.getElementById('chartModal').classList.add('open');
+  // show pizza layout, hide standard canvas
+  document.getElementById('modalChartWrap').style.display='none';
+  document.getElementById('modalPizzaWrap').style.display='flex';
+  document.getElementById('modalPizzaWrap').style.flex='1';
+
+  if(modalPizzaChart){modalPizzaChart.destroy();modalPizzaChart=null;}
+  modalPzMode='main';
+  document.getElementById('modalPzTitle').textContent='Total: R$ '+totalD.toLocaleString('pt-BR');
+  renderModalPz(despG,totalD);
+
+  const dark=document.body.classList.contains('dark');
+  modalPizzaChart=new Chart(document.getElementById('modalPizzaCanvas'),{type:'doughnut',data:{
+    labels:despG.map(g=>g.label),
+    datasets:[{data:despG.map(g=>g.value),backgroundColor:despG.map(g=>g.color),borderWidth:2,borderColor:dark?'#152030':'#fff',hoverOffset:10}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'55%',
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#1C1C1C',titleColor:'#fff',bodyColor:'#aaa',padding:12,cornerRadius:6,
+      callbacks:{label:ctx=>' R$ '+ctx.parsed.toLocaleString('pt-BR')+' ('+((ctx.parsed/totalD)*100).toFixed(1)+'%)'}}}
+  }});
+
+  document.getElementById('modalPizzaCanvas').onclick=function(e){
+    const pts=modalPizzaChart.getElementsAtEventForMode(e,'nearest',{intersect:true},false);
+    if(modalPzMode==='sub'||!pts.length){
+      modalPizzaChart.data.datasets[0].data=despG.map(g=>g.value);
+      modalPizzaChart.data.labels=despG.map(g=>g.label);
+      modalPizzaChart.data.datasets[0].backgroundColor=despG.map(g=>g.color);
+      modalPizzaChart.update();modalPzMode='main';
+      document.getElementById('modalPzTitle').textContent='Total: R$ '+totalD.toLocaleString('pt-BR');
+      renderModalPz(despG,totalD);return;
+    }
+    const grp=despG[pts[0].index];const subs=subG[grp.label]||[];if(!subs.length)return;
+    modalPizzaChart.data.datasets[0].data=subs.map(s=>s.value);
+    modalPizzaChart.data.labels=subs.map(s=>s.label);
+    modalPizzaChart.data.datasets[0].backgroundColor=subs.map(s=>s.color);
+    modalPizzaChart.update();modalPzMode='sub';
+    document.getElementById('modalPzTitle').textContent=grp.label+': R$ '+grp.value.toLocaleString('pt-BR')+' — clique para voltar';
+    renderModalPz(subs,grp.value);
+  };
+}
+
+function closeModal(){
+  document.getElementById('chartModal').classList.remove('open');
+  document.getElementById('modalChartWrap').style.display='';
+  document.getElementById('modalPizzaWrap').style.display='none';
+  if(modalChart){modalChart.destroy();modalChart=null;}
+  if(modalPizzaChart){modalPizzaChart.destroy();modalPizzaChart=null;}
+}
+document.getElementById('chartModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+document.getElementById('modalClose').addEventListener('click',closeModal);
+
+// ── Chart.js inline datalabels plugin ──────────
+Chart.register({
+  id:'inlineLabels',
+  afterDatasetsDraw(chart){
+    const {ctx}=chart;
+    chart.data.datasets.forEach((ds,i)=>{
+      if(ds.type==='line'||!ds.showLabels)return;
+      const meta=chart.getDatasetMeta(i);
+      meta.data.forEach((bar,j)=>{
+        const val=ds.data[j];if(val==null)return;
+        const label=ds.labelCb?ds.labelCb(val):(val>0?'+':'')+val+'K';
+        ctx.save();
+        ctx.font='bold 9px Plus Jakarta Sans,sans-serif';
+        ctx.fillStyle='rgba(0,0,0,.55)';
+        ctx.textAlign='center';
+        ctx.fillText(label,bar.x,bar.y-4);
+        ctx.restore();
+      });
+    });
+  }
+});
+
+// ── DFCE — dois níveis: categoria → lançamentos ──
+function fmt(v){if(v==null)return'—';const ab=Math.abs(v).toLocaleString('pt-BR');return v<0?'('+ab+')':ab;}
+
+function tog(id,el){
+  el.classList.toggle('open');
+  // toggle sub-categories
+  document.querySelectorAll(`tr.r-det[data-group="${id}"]`).forEach(tr=>{
+    tr.classList.toggle('open');
+    if(!tr.classList.contains('open')){
+      // collapse any open lancamentos under this category
+      document.querySelectorAll(`tr.r-det2[data-parent="${id}"]`).forEach(t=>t.classList.remove('open'));
+      const tog2=document.querySelector(`tr.r-det[data-group="${id}"] .tog2`);
+      if(tog2)tog2.classList.remove('open');
+    }
+  });
+}
+
+function tog2(catId,subIdx,el){
+  el.classList.toggle('open');
+  document.querySelectorAll(`tr.r-det2[data-catid="${catId}-${subIdx}"]`).forEach(tr=>tr.classList.toggle('open'));
+}
+
+// updated DFCE data: each item has sub-items (lancamentos)
+const dfce=[
+  {t:'sec',l:'RECEITAS OPERACIONAIS'},
+  {t:'grp',l:'Faturamento — Serviços Prestados',v:261000,p:'100%',a:249200,vr:'+4,8%',items:[
+    {l:'Empresa ABC Ltda.',  v:98000, a:92000, lanc:[{d:'NF-e 1042',v:58000},{d:'NF-e 1043',v:40000}]},
+    {l:'Grupo XYZ S.A.',     v:82000, a:79000, lanc:[{d:'NF-e 1044',v:82000}]},
+    {l:'Comércio Ponto Final',v:51000,a:48000, lanc:[{d:'NF-e 1045',v:30000},{d:'NF-e 1046',v:21000}]},
+    {l:'Outros clientes',    v:30000, a:30200, lanc:[{d:'Vários',v:30000}]},
+  ]},
+  {t:'res',l:'= Total Entradas',v:261000,p:'100%',a:249200,vr:'+4,8%',pos:true},
+  {t:'sec',l:'CUSTOS DIRETOS'},
+  {t:'grp',l:'Impostos e Deduções',v:-34000,p:'13,0%',a:-32500,vr:'-4,6%',items:[
+    {l:'Simples Nacional',v:-18000,a:-17000,lanc:[{d:'PGDAS-D Mar/26',v:-18000}]},
+    {l:'ISS retido',      v:-8500, a:-8000, lanc:[{d:'Guia ISS Mar/26',v:-8500}]},
+    {l:'Parcelamento',    v:-7500, a:-7500, lanc:[{d:'Parcela 15/55',v:-7500}]},
+  ]},
+  {t:'res',l:'= Margem Bruta',v:227000,p:'87,0%',a:216700,vr:'+4,8%',pos:true},
+  {t:'sec',l:'DESPESAS FIXAS'},
+  {t:'grp',l:'Pessoal',v:-82000,p:'31,4%',a:-80000,vr:'-2,5%',items:[
+    {l:'Prestador de Serviço (Narcelio)',v:-35000,a:-34000,lanc:[{d:'Pagto 05/03',v:-20000},{d:'Pagto 20/03',v:-15000}]},
+    {l:'Pró-labore sócio',v:-25000,a:-25000,lanc:[{d:'Pró-labore Mar/26',v:-25000}]},
+    {l:'Transporte alternativo',v:-12000,a:-11000,lanc:[{d:'Uber Mar/26',v:-12000}]},
+    {l:'FGTS / INSS',    v:-10000,a:-10000,lanc:[{d:'DARF Mar/26',v:-10000}]},
+  ]},
+  {t:'grp',l:'Estrutura',v:-43000,p:'16,5%',a:-44000,vr:'+2,3%',items:[
+    {l:'Aluguel sede',    v:-18000,a:-18000,lanc:[{d:'Aluguel Mar/26',v:-18000}]},
+    {l:'Energia elétrica',v:-8000, a:-8500, lanc:[{d:'ENEL Mar/26',v:-8000}]},
+    {l:'Software ERP',   v:-9000, a:-9000, lanc:[{d:'Licença Mar/26',v:-9000}]},
+    {l:'Internet',       v:-8000, a:-8500, lanc:[{d:'Vivo Mar/26',v:-8000}]},
+  ]},
+  {t:'grp',l:'Terceiros',v:-28000,p:'10,7%',a:-27500,vr:'-1,8%',items:[
+    {l:'Betel Contabilidade',v:-17000,a:-16500,lanc:[{d:'NF Betel Mar/26',v:-17000}]},
+    {l:'Coworking',          v:-6000, a:-6000, lanc:[{d:'Mensalidade Mar/26',v:-6000}]},
+    {l:'Consultoria Versa',  v:-5000, a:-5000, lanc:[{d:'BPO Mar/26',v:-5000}]},
+  ]},
+  {t:'sec',l:'DESPESAS VARIÁVEIS'},
+  {t:'grp',l:'Operacional',v:-36000,p:'13,8%',a:-35000,vr:'-2,9%',items:[
+    {l:'Combustível',       v:-15000,a:-14500,lanc:[{d:'Posto Shell 03/03',v:-5000},{d:'Posto BR 15/03',v:-5000},{d:'Posto Ipiranga 25/03',v:-5000}]},
+    {l:'Manutenção veículos',v:-12000,a:-12000,lanc:[{d:'Auto Center Silva',v:-12000}]},
+    {l:'Taxas',             v:-9000, a:-8500, lanc:[{d:'Emolumentos Mar/26',v:-9000}]},
+  ]},
+  {t:'res',l:'= Resultado Operacional',v:38000,p:'14,6%',a:30200,vr:'+25,8%',pos:true},
+  {t:'sec',l:'NÃO OPERACIONAL'},
+  {t:'grp',l:'Distribuição / Passivo',v:-22000,p:'—',a:-20000,vr:'-10,0%',items:[
+    {l:'Distribuição de lucros',v:-14000,a:-13000,lanc:[{d:'Retirada sócio 01/03',v:-7000},{d:'Retirada sócio 15/03',v:-7000}]},
+    {l:'Parcela empréstimo',  v:-8000, a:-7000, lanc:[{d:'Banco Inter 1/3',v:-8000}]},
+  ]},
+  {t:'grp',l:'Investimentos',v:-5000,p:'—',a:-3000,vr:'-66,7%',items:[
+    {l:'Compra ferramentas/EPI',v:-5000,a:-3000,lanc:[{d:'Amazon Mar/26',v:-3200},{d:'MercadoLivre Mar/26',v:-1800}]},
+  ]},
+  {t:'grp',l:'Receitas Não Operacionais',v:3000,p:'—',a:2000,vr:'+50,0%',items:[
+    {l:'Aporte de sócio',v:3000,a:2000,lanc:[{d:'TED sócio 10/03',v:3000}]},
+  ]},
+  {t:'res',l:'= Saldo Final',v:14000,p:'—',a:9200,vr:'+52,2%',pos:true},
+];
+
+function buildDFCE(){
+  const b=document.getElementById('dfceB');let gi=0;
+  dfce.forEach(r=>{
+    if(r.t==='sec'){
+      const tr=document.createElement('tr');tr.className='r-sec';
+      tr.innerHTML=`<td colspan="5">${r.l}</td>`;b.appendChild(tr);
+    } else if(r.t==='grp'){
+      const id='g'+gi++;const vc=r.v>=0?'pos':'nv';
+      const tr=document.createElement('tr');tr.className='r-grp';
+      tr.innerHTML=`<td><span class="tog" onclick="tog('${id}',this)">${r.l}</span></td><td class="${vc}">${fmt(r.v)}</td><td>${r.p}</td><td>${fmt(r.a)}</td><td class="${r.vr[0]==='+'?'pos':'nv'}">${r.vr}</td>`;
+      b.appendChild(tr);
+      // nivel 1: categorias
+      r.items.forEach((it,si)=>{
+        const ic=it.v>=0?'pos':'nv';const d=it.v-it.a;const dp=it.a?((d/Math.abs(it.a))*100).toFixed(1)+'%':'—';
+        const catId=id+'-'+si;
+        const dtr=document.createElement('tr');dtr.className='r-det';dtr.dataset.group=id;
+        const hasLanc=it.lanc&&it.lanc.length;
+        dtr.innerHTML=`<td style="padding-left:24px">${hasLanc?`<span class="tog tog2" onclick="tog2('${id}',${si},this)" style="font-size:9px">${it.l}</span>`:it.l}</td><td class="${ic}">${fmt(it.v)}</td><td>—</td><td>${fmt(it.a)}</td><td class="${d>=0?'pos':'nv'}">${d>=0?'+':''}${dp}</td>`;
+        b.appendChild(dtr);
+        // nivel 2: lançamentos
+        if(hasLanc){
+          it.lanc.forEach(lc=>{
+            const ltr=document.createElement('tr');ltr.className='r-det2';
+            ltr.dataset.catid=catId;ltr.dataset.parent=id;
+            const lc2=lc.v>=0?'pos':'nv';
+            ltr.innerHTML=`<td style="padding-left:40px;font-size:10px;color:var(--gray-3)">↳ ${lc.d}</td><td class="${lc2}" style="font-size:10px">${fmt(lc.v)}</td><td>—</td><td>—</td><td>—</td>`;
+            b.appendChild(ltr);
+          });
+        }
+      });
+    } else {
+      const vc=r.pos?'pos':'nv';
+      const tr=document.createElement('tr');tr.className='r-res';
+      tr.innerHTML=`<td>${r.l}</td><td class="${vc}">${fmt(r.v)}</td><td>${r.p}</td><td>${fmt(r.a)}</td><td class="${r.vr[0]==='+'?'pos':'nv'}">${r.vr}</td>`;
+      b.appendChild(tr);
+    }
+  });
+}
+
+const dre=[
+  {t:'sec',l:'RECEITA'},
+  {t:'grp',l:'Receita Bruta',re:312000,or:300000,items:[{l:'Serviços Prestados',re:312000,or:300000}]},
+  {t:'grp',l:'(–) Deduções — Impostos s/ Receita',re:-34000,or:-33000,items:[
+    {l:'Simples Nacional',re:-18000,or:-17500},{l:'ISS retido',re:-8500,or:-8500},{l:'Parcelamento',re:-7500,or:-7000}]},
+  {t:'res',l:'= Receita Líquida',re:278000,or:267000,pos:true},
+  {t:'sec',l:'CUSTOS'},
+  {t:'grp',l:'(–) CMV / CPV',re:-144000,or:-135000,items:[{l:'Materiais aplicados',re:-120000,or:-112000},{l:'Comissões',re:-24000,or:-23000}]},
+  {t:'res',l:'= Margem Bruta (48,2%)',re:134000,or:132000,pos:true},
+  {t:'sec',l:'DESPESAS OPERACIONAIS'},
+  {t:'grp',l:'(–) Pessoal',re:-82000,or:-80000,items:[
+    {l:'Prestador de Serviço',re:-35000,or:-34000},{l:'Pró-labore',re:-25000,or:-25000},{l:'Encargos',re:-22000,or:-21000}]},
+  {t:'grp',l:'(–) Estrutura',re:-43000,or:-45000,items:[
+    {l:'Aluguel',re:-18000,or:-19000},{l:'Software / Internet',re:-17000,or:-17000},{l:'Energia / Água',re:-8000,or:-9000}]},
+  {t:'grp',l:'(–) Despesas Variáveis',re:-28000,or:-26000,items:[
+    {l:'Combustível / Manutenção',re:-20000,or:-18000},{l:'Marketing',re:-8000,or:-8000}]},
+  {t:'res',l:'= Resultado Operacional (22,6%)',re:63000,or:61000,pos:true},
+  {t:'sec',l:'NÃO OPERACIONAL'},
+  {t:'grp',l:'(±) Resultado Financeiro',re:-12700,or:-12000,items:[{l:'Despesas financeiras',re:-12700,or:-12000}]},
+  {t:'res',l:'= Resultado Líquido (18,1%)',re:50300,or:49000,pos:true},
+];
+function buildDRE(){
+  const b=document.getElementById('dreB');let gi=0;
+  dre.forEach(r=>{
+    if(r.t==='sec'){const tr=document.createElement('tr');tr.className='r-sec';tr.innerHTML=`<td colspan="5">${r.l}</td>`;b.appendChild(tr);}
+    else if(r.t==='grp'){
+      const id='d'+gi++;const d=r.re-r.or;const dp=r.or?((d/Math.abs(r.or))*100).toFixed(1)+'%':'—';
+      const vc=r.re>=0?'pos':'nv';const dc=d>=0?'pos':'nv';
+      const tr=document.createElement('tr');tr.className='r-grp';
+      tr.innerHTML=`<td><span class="tog" onclick="tog('${id}',this)">${r.l}</span></td><td class="${vc}">${fmt(r.re)}</td><td>${fmt(r.or)}</td><td class="${dc}">${d>=0?'+':''}${fmt(d)}</td><td class="${dc}">${d>=0?'+':''}${dp}</td>`;
+      b.appendChild(tr);
+      r.items.forEach(it=>{
+        const dd=it.re-it.or;const ddp=it.or?((dd/Math.abs(it.or))*100).toFixed(1)+'%':'—';
+        const dtr=document.createElement('tr');dtr.className='r-det';dtr.dataset.group=id;
+        dtr.innerHTML=`<td>${it.l}</td><td class="${it.re>=0?'pos':'nv'}">${fmt(it.re)}</td><td>${fmt(it.or)}</td><td class="${dd>=0?'pos':'nv'}">${dd>=0?'+':''}${fmt(dd)}</td><td class="${dd>=0?'pos':'nv'}">${dd>=0?'+':''}${ddp}</td>`;
+        b.appendChild(dtr);});
+    } else {
+      const d=r.re-r.or;const dp=r.or?((d/Math.abs(r.or))*100).toFixed(1)+'%':'—';
+      const tr=document.createElement('tr');tr.className='r-res';
+      tr.innerHTML=`<td>${r.l}</td><td class="${r.pos?'pos':'nv'}">${fmt(r.re)}</td><td>${fmt(r.or)}</td><td class="${d>=0?'pos':'nv'}">${d>=0?'+':''}${fmt(d)}</td><td class="${d>=0?'pos':'nv'}">${d>=0?'+':''}${dp}</td>`;
+      b.appendChild(tr);}
+  });
+}
+
+buildDFCE();
+buildDRE();
+
+// init
+document.getElementById('stBar').style.display='flex';
+document.getElementById('saldoWrap').style.display='flex';
+</script>
+</body>
+</html>

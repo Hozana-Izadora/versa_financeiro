@@ -11,6 +11,8 @@ services:
       POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
       POSTGRES_HOST_AUTH_METHOD: scram-sha-256
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -18,18 +20,29 @@ services:
       - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d financas"]
-      interval: 5s
+      interval: 15s
       timeout: 5s
-      retries: 12
-      start_period: 10s
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - FOWNER
-      - SETUID
-      - SETGID
+      retries: 5
+      # start_period: 10s
+    # cap_drop:
+    #   - ALL
+    # cap_add:
+    #   - CHOWN
+    #   - FOWNER
+    #   - SETUID
+    #   - SETGID
 
+  # --- PgAdmin ───────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@email.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - internal
   # ── Migration runner ────────────────────────────────────────────────────────
   migrate:
     build:
@@ -58,7 +71,9 @@ services:
       REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-7}
       # In production all traffic comes through nginx on the same origin — CORS is irrelevant.
       # Set CORS_ORIGIN only if you need a separate dev/staging origin.
-      CORS_ORIGIN:                ${CORS_ORIGIN:-}
+      CORS_ORIGIN:                ${CORS_ORIGIN:-http://localhost:5173}
+    ports:
+      - "3001:3001"   # exposed so `npm run dev` (Vite proxy) can reach the API
     networks:
       - internal
     depends_on:
@@ -89,6 +104,20 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  # ── ngrok tunnel ────────────────────────────────────────────────────────────
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command: http frontend:80
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"
+    networks:
+      - internal
+    depends_on:
+      - frontend
 
 networks:
   internal:

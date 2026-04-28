@@ -26,6 +26,9 @@ export const defaultPlano = [
   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos', tipo: 'PIS/COFINS', nivel: 'Despesa Não Operacional' },
   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Outras Não Operacionais', tipo: 'Multas e Penalidades', nivel: 'Despesa Não Operacional' },
   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Outras Não Operacionais', tipo: 'Perdas Diversas', nivel: 'Despesa Não Operacional' },
+  { cat: 'ENTRADAS NÃO OPERACIONAIS', grp: 'Receitas Financeiras', tipo: 'Rendimentos de Aplicações', nivel: 'Entrada Não Operacional' },
+  { cat: 'ENTRADAS NÃO OPERACIONAIS', grp: 'Outras Entradas', tipo: 'Venda de Ativos', nivel: 'Entrada Não Operacional' },
+  { cat: 'ENTRADAS NÃO OPERACIONAIS', grp: 'Outras Entradas', tipo: 'Recuperação de Créditos', nivel: 'Entrada Não Operacional' },
 ];
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -111,6 +114,17 @@ export function generateSample(plano) {
           out[base].push({ id: id++, data: dd(rnd(26) + 1), desc: `${tipo} - ${MONTHS[mi]}`, cat: p.cat, grp: p.grp, tipo: p.tipo, nivel: p.nivel, valor: v, mov: 'Saída', regime: base === 'caixa' ? 'Caixa' : 'Competência' });
         });
       });
+    }
+
+    // Entradas não operacionais (aleatório)
+    if (Math.random() > 0.5) {
+      const p = plano.find(x => x.tipo === 'Rendimentos de Aplicações');
+      if (p) {
+        const v = 200 + rnd(800);
+        ['caixa', 'competencia'].forEach(base => {
+          out[base].push({ id: id++, data: dd(rnd(26) + 1), desc: `Rendimentos de Aplicações - ${MONTHS[mi]}`, cat: p.cat, grp: p.grp, tipo: p.tipo, nivel: p.nivel, valor: v, mov: 'Entrada', regime: base === 'caixa' ? 'Caixa' : 'Competência' });
+        });
+      }
     }
   }
 

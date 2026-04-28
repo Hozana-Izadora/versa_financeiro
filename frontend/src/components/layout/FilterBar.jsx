@@ -30,7 +30,7 @@ export default function FilterBar() {
   if (hiddenPages.includes(currentPage)) return null;
 
   return (
-    <div className="bg-bg-3 border-b border-slate-100 px-7 py-2 flex items-center gap-2 flex-wrap">
+    <div className="bg-bg-3 dark:bg-[#0f1623] border-b border-slate-100 dark:border-[#1e2d42] px-7 py-2 flex items-center gap-2 flex-wrap transition-colors">
       {/* Year */}
       <div className="flex flex-col gap-0.5">
         <span className="text-[9px] uppercase tracking-[1.5px] text-text-3">Ano</span>

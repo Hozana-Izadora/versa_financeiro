@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { fmt, fmtPct, pct, MONTHS } from '../../utils/formatters.js';
 import Icon from '../ui/Icon.jsx';
 
@@ -24,18 +24,38 @@ function TotalCell({ v, isPos, showPct, refV }) {
   );
 }
 
-export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct }) {
-  const [expanded, setExpanded] = useState(new Set());
+export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filterCat }) {
+  const allGids = useMemo(
+    () => new Set(dre.rows.filter(r => r.type === 'group').map(r => r.gid)),
+    [dre.rows],
+  );
+
+  // collapsed = gids the user manually folded; default: none (all open)
+  const [collapsed, setCollapsed] = useState(new Set());
+
+  // Reset collapsed when filter changes or rows change
+  useEffect(() => { setCollapsed(new Set()); }, [filterCat, dre.rows]);
 
   function toggle(gid) {
-    setExpanded(prev => {
+    setCollapsed(prev => {
       const next = new Set(prev);
       next.has(gid) ? next.delete(gid) : next.add(gid);
       return next;
     });
   }
 
+  const isExpanded = (gid) => !collapsed.has(gid);
+
   const { rows, visMonths } = dre;
+
+  // When a category is filtered, only show that group tree (hide structural rows)
+  const visibleRows = filterCat
+    ? rows.filter(row => {
+        if (row.type === 'group') return row.cat === filterCat;
+        if (row.type === 'subgroup' || row.type === 'item') return row.cat === filterCat;
+        return false;
+      })
+    : rows;
 
   return (
     <div className="overflow-x-auto max-w-full">
@@ -48,7 +68,7 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => {
+          {visibleRows.map((row, i) => {
             if (row.type === 'section') {
               return (
                 <tr key={i} className="dr-section">
@@ -60,7 +80,7 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct }) {
             }
 
             if (row.type === 'group') {
-              const isExp = expanded.has(row.gid);
+              const isExp = isExpanded(row.gid);
               return (
                 <tr key={i} className="dr-group" onClick={() => toggle(row.gid)} style={{ cursor: 'pointer' }}>
                   <td>
@@ -81,13 +101,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct }) {
             }
 
             if (row.type === 'subgroup') {
-              if (!expanded.has(row.parentGid)) return null;
+              if (!isExpanded(row.parentGid)) return null;
               return (
-                <tr
-                  key={i} className="dr-item"
-                  onClick={() => onDrillGroup?.(row.label, row.movFilter)}
-                  style={{ display: '' }}
-                >
+                <tr key={i} className="dr-item" onClick={() => onDrillGroup?.(row.label, row.movFilter)}>
                   <td style={{ paddingLeft: '32px' }}>└ {row.label}</td>
                   {row.monthValues.map((v, mi) => (
                     <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} />
@@ -98,12 +114,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct }) {
             }
 
             if (row.type === 'item') {
-              if (!expanded.has(row.parentGid)) return null;
+              if (!isExpanded(row.parentGid)) return null;
               return (
-                <tr
-                  key={i} className="dr-item"
-                  onClick={() => onDrillItem?.(row.label, row.movFilter)}
-                >
+                <tr key={i} className="dr-item" onClick={() => onDrillItem?.(row.label, row.movFilter)}>
                   <td style={{ paddingLeft: '52px', color: '#94a3b8' }}>· {row.label}</td>
                   {row.monthValues.map((v, mi) => (
                     <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} />

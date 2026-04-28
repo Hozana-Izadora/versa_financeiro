@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { api } from '../api/index.js';
 import { getAvailableMonths, getYears } from '../utils/formatters.js';
 
 const AppContext = createContext(null);
+
+const storedDark = localStorage.getItem('theme') === 'dark';
+if (storedDark) document.documentElement.classList.add('dark');
 
 const initialState = {
   transactions: { caixa: [], competencia: [] },
@@ -17,6 +20,7 @@ const initialState = {
     group: 'all',
     availableMonths: [],
   },
+  darkMode: storedDark,
   loading: false,
   notification: null,
   modal: null,
@@ -46,6 +50,8 @@ function reducer(state, action) {
       return { ...state, notification: action.payload };
     case 'SET_MODAL':
       return { ...state, modal: action.payload };
+    case 'TOGGLE_DARK':
+      return { ...state, darkMode: !state.darkMode };
     default:
       return state;
   }
@@ -53,6 +59,11 @@ function reducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', state.darkMode);
+    localStorage.setItem('theme', state.darkMode ? 'dark' : 'light');
+  }, [state.darkMode]);
 
   const notify = useCallback((msg, cls = 'ns') => {
     dispatch({ type: 'SET_NOTIFICATION', payload: { msg, cls } });
@@ -110,6 +121,10 @@ export function AppProvider({ children }) {
     }
   }, [state.currentPage]);
 
+  const toggleDark = useCallback(() => {
+    dispatch({ type: 'TOGGLE_DARK' });
+  }, []);
+
   const actions = {
     notify,
     openModal,
@@ -118,6 +133,7 @@ export function AppProvider({ children }) {
     applyFilter,
     refreshAll,
     refreshTransactions,
+    toggleDark,
     dispatch,
   };
 

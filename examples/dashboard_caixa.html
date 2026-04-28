@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Financeiro · Teixeira Refrigeração</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:#0b0f1a; --surface:#111827; --surface2:#1a2235; --border:#1f2d44;
+    --entrada:#00e5a0; --saida:#ff4d6d; --neutro:#5b8cff; --gold:#f5c842;
+    --text:#e8edf5; --muted:#6b7fa3; --card-radius:16px;
+    --font:'Calibri', 'Segoe UI', Arial, sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); min-height:100vh; font-size:14px; }
+
+  /* HEADER */
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:200; }
+  .logo-area h1 { font-family:var(--font); font-weight:800; font-size:1.15rem; letter-spacing:-0.03em; }
+  .logo-area span { font-size:0.7rem; color:var(--entrada); letter-spacing:.15em; text-transform:uppercase; font-weight:600; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .saldo-inicial-wrap { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:6px 12px; }
+  .saldo-inicial-wrap label { font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; white-space:nowrap; font-family:var(--font); }
+  .saldo-inicial-input { background:transparent; border:none; color:var(--text); font-family:var(--font); font-size:0.88rem; font-weight:700; width:110px; text-align:right; outline:none; }
+  .saldo-inicial-input:focus { color:var(--neutro); }
+  .header-badge { background:linear-gradient(135deg,#00e5a0,#00b4ff); padding:6px 14px; border-radius:100px; font-size:0.68rem; font-weight:700; color:#0b0f1a; letter-spacing:.05em; text-transform:uppercase; }
+
+  /* FILTERS */
+  .filters-bar { display:flex; gap:10px; align-items:center; padding:10px 28px; background:var(--surface); border-bottom:1px solid var(--border); flex-wrap:wrap; position:sticky; top:57px; z-index:150; }
+  .filter-label { font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; font-weight:600; font-family:var(--font); }
+  select, input[type="date"] { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:6px 11px; border-radius:9px; font-family:var(--font); font-size:0.82rem; cursor:pointer; outline:none; transition:border-color .2s; }
+  select:hover, input:hover { border-color:var(--neutro); }
+  select:focus, input:focus { border-color:var(--entrada); }
+  .btn-reset { background:transparent; border:1px solid var(--border); color:var(--muted); padding:6px 13px; border-radius:9px; font-family:var(--font); font-size:0.78rem; cursor:pointer; transition:all .2s; }
+  .btn-reset:hover { border-color:var(--saida); color:var(--saida); }
+
+  /* DAY TIMELINE FILTER */
+  .day-timeline-wrap { display:flex; align-items:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:4px 8px; max-width:420px; overflow:hidden; }
+  .day-timeline { display:flex; gap:3px; flex-wrap:wrap; }
+  .day-chip { display:inline-flex; align-items:center; justify-content:center; width:26px; height:24px; border-radius:5px; font-size:0.72rem; font-weight:600; font-family:var(--font); cursor:pointer; background:var(--surface); border:1px solid var(--border); color:var(--muted); transition:all .15s; user-select:none; }
+  .day-chip:hover { border-color:var(--neutro); color:var(--text); }
+  .day-chip.active { background:var(--neutro); border-color:var(--neutro); color:#fff; box-shadow:0 0 6px rgba(91,140,255,.4); }
+  .btn-clear-days { background:transparent; border:none; color:var(--saida); font-size:0.78rem; cursor:pointer; padding:2px 4px; line-height:1; opacity:.8; }
+  .btn-clear-days:hover { opacity:1; }
+
+  /* TABS */
+  main { padding:24px 28px; }
+  .tab-bar { display:flex; gap:3px; margin-bottom:20px; background:var(--surface2); padding:4px; border-radius:12px; width:fit-content; }
+  .tab { padding:7px 18px; border-radius:9px; font-size:0.8rem; font-weight:600; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:all .2s; font-family:var(--font); letter-spacing:.01em; }
+  .tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.4); }
+  .tab-import { background:rgba(0,229,160,.1)!important; color:var(--entrada)!important; border:1px solid rgba(0,229,160,.25); }
+  .tab-import.active { background:rgba(0,229,160,.18)!important; border-color:rgba(0,229,160,.5); }
+  .view { display:none; } .view.active { display:block; }
+
+  /* CARDS */
+  .kpi-row  { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px; }
+  .kpi-row-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:16px; }
+  .kpi-row-5{ display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:16px; }
+
+  .kpi-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--card-radius); padding:18px 20px; position:relative; overflow:hidden; transition:transform .18s, box-shadow .18s; cursor:pointer; }
+  .kpi-card:hover { transform:translateY(-2px); box-shadow:0 4px 20px rgba(0,0,0,.3); }
+  .kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .kpi-card.entrada::before { background:var(--entrada); }
+  .kpi-card.saida::before   { background:var(--saida); }
+  .kpi-card.saldo::before   { background:var(--neutro); }
+  .kpi-card.gold::before    { background:var(--gold); }
+  .kpi-card.neutro::before  { background:var(--gold); }
+  .kpi-card.resultado-bloco { border-color:var(--neutro)!important; background:linear-gradient(135deg,#111827,#131f35)!important; }
+  .kpi-card.resultado-bloco::before { background:var(--neutro)!important; }
+  .kpi-card.saldo-acum-card { border-color:rgba(91,140,255,.4); background:linear-gradient(135deg,#0f1e3a,#111827)!important; }
+  .kpi-card.saldo-acum-card::before { background:linear-gradient(90deg,var(--neutro),var(--entrada)); }
+
+  .kpi-label { font-size:0.66rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); margin-bottom:8px; font-weight:600; }
+  .kpi-value { font-family:var(--font); font-size:1.55rem; font-weight:700; letter-spacing:-.03em; line-height:1; }
+  .kpi-card.entrada .kpi-value { color:var(--entrada); }
+  .kpi-card.saida   .kpi-value { color:var(--saida); }
+  .kpi-card.saldo   .kpi-value { color:var(--neutro); }
+  .kpi-card.gold    .kpi-value { color:var(--gold); }
+  .kpi-card.neutro  .kpi-value { color:var(--gold); }
+  .kpi-card.saldo-acum-card .kpi-value { color:var(--neutro); }
+  .kpi-saida-sub { color:var(--saida)!important; }
+  .kpi-sub { font-size:0.72rem; color:var(--muted); margin-top:6px; }
+  .kpi-arrow { position:absolute; bottom:12px; right:14px; font-size:0.7rem; color:var(--muted); opacity:.5; transition:opacity .2s; }
+  .kpi-card:hover .kpi-arrow { opacity:1; color:var(--neutro); }
+
+  /* CHARTS */
+  .chart-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--card-radius); padding:20px 22px; }
+  .chart-title { font-family:var(--font); font-size:0.92rem; font-weight:700; margin-bottom:3px; }
+  .chart-subtitle { font-size:0.7rem; color:var(--muted); margin-bottom:16px; }
+  .chart-grid   { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-bottom:14px; }
+  .chart-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:14px; }
+
+  /* BLOCO LABELS */
+  .bloco-label { font-family:var(--font); font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.15em; color:var(--muted); margin-bottom:10px; border-left:3px solid var(--neutro); padding-left:10px; }
+  .cascade-arrow { text-align:center; font-size:1.3rem; color:var(--border); margin:4px 0 14px; }
+
+  /* KPI CASCADE ROW */
+  .kpi-cascade-row { display:flex; align-items:stretch; gap:0; margin-bottom:14px; }
+  .kpi-cascade-row .kpi-card { flex:1; min-width:0; border-radius:0; border-right:none; }
+  .kpi-cascade-row .kpi-card:first-child { border-radius:var(--card-radius) 0 0 var(--card-radius); }
+  .kpi-cascade-row .kpi-card:last-child  { border-radius:0 var(--card-radius) var(--card-radius) 0; border-right:1px solid var(--border); }
+  .cascade-connector { display:flex; align-items:center; justify-content:center; background:var(--surface2); border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:0 10px; font-family:var(--font); font-size:1.3rem; font-weight:700; color:var(--muted); min-width:36px; flex-shrink:0; }
+
+  /* SALDO ACUMULADO no HEADER */
+  .saldo-acum-header { display:flex; flex-direction:column; align-items:flex-end; background:linear-gradient(135deg,rgba(91,140,255,.15),rgba(0,229,160,.1)); border:1px solid rgba(91,140,255,.35); border-radius:10px; padding:6px 14px; cursor:pointer; transition:border-color .2s; }
+  .saldo-acum-header:hover { border-color:rgba(91,140,255,.6); }
+  .saldo-acum-label { font-size:0.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; font-weight:600; }
+  .saldo-acum-value { font-family:var(--font); font-size:1.05rem; font-weight:800; color:var(--neutro); letter-spacing:-.02em; }
+  .saldo-acum-value.neg { color:var(--saida); }
+
+  /* 2-column equal grid */
+  .chart-grid-2eq { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+  /* VALUES */
+  .val-pos { color:var(--entrada); font-weight:700; font-family:var(--font); }
+  .val-neg { color:var(--saida);   font-weight:700; font-family:var(--font); }
+
+  /* TABLE */
+  .table-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--card-radius); overflow:hidden; }
+  .table-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .table-header h3 { font-family:var(--font); font-size:0.9rem; font-weight:700; }
+  .table-count { font-size:0.68rem; color:var(--muted); background:var(--surface2); padding:3px 10px; border-radius:100px; }
+  .table-scroll { overflow-x:auto; overflow-y:auto; }
+  .table-scroll::-webkit-scrollbar { width:4px; height:4px; }
+  .table-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+  thead th { background:var(--surface2); padding:10px 13px; text-align:left; font-size:0.65rem; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:700; white-space:nowrap; }
+  tbody tr { border-top:1px solid var(--border); transition:background .12s; }
+  tbody tr:hover { background:var(--surface2); }
+  tbody td { padding:9px 13px; color:var(--text); }
+  .badge { display:inline-block; padding:2px 9px; border-radius:100px; font-size:0.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .badge-entrada { background:rgba(0,229,160,.15); color:var(--entrada); }
+  .badge-saida   { background:rgba(255,77,109,.15); color:var(--saida); }
+
+  /* EDITABLE TABLE */
+  .cell-edit { background:transparent; border:1px solid transparent; color:var(--text); font-family:var(--font); font-size:0.8rem; padding:3px 6px; border-radius:5px; width:100%; transition:border-color .15s, background .15s; }
+  .cell-edit:hover { border-color:var(--border); background:var(--surface2); }
+  .cell-edit:focus { outline:none; border-color:var(--neutro); background:var(--surface2); }
+  .cell-select { cursor:pointer; }
+  .cell-valor { font-family:var(--font); font-weight:700; }
+  .btn-del-row { background:transparent; border:none; color:var(--muted); font-size:0.78rem; cursor:pointer; padding:3px 6px; border-radius:4px; transition:color .15s, background .15s; }
+  .btn-del-row:hover { color:var(--saida); background:rgba(255,77,109,.1); }
+  .btn-add-row { background:rgba(0,229,160,.1); border:1px solid rgba(0,229,160,.3); color:var(--entrada); font-family:var(--font); font-weight:700; font-size:0.76rem; padding:6px 12px; border-radius:8px; cursor:pointer; transition:all .15s; white-space:nowrap; }
+  .btn-add-row:hover { background:rgba(0,229,160,.18); }
+  .btn-save-rows { background:rgba(91,140,255,.1); border:1px solid rgba(91,140,255,.3); color:var(--neutro); font-family:var(--font); font-weight:700; font-size:0.76rem; padding:6px 12px; border-radius:8px; cursor:pointer; transition:all .2s; white-space:nowrap; }
+  .btn-save-rows:hover { background:rgba(91,140,255,.2); }
+
+  /* DFC */
+  .dfc-layout { display:grid; grid-template-columns:1fr; gap:16px; }
+  .dfc-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--card-radius); padding:0; overflow:hidden; }
+  .dfc-header-bar { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  .dfc-title-main { font-family:var(--font); font-size:1rem; font-weight:700; }
+  .dfc-subtitle-main { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+  .dfc-month-selector { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .dfc-month-selector label { font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  .dfc-month-btn { background:var(--surface2); border:1px solid var(--border); color:var(--muted); padding:5px 10px; border-radius:7px; font-family:var(--font); font-size:0.74rem; cursor:pointer; transition:all .15s; font-weight:600; }
+  .dfc-month-btn.active { background:rgba(91,140,255,.15); border-color:var(--neutro); color:var(--neutro); }
+  .dfc-month-btn:hover { border-color:var(--neutro); color:var(--text); }
+
+  .dfc-table-wrap { overflow-x:auto; }
+  .dfc-table { width:100%; border-collapse:collapse; font-size:0.78rem; min-width:500px; }
+  .dfc-table th { background:#0f1e3a; padding:8px 14px; text-align:right; font-size:0.64rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700; white-space:nowrap; position:sticky; top:0; }
+  .dfc-table th:first-child { text-align:left; min-width:280px; position:sticky; left:0; background:#0f1e3a; z-index:2; }
+  .dfc-table td { padding:6px 14px; border-top:1px solid rgba(31,45,68,.5); text-align:right; white-space:nowrap; color:var(--muted); }
+  .dfc-table td:first-child { text-align:left; position:sticky; left:0; background:var(--surface); z-index:1; }
+  .dfc-table tr:hover td { background:rgba(255,255,255,.02); }
+  .dfc-table tr:hover td:first-child { background:#131f30; }
+
+  .dfc-sec { font-weight:700; color:var(--text) !important; background:#1a2a44 !important; font-size:0.76rem; text-transform:uppercase; letter-spacing:.04em; }
+  .dfc-sec td { background:#1a2a44 !important; padding:9px 14px !important; color:var(--text) !important; }
+  .dfc-sec td:first-child { background:#1a2a44 !important; }
+  .dfc-sub2 td:first-child { padding-left:32px !important; font-size:0.74rem; }
+  .dfc-result td { font-weight:700; background:rgba(91,140,255,.07) !important; border-top:1px solid rgba(91,140,255,.2) !important; color:var(--text) !important; }
+  .dfc-result td:first-child { background:rgba(91,140,255,.07) !important; color:var(--text) !important; }
+  .dfc-superavit-row td { font-weight:800; font-size:0.82rem; text-transform:uppercase; letter-spacing:.03em; }
+  .dfc-superavit-row.pos td { background:rgba(0,229,160,.1) !important; color:var(--entrada) !important; border-top:2px solid rgba(0,229,160,.3) !important; }
+  .dfc-superavit-row.neg td { background:rgba(255,77,109,.1) !important; color:var(--saida) !important; border-top:2px solid rgba(255,77,109,.3) !important; }
+  .dfc-zero { color:var(--border) !important; }
+  .ah-var { font-size:0.7rem; }
+  .ah-pos { color:var(--entrada); } .ah-neg { color:var(--saida); }
+
+  /* IMPORT */
+  .import-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .import-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--card-radius); padding:24px; display:flex; flex-direction:column; gap:14px; }
+  .import-card-icon { font-size:1.8rem; }
+  .import-card-title { font-family:var(--font); font-size:1rem; font-weight:700; }
+  .import-card-desc { font-size:0.8rem; color:var(--muted); line-height:1.6; }
+  .template-preview { background:var(--surface2); border:1px solid var(--border); border-radius:9px; overflow:hidden; font-size:0.68rem; }
+  .template-preview-header { background:#0d1520; padding:7px 11px; display:flex; align-items:center; gap:5px; }
+  .tp-dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .tp-green{background:#00c47a;} .tp-yellow{background:#f5c842;} .tp-red{background:#ff4d6d;}
+  .tp-filename { font-size:0.66rem; color:var(--muted); margin-left:5px; font-family:monospace; }
+  .template-cols { display:flex; gap:3px; padding:7px 9px; background:#0f1e3a; flex-wrap:wrap; }
+  .tc { background:#1a2f52; color:#8fa3c7; padding:2px 6px; border-radius:3px; font-size:0.62rem; white-space:nowrap; }
+  .tc.mandatory { background:#1e3a6e; color:var(--entrada); font-weight:700; }
+  .template-row-ex { display:flex; padding:6px 9px; gap:5px; border-top:1px solid var(--border); flex-wrap:wrap; }
+  .template-row-ex.alt { background:rgba(255,255,255,.02); }
+  .tr-cell { font-size:0.62rem; color:var(--text); white-space:nowrap; }
+  .tr-cell.green{color:var(--entrada);font-weight:700;} .tr-cell.red{color:var(--saida);font-weight:700;} .tr-cell.muted{color:var(--muted);}
+  .import-rules { background:var(--surface2); border-radius:9px; padding:12px 14px; display:flex; flex-direction:column; gap:7px; }
+  .rule-title { font-size:0.66rem; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); font-weight:700; margin-bottom:2px; }
+  .rule-item { display:flex; align-items:center; gap:9px; font-size:0.78rem; color:var(--text); }
+  .rule-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:5px; font-size:0.66rem; font-weight:700; flex-shrink:0; }
+  .rule-badge.mandatory{background:rgba(0,229,160,.15);color:var(--entrada);}
+  .rule-badge.green{background:rgba(0,229,160,.15);color:var(--entrada);}
+  .rule-badge.red{background:rgba(255,77,109,.15);color:var(--saida);}
+  .rule-badge.info{background:rgba(91,140,255,.15);color:var(--neutro);}
+  .btn-download { background:linear-gradient(135deg,#00e5a0,#00c47a); color:#0b0f1a; border:none; padding:11px 20px; border-radius:9px; font-family:var(--font); font-weight:700; font-size:0.86rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; transition:opacity .2s, transform .15s; margin-top:auto; }
+  .btn-download:hover{opacity:.9;transform:translateY(-1px);}
+  .drop-zone { border:2px dashed var(--border); border-radius:11px; padding:35px 18px; text-align:center; cursor:pointer; transition:all .2s; background:var(--surface2); }
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--neutro);background:rgba(91,140,255,.06);}
+  .drop-icon{font-size:2.2rem;margin-bottom:10px;}
+  .drop-title{font-family:var(--font);font-weight:700;font-size:0.9rem;margin-bottom:5px;}
+  .drop-sub{font-size:0.72rem;color:var(--muted);}
+  .status-header{padding:11px 14px;border-radius:9px;font-size:0.82rem;font-weight:600;}
+  .status-ok{background:rgba(0,229,160,.1);color:var(--entrada);border:1px solid rgba(0,229,160,.3);}
+  .status-warn{background:rgba(245,200,66,.1);color:var(--gold);border:1px solid rgba(245,200,66,.3);}
+  .status-err{background:rgba(255,77,109,.1);color:var(--saida);border:1px solid rgba(255,77,109,.3);}
+  .errors-list{background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.2);border-radius:9px;padding:11px 14px;font-size:0.75rem;color:var(--saida);max-height:110px;overflow-y:auto;line-height:1.8;}
+  .preview-label{font-size:0.66rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:7px;font-weight:700;}
+  .preview-table-wrap{margin-top:4px;}
+  .btn-apply{background:linear-gradient(135deg,#5b8cff,#3a6bdd);color:#fff;border:none;padding:11px 20px;border-radius:9px;font-family:var(--font);font-weight:700;font-size:0.86rem;cursor:pointer;width:100%;transition:opacity .2s, transform .15s;}
+  .btn-apply:hover{opacity:.9;transform:translateY(-1px);}
+
+  .btn-clear-data{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--saida);font-family:var(--font);font-weight:700;font-size:0.8rem;padding:9px 16px;border-radius:9px;cursor:pointer;width:100%;transition:all .2s;}
+  .btn-clear-data:hover{background:rgba(255,77,109,.2);border-color:rgba(255,77,109,.6);}
+
+  /* DETALHE DESPESAS */
+  .desp-detail-item{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:8px;margin-bottom:6px;background:var(--surface2);cursor:pointer;transition:background .15s;}
+  .desp-detail-item:hover{background:rgba(255,255,255,.05);}
+  .desp-detail-name{font-size:0.82rem;color:var(--text);flex:1;}
+  .desp-detail-val{font-family:var(--font);font-size:0.86rem;font-weight:700;color:var(--saida);margin-left:12px;}
+  .desp-detail-pct{font-size:0.7rem;color:var(--muted);margin-left:8px;white-space:nowrap;}
+
+  @media(max-width:900px){
+    .kpi-row,.kpi-row-3,.kpi-row-5{grid-template-columns:1fr 1fr;}
+    .kpi-cascade-row{flex-direction:column;gap:2px;}
+    .kpi-cascade-row .kpi-card{border-radius:var(--card-radius)!important;border-right:1px solid var(--border)!important;}
+    .cascade-connector{display:none;}
+    .chart-grid,.chart-grid-3,.chart-grid-2eq{grid-template-columns:1fr;}
+    .import-grid{grid-template-columns:1fr;}
+    main{padding:14px;}
+    .filters-bar{padding:10px 14px;}
+    header{padding:12px 14px;flex-wrap:wrap;gap:8px;}
+    
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <h1>Teixeira Refrigeração</h1>
+    <span>Dashboard Financeiro · 2025</span>
+  </div>
+  <div class="header-right">
+    <div class="saldo-inicial-wrap">
+      <label>Saldo Inicial R$</label>
+      <input class="saldo-inicial-input" id="saldoInicialInput" type="number" step="0.01" value="51.10" onchange="render()" placeholder="0,00">
+    </div>
+    <div class="saldo-inicial-wrap">
+      <label>Saldo Acumulado</label>
+      <span class="saldo-inicial-input" id="saldoAcumHeaderVal" style="display:inline-block;min-width:110px;text-align:right">—</span>
+    </div>
+  </div>
+</header>
+
+<div class="filters-bar">
+  <span class="filter-label">Filtros</span>
+  <select id="filtroAno">
+    <option value="">Todos os anos</option>
+    <option value="2025" selected>2025</option>
+  </select>
+  <select id="filtroMes">
+    <option value="">Todos os meses</option>
+    <option value="1">Janeiro</option>
+    <option value="2">Fevereiro</option>
+  </select>
+  <div class="day-timeline-wrap">
+    <span class="filter-label" style="margin-right:4px">Dias:</span>
+    <div id="dayTimeline" class="day-timeline"></div>
+    <button class="btn-clear-days" id="btnClearDays" onclick="clearDayFilter()" style="display:none" title="Limpar dias">✕</button>
+  </div>
+  <select id="filtroTipoNivel"><option value="">Todos os tipos</option></select>
+  <button class="btn-reset" onclick="resetFiltros()">✕ Limpar</button>
+</div>
+
+<main>
+  <div class="tab-bar">
+    <button class="tab active" onclick="showView('visao-geral',event)">Visão Geral</button>
+    <button class="tab" onclick="showView('dfc',event)">DFC</button>
+    <button class="tab" onclick="showView('transacoes',event)">Transações</button>
+    <button class="tab tab-import" onclick="showView('importar',event)">⬆ Importar</button>
+  </div>
+
+  <!-- ===== VISÃO GERAL ===== -->
+  <div id="visao-geral" class="view active">
+
+    <!-- KPI CASCADE: Receitas Op > Custos Diretos > Desp Fixas > Desp Variáveis > Caixa Op -->
+    <div class="kpi-cascade-row">
+      <div class="kpi-card entrada" onclick="goToTransacoes('FATURAMENTO')">
+        <div class="kpi-label">Receitas Operacionais</div>
+        <div class="kpi-value" id="kpi-fat">—</div>
+        <div class="kpi-sub" id="kpi-fat-n">Faturamento de serviços</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="cascade-connector">−</div>
+      <div class="kpi-card saida" onclick="goToTransacoes('CUSTOS DIRETOS')">
+        <div class="kpi-label">Custos Diretos</div>
+        <div class="kpi-value kpi-saida-sub" id="kpi-custos-dir">—</div>
+        <div class="kpi-sub" id="kpi-custos-dir-n">Impostos e custos diretos</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="cascade-connector">−</div>
+      <div class="kpi-card saida" onclick="goToTransacoes('DESPESAS FIXAS')">
+        <div class="kpi-label">Despesas Fixas</div>
+        <div class="kpi-value kpi-saida-sub" id="kpi-desp-fix">—</div>
+        <div class="kpi-sub" id="kpi-desp-fix-n">Custos recorrentes</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="cascade-connector">−</div>
+      <div class="kpi-card saida" onclick="goToTransacoes('DESPESAS VARIÁVEIS')">
+        <div class="kpi-label">Despesas Variáveis</div>
+        <div class="kpi-value kpi-saida-sub" id="kpi-desp-var">—</div>
+        <div class="kpi-sub" id="kpi-desp-var-n">Custos variáveis</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="cascade-connector">=</div>
+      <div class="kpi-card resultado-bloco" style="cursor:default">
+        <div class="kpi-label">Caixa Operacional</div>
+        <div class="kpi-value" id="kpi-cx-op">—</div>
+        <div class="kpi-sub" id="kpi-cx-op-pct">Margem sobre receita</div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 1: Fluxo Mensal + Fluxo Acumulado -->
+    <div class="chart-grid-2eq" style="margin-bottom:14px">
+      <div class="chart-card">
+        <div class="chart-title">Fluxo de Caixa Líquido R$ — mensal</div>
+        <div class="chart-subtitle">Resultado líquido de cada mês (entradas − saídas totais)</div>
+        <canvas id="chartFluxoMensal" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Fluxo de Caixa Líquido R$ — acumulado</div>
+        <div class="chart-subtitle">Saldo acumulado mês a mês a partir do saldo inicial</div>
+        <canvas id="chartFluxoAcum" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2: Pizza Despesas + Detalhe -->
+    <div class="chart-grid-2eq" style="margin-bottom:14px">
+      <div class="chart-card" style="display:flex;flex-direction:column">
+        <div class="chart-title">Composição das Despesas Operacionais</div>
+        <div class="chart-subtitle">Clique numa fatia para ver o detalhe</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0">
+          <canvas id="chartDespOp" style="max-height:280px;max-width:100%"></canvas>
+        </div>
+      </div>
+      <div class="chart-card" id="despOpDetalhe">
+        <div class="chart-title">Detalhe da Seleção</div>
+        <div class="chart-subtitle" id="despOpDetalheLabel">Clique em uma fatia do gráfico ao lado</div>
+        <div id="despOpDetalheContent" style="margin-top:12px">
+          <div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:30px 0">
+            ← Selecione uma categoria no gráfico
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cascade-arrow">▼</div>
+
+    <!-- KPI NÃO OPERACIONAL + CAIXA LÍQUIDO -->
+    <div class="kpi-row-3" style="margin-bottom:14px">
+      <div class="kpi-card entrada" style="opacity:.88" onclick="goToTransacoes('NÃO OPERACIONAL ENTRADAS')">
+        <div class="kpi-label">Outras Receitas</div>
+        <div class="kpi-value" id="kpi-outras-rec">—</div>
+        <div class="kpi-sub">Empréstimos, aportes, etc.</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="kpi-card saida" style="opacity:.88" onclick="goToTransacoes('NÃO OPERACIONAL SAÍDAS')">
+        <div class="kpi-label">Saídas Não Operacionais</div>
+        <div class="kpi-value" id="kpi-outras-sai">—</div>
+        <div class="kpi-sub">Distribuição, investimentos, passivo</div>
+        <span class="kpi-arrow">↗</span>
+      </div>
+      <div class="kpi-card neutro resultado-bloco" style="cursor:default">
+        <div class="kpi-label">= Caixa Líquido do Período</div>
+        <div class="kpi-value" id="kpi-cx-liq">—</div>
+        <div class="kpi-sub" id="kpi-cx-liq-n">— transações no total</div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2: Outras Receitas + Outras Saídas -->
+    <div class="chart-grid-2eq" style="margin-bottom:14px">
+      <div class="chart-card">
+        <div class="chart-title">Outras Receitas</div>
+        <div class="chart-subtitle">Por categoria</div>
+        <canvas id="chartOutrasRec" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Saídas Não Operacionais</div>
+        <div class="chart-subtitle">Por grupo</div>
+        <canvas id="chartOutrasSai" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- SALDO ACUMULADO — full width at bottom -->
+    <div class="chart-card">
+      <div class="chart-title">Saldo Acumulado</div>
+      <div class="chart-subtitle">Evolução do caixa ao longo do tempo incluindo saldo inicial · linha vermelha = negativo</div>
+      <canvas id="chartCaixaAcum" height="130"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ===== DFC ===== -->
+  <div id="dfc" class="view">
+    <div class="dfc-section">
+      <div class="dfc-header-bar">
+        <div>
+          <div class="dfc-title-main">Demonstrativo de Fluxo de Caixa (DFC)</div>
+          <div class="dfc-subtitle-main">Método Direto · Análise Horizontal por Mês</div>
+        </div>
+        <div class="dfc-month-selector">
+          <label>Comparar meses:</label>
+          <div id="dfcMonthBtns" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <button class="dfc-month-btn" onclick="selectAllMonths()" style="margin-left:4px">Todos</button>
+        </div>
+      </div>
+      <div class="dfc-table-wrap">
+        <table class="dfc-table" id="dfcTable"><!-- preenchida via JS --></table>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-top:14px">
+      <div class="chart-title">Waterfall · Composição do Resultado</div>
+      <div class="chart-subtitle">Construção passo a passo do saldo final</div>
+      <canvas id="chartWaterfall" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- ===== TRANSAÇÕES ===== -->
+  <div id="transacoes" class="view">
+    <div class="table-section">
+      <div class="table-header">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h3>Lançamentos</h3>
+          <span class="table-count" id="table-count">—</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <select id="filtroGrupoTabela" onchange="renderTabela(filteredData())" style="font-size:0.78rem;padding:6px 10px">
+            <option value="">Todos os grupos</option>
+          </select>
+          <button class="btn-add-row" onclick="addNewRow()">+ Novo</button>
+          <button class="btn-save-rows" onclick="saveEdits()">💾 Salvar</button>
+        </div>
+      </div>
+      <div class="table-scroll" style="max-height:580px">
+        <table id="tabela-principal">
+          <thead>
+            <tr>
+              <th style="width:32px"></th>
+              <th>Data</th>
+              <th>Descrição</th>
+              <th>Grupo</th>
+              <th>Categoria</th>
+              <th>Tipo</th>
+              <th>Banco</th>
+              <th>Valor (R$)</th>
+              <th>Tipo Nível</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== IMPORTAR ===== -->
+  <div id="importar" class="view">
+    <div class="import-grid">
+      <div class="import-card">
+        <div class="import-card-icon">⬇</div>
+        <div class="import-card-title">Baixar Template</div>
+        <div class="import-card-desc">Faça o download da planilha padrão, preencha com seus lançamentos e importe abaixo. O template inclui exemplos e aba de referência com grupos e categorias válidos.</div>
+        <div class="template-preview">
+          <div class="template-preview-header"><span class="tp-dot tp-green"></span><span class="tp-dot tp-yellow"></span><span class="tp-dot tp-red"></span><span class="tp-filename">template_lancamentos_teixeira.xlsx</span></div>
+          <div class="template-cols">
+            <span class="tc mandatory">DATA_MOVIMENTO *</span><span class="tc">DESCRICAO</span><span class="tc mandatory">VALOR *</span><span class="tc mandatory">TIPO *</span><span class="tc">BANCO</span><span class="tc mandatory">GRUPO *</span><span class="tc">CATEGORIA</span><span class="tc mandatory">TIPO_NIVEL *</span><span class="tc">REF</span>
+          </div>
+          <div class="template-row-ex"><span class="tr-cell">2025-03-01</span><span class="tr-cell">Serviço cliente</span><span class="tr-cell green">+1500.00</span><span class="tr-cell">ENTRADAS</span><span class="tr-cell muted">Nu Bank</span><span class="tr-cell">FATURAMENTO</span><span class="tr-cell muted">Serviços Prestados</span><span class="tr-cell">RECEITAS OPERACIONAIS</span><span class="tr-cell muted">202503</span></div>
+          <div class="template-row-ex alt"><span class="tr-cell">2025-03-05</span><span class="tr-cell">Salário</span><span class="tr-cell red">-2800.00</span><span class="tr-cell">SAÍDAS</span><span class="tr-cell muted">Nu Bank</span><span class="tr-cell">PESSOAL</span><span class="tr-cell muted">Prestador de serviço</span><span class="tr-cell">DESPESAS FIXAS</span><span class="tr-cell muted">202503</span></div>
+        </div>
+        <div class="import-rules">
+          <div class="rule-title">Regras de preenchimento</div>
+          <div class="rule-item"><span class="rule-badge mandatory">*</span> Campos obrigatórios marcados com asterisco</div>
+          <div class="rule-item"><span class="rule-badge green">+</span> Valores positivos = Entradas no caixa</div>
+          <div class="rule-item"><span class="rule-badge red">−</span> Valores negativos = Saídas do caixa</div>
+          <div class="rule-item"><span class="rule-badge info">📅</span> Data no formato AAAA-MM-DD (ex: 2025-03-15)</div>
+          <div class="rule-item"><span class="rule-badge info">📋</span> Veja a aba "Grupos e Categorias" no template</div>
+        </div>
+        <button class="btn-download" onclick="downloadTemplate()"><span>⬇</span> Baixar Planilha Template</button>
+      </div>
+      <div class="import-card">
+        <div class="import-card-icon">⬆</div>
+        <div class="import-card-title">Importar Planilha</div>
+        <div class="import-card-desc">Selecione o arquivo Excel preenchido. Os dados serão validados e substituirão a base atual.</div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <div class="drop-icon">📂</div>
+          <div class="drop-title">Clique ou arraste o arquivo aqui</div>
+          <div class="drop-sub">Aceita .xlsx e .xls · Aba "Lançamentos"</div>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFile(event)">
+        </div>
+        <div id="importStatus" style="display:none;flex-direction:column;gap:10px">
+          <div class="status-header" id="statusHeader"></div>
+          <div class="errors-list" id="errorsList" style="display:none"></div>
+          <div class="preview-table-wrap" id="previewWrap" style="display:none">
+            <div class="preview-label">Pré-visualização</div>
+            <div class="table-scroll" style="max-height:200px">
+              <table id="previewTable" style="font-size:0.75rem"><thead><tr id="previewHead"></tr></thead><tbody id="previewBody"></tbody></table>
+            </div>
+          </div>
+          <button class="btn-apply" id="btnApply" style="display:none" onclick="applyImport()">✓ Aplicar dados ao dashboard</button>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;font-weight:700">Dados atuais no dashboard</div>
+          <div style="font-size:0.82rem;color:var(--text);margin-bottom:10px" id="importSummary">—</div>
+          <button class="btn-clear-data" onclick="clearImportedData()">🗑 Apagar dados importados</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+const RAW = [{"data":"2025-01-20","descricao":"Betel contabilidade ","valor":-399.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"TERCEIROS","categoria":"Contabilidade","tipo_nivel":"DESPESAS FIXAS","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-20","descricao":"DAE junta comercial _ Legalização empresa ","valor":-147.85,"tipo":"SAÍDAS","banco":"Caixa dinheiro","grupo":"IMPOSTOS","categoria":"Multa e taxas de encargos fiscais","tipo_nivel":"CUSTOS DIRETOS","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-20","descricao":"Empréstimo de valor ","valor":3452.15,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"OUTRASENTRADAS","categoria":"Receita de empréstimo","tipo_nivel":"RECEITAS NÃO OPERACIONAIS","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-20","descricao":"Empréstimo de valor ","valor":147.85,"tipo":"ENTRADAS","banco":"Caixa dinheiro","grupo":"OUTRASENTRADAS","categoria":"Receita de empréstimo","tipo_nivel":"RECEITAS NÃO OPERACIONAIS","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-20","descricao":"Parcelamento de imposto 1/55","valor":-50.71,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"Parcelamento de imposto","tipo_nivel":"CUSTOS DIRETOS","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-20","descricao":"Saída pessoal ","valor":-50.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":1,"ano":2025,"dia":20,"ref":"202501"},{"data":"2025-01-22","descricao":"Endereço fiscal - Betel ","valor":-58.79,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"TERCEIROS","categoria":"Coworking","tipo_nivel":"DESPESAS FIXAS","mes":1,"ano":2025,"dia":22,"ref":"202501"},{"data":"2025-01-23","descricao":"Débitos de declaração MEI ","valor":-196.89,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"Multa e taxas de encargos fiscais","tipo_nivel":"CUSTOS DIRETOS","mes":1,"ano":2025,"dia":23,"ref":"202501"},{"data":"2025-01-23","descricao":"Certificado digital ","valor":-149.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"ESTRUTURA","categoria":"Software","tipo_nivel":"DESPESAS FIXAS","mes":1,"ano":2025,"dia":23,"ref":"202501"},{"data":"2025-01-23","descricao":"Saída pessal ","valor":-239.57,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":1,"ano":2025,"dia":23,"ref":"202501"},{"data":"2025-01-24","descricao":"Saída pessoal ","valor":-359.35,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":1,"ano":2025,"dia":24,"ref":"202501"},{"data":"2025-01-28","descricao":"Saída pessoal ","valor":-203.42,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":1,"ano":2025,"dia":28,"ref":"202501"},{"data":"2025-01-29","descricao":"DAE JUCEC_Legalização ","valor":-260.06,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"Multa e taxas de encargos fiscais","tipo_nivel":"CUSTOS DIRETOS","mes":1,"ano":2025,"dia":29,"ref":"202501"},{"data":"2025-01-31","descricao":"Saída pessoal ","valor":-101.08,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":1,"ano":2025,"dia":31,"ref":"202501"},{"data":"2025-02-01","descricao":"Saída pessoal ","valor":-35.44,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":1,"ref":"202502"},{"data":"2025-02-03","descricao":"Consultoria e BPO financeiro - Otávio","valor":-600.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"TERCEIROS","categoria":"Auditoria/Consultoria","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":3,"ref":"202502"},{"data":"2025-02-03","descricao":"Uber Saída pessoal ","valor":-40.6,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":3,"ref":"202502"},{"data":"2025-02-04","descricao":"Uber ","valor":-17.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PESSOAL","categoria":"Transporte alternativo","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":4,"ref":"202502"},{"data":"2025-02-04","descricao":"Saída pessoal ","valor":-92.4,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":4,"ref":"202502"},{"data":"2025-02-06","descricao":"Saída pessoal ","valor":-200.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":6,"ref":"202502"},{"data":"2025-02-07","descricao":"Saída pessoal ","valor":-394.19,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":7,"ref":"202502"},{"data":"2025-02-07","descricao":"Aporte de valor ","valor":550.0,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Aporte de valor","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":7,"ref":"202502"},{"data":"2025-02-10","descricao":"Documentos NR ","valor":-500.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Taxas e emolumentos","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":10,"ref":"202502"},{"data":"2025-02-10","descricao":"Restituição impostos ","valor":2.99,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"OUTRASENTRADAS","categoria":"Outras Receitas","tipo_nivel":"RECEITAS NÃO OPERACIONAIS","mes":2,"ano":2025,"dia":10,"ref":"202502"},{"data":"2025-02-11","descricao":"Visita Habib's _ Abolição ","valor":150.0,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":11,"ref":"202502"},{"data":"2025-02-11","descricao":"Compra de ferramentas ","valor":-24.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"INVESTIMENTOS","categoria":"investimentos Máquinas/Veículos/Equipamentos","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":11,"ref":"202502"},{"data":"2025-02-11","descricao":"Saída pessoal ","valor":-27.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":11,"ref":"202502"},{"data":"2025-02-12","descricao":"Salário Narcelio","valor":-3000.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PESSOAL","categoria":"Prestador de serviço","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":12,"ref":"202502"},{"data":"2025-02-12","descricao":"SOBRAL E PALACIO PETROLEO LTDA ","valor":5443.29,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":12,"ref":"202502"},{"data":"2025-02-12","descricao":"Parcela empréstimo _ Banco Inter 1/3","valor":-1420.26,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PASSIVO","categoria":"Empréstimos terceiros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":12,"ref":"202502"},{"data":"2025-02-12","descricao":"Saída pessoal ","valor":-172.5,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":12,"ref":"202502"},{"data":"2025-02-13","descricao":"Saída pessoal ","valor":-77.79,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":13,"ref":"202502"},{"data":"2025-02-14","descricao":"São Rafael indústria e Comércio Ltda ","valor":1611.56,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":14,"ref":"202502"},{"data":"2025-02-14","descricao":"São Rafael indústria e Comércio Ltda ","valor":1190.53,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":14,"ref":"202502"},{"data":"2025-02-14","descricao":"Saída pessoal ","valor":-469.75,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":14,"ref":"202502"},{"data":"2025-02-15","descricao":"Saída pessoal ","valor":-103.5,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":15,"ref":"202502"},{"data":"2025-02-15","descricao":"A devolver _ Carol ","valor":-150.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":15,"ref":"202502"},{"data":"2025-02-16","descricao":"Aporte de valor ","valor":137.12,"tipo":"ENTRADAS","banco":"Caixa dinheiro","grupo":"DISTRIBUIÇÃO","categoria":"Aporte de valor","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":16,"ref":"202502"},{"data":"2025-02-17","descricao":"ISS retido ","valor":-4.29,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"ISS","tipo_nivel":"CUSTOS DIRETOS","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-17","descricao":"Simples nacional_Janeiro ","valor":-676.29,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"Simples nacional","tipo_nivel":"CUSTOS DIRETOS","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-17","descricao":"Compra de EPI ","valor":-209.41,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"INVESTIMENTOS","categoria":"investimentos Máquinas/Veículos/Equipamentos","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-17","descricao":"Saída pessoal ","valor":-50.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-17","descricao":"Ferramentas ","valor":-12.5,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"INVESTIMENTOS","categoria":"investimentos Máquinas/Veículos/Equipamentos","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-17","descricao":"Uber ","valor":-244.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PESSOAL","categoria":"Transporte alternativo","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":17,"ref":"202502"},{"data":"2025-02-18","descricao":"Retirada sócio ","valor":-100.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":18,"ref":"202502"},{"data":"2025-02-19","descricao":"Uber ","valor":-32.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PESSOAL","categoria":"Transporte alternativo","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":19,"ref":"202502"},{"data":"2025-02-20","descricao":"Retirada Sócio ","valor":-637.89,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":20,"ref":"202502"},{"data":"2025-02-21","descricao":"Retirada sócio ","valor":-14.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":21,"ref":"202502"},{"data":"2025-02-23","descricao":"Combustível ","valor":-50.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Combustível","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":23,"ref":"202502"},{"data":"2025-02-23","descricao":"Manutenção carro ","valor":-66.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Manutenção de veículos","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":23,"ref":"202502"},{"data":"2025-02-24","descricao":"Endereço fiscal - Betel","valor":-58.79,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"TERCEIROS","categoria":"Coworking","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":24,"ref":"202502"},{"data":"2025-02-24","descricao":"Betel contabilidade","valor":-578.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"TERCEIROS","categoria":"Contabilidade","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":24,"ref":"202502"},{"data":"2025-02-24","descricao":"Parcelamento de imposto 2/55","valor":-51.21,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"IMPOSTOS","categoria":"Parcelamento de imposto","tipo_nivel":"CUSTOS DIRETOS","mes":2,"ano":2025,"dia":24,"ref":"202502"},{"data":"2025-02-24","descricao":"Gasolina ","valor":-50.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Combustível","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":24,"ref":"202502"},{"data":"2025-02-24","descricao":"Unimed Natal _ M Sombra (Antecipação parcial) ","valor":1494.0,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":24,"ref":"202502"},{"data":"2025-02-25","descricao":"Retirada de sócio ","valor":-50.09,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":25,"ref":"202502"},{"data":"2025-02-26","descricao":"Manutenção carro ","valor":-806.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Manutenção de veículos","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":26,"ref":"202502"},{"data":"2025-02-26","descricao":"Manutenção carro ","valor":-150.0,"tipo":"SAÍDAS","banco":"Caixa dinheiro","grupo":"OPERACIONAL","categoria":"Manutenção de veículos","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":26,"ref":"202502"},{"data":"2025-02-27","descricao":"BEACH PARK HOTEIS E TURISMO SA ","valor":3026.1,"tipo":"ENTRADAS","banco":"Nu Bank","grupo":"FATURAMENTO","categoria":"Serviços Prestados","tipo_nivel":"RECEITAS OPERACIONAIS","mes":2,"ano":2025,"dia":27,"ref":"202502"},{"data":"2025-02-27","descricao":"Gasolina ","valor":-50.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Combustível","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":27,"ref":"202502"},{"data":"2025-02-27","descricao":"Diária Narcelio ","valor":-100.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"PESSOAL","categoria":"Prestador de serviço","tipo_nivel":"DESPESAS FIXAS","mes":2,"ano":2025,"dia":27,"ref":"202502"},{"data":"2025-02-27","descricao":"Retirada de sócio ","valor":-876.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"DISTRIBUIÇÃO","categoria":"Distribuição de lucros","tipo_nivel":"NÃO OPERACIONAL","mes":2,"ano":2025,"dia":27,"ref":"202502"},{"data":"2025-02-28","descricao":"Estacionamento Igatemi ","valor":-15.0,"tipo":"SAÍDAS","banco":"Nu Bank","grupo":"OPERACIONAL","categoria":"Estacionamento","tipo_nivel":"DESPESAS VARIÁVEIS","mes":2,"ano":2025,"dia":28,"ref":"202502"}]
+
+// ============================================================
+//  CONSTANTS
+// ============================================================
+const charts = {};
+const MESES = {1:'Jan',2:'Fev',3:'Mar',4:'Abr',5:'Mai',6:'Jun',7:'Jul',8:'Ago',9:'Set',10:'Out',11:'Nov',12:'Dez'};
+const MESES_FULL = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
+const COLORS = ['#00e5a0','#5b8cff','#f5c842','#ff4d6d','#a78bfa','#34d399','#fb923c','#60a5fa','#f472b6','#4ade80','#fbbf24','#e879f9'];
+const ALL_GRUPOS = ['ADMINISTRATIVA','DISTRIBUIÇÃO','EMPRÉSTIMO','ESTRUTURA','FATURAMENTO','FINANCEIRAS','IMPOSTOS','INVESTIMENTOS','MARKETING','OPERACIONAL','OUTRASENTRADAS','PASSIVO','PESSOAL','RENDIMENTO','TERCEIROS','TRANSFERÊNCIAS'];
+const ALL_TIPO_NIVEL = ['CUSTOS DIRETOS','DESPESAS FIXAS','DESPESAS VARIÁVEIS','NÃO OPERACIONAL','RECEITAS NÃO OPERACIONAIS','RECEITAS OPERACIONAIS','TRANSFERÊNCIAS'];
+
+// DFC month selection state
+let dfcSelectedMonths = new Set();
+
+// Original data backup for reset
+const RAW_ORIGINAL = RAW.map(r=>Object.assign({},r));
+
+// ============================================================
+//  HELPERS
+// ============================================================
+function fmt(v) { return 'R$ ' + Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtShort(v) { const a=Math.abs(v); return a>=1000?(a/1000).toFixed(1)+'k':a.toFixed(2); }
+function getSaldoInicial() { return parseFloat(document.getElementById('saldoInicialInput').value)||0; }
+function destroyChart(id) { if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+// ============================================================
+//  FILTERS
+// ============================================================
+let selectedDays = new Set(); // multi-day selection
+
+function populateFilters() {
+  const tipos = [...new Set(RAW.map(r=>r.tipo_nivel))].sort();
+  const tSel  = document.getElementById('filtroTipoNivel');
+  tipos.forEach(t=>{ const o=document.createElement('option'); o.value=t; o.text=t; tSel.appendChild(o); });
+  buildDayTimeline();
+}
+
+function buildDayTimeline() {
+  const dias = [...new Set(RAW.map(r=>r.dia))].sort((a,b)=>a-b);
+  const container = document.getElementById('dayTimeline');
+  container.innerHTML = '';
+  dias.forEach(d=>{
+    const chip = document.createElement('span');
+    chip.className = 'day-chip' + (selectedDays.has(d) ? ' active' : '');
+    chip.textContent = d;
+    chip.title = 'Dia ' + d;
+    chip.onclick = () => toggleDay(d, chip);
+    container.appendChild(chip);
+  });
+  document.getElementById('btnClearDays').style.display = selectedDays.size > 0 ? 'inline' : 'none';
+}
+
+function toggleDay(d, chip) {
+  if(selectedDays.has(d)) { selectedDays.delete(d); chip.classList.remove('active'); }
+  else                     { selectedDays.add(d);    chip.classList.add('active'); }
+  document.getElementById('btnClearDays').style.display = selectedDays.size > 0 ? 'inline' : 'none';
+  render();
+}
+
+function clearDayFilter() {
+  selectedDays.clear();
+  buildDayTimeline();
+  render();
+}
+
+function filteredData() {
+  const ano  = document.getElementById('filtroAno').value;
+  const mes  = document.getElementById('filtroMes').value;
+  const tipo = document.getElementById('filtroTipoNivel').value;
+  return RAW.filter(r=>{
+    if(ano  && r.ano != ano)  return false;
+    if(mes  && r.mes != mes)  return false;
+    if(selectedDays.size > 0 && !selectedDays.has(r.dia)) return false;
+    if(tipo && r.tipo_nivel !== tipo) return false;
+    return true;
+  });
+}
+
+function resetFiltros() {
+  document.getElementById('filtroAno').value = '';
+  document.getElementById('filtroMes').value = '';
+  document.getElementById('filtroTipoNivel').value = '';
+  selectedDays.clear();
+  buildDayTimeline();
+  render();
+}
+
+// ============================================================
+//  RENDER MASTER
+// ============================================================
+function render() {
+  const data = filteredData();
+  renderKPIs(data);
+  renderCharts(data);
+  renderTabela(data);
+  renderDFC();
+}
+
+// ============================================================
+//  KPIs – VISÃO GERAL
+// ============================================================
+function renderKPIs(data) {
+  const sum = (fn) => data.filter(fn).reduce((s,r)=>s+r.valor,0);
+  const saldoInicial = getSaldoInicial();
+
+  // ── Bloco Operacional (cascata separada) ──
+  const recOp     = sum(r=>r.grupo==='FATURAMENTO');
+  const nFat      = data.filter(r=>r.grupo==='FATURAMENTO').length;
+  const custosDir = sum(r=>r.tipo_nivel==='CUSTOS DIRETOS');
+  const nCDir     = data.filter(r=>r.tipo_nivel==='CUSTOS DIRETOS').length;
+  const despFix   = sum(r=>r.tipo_nivel==='DESPESAS FIXAS'&&r.tipo==='SAÍDAS');
+  const nFix      = data.filter(r=>r.tipo_nivel==='DESPESAS FIXAS'&&r.tipo==='SAÍDAS').length;
+  const despVar   = sum(r=>r.tipo_nivel==='DESPESAS VARIÁVEIS'&&r.tipo==='SAÍDAS');
+  const nVar      = data.filter(r=>r.tipo_nivel==='DESPESAS VARIÁVEIS'&&r.tipo==='SAÍDAS').length;
+  const cxOp      = recOp + custosDir + despFix + despVar;
+  const margOp    = recOp>0 ? (cxOp/recOp*100).toFixed(1) : 0;
+
+  document.getElementById('kpi-fat').textContent         = fmt(recOp);
+  document.getElementById('kpi-fat-n').textContent       = nFat + ' lançamentos';
+  document.getElementById('kpi-custos-dir').textContent  = '- '+fmt(Math.abs(custosDir));
+  document.getElementById('kpi-custos-dir-n').textContent = nCDir + ' lançamentos';
+  document.getElementById('kpi-desp-fix').textContent    = '- '+fmt(Math.abs(despFix));
+  document.getElementById('kpi-desp-fix-n').textContent  = nFix + ' lançamentos';
+  document.getElementById('kpi-desp-var').textContent    = '- '+fmt(Math.abs(despVar));
+  document.getElementById('kpi-desp-var-n').textContent  = nVar + ' lançamentos';
+  document.getElementById('kpi-cx-op').textContent       = (cxOp>=0?'+':'')+fmt(cxOp);
+  document.getElementById('kpi-cx-op-pct').textContent   = margOp+'% sobre receita';
+  document.getElementById('kpi-cx-op').style.color       = cxOp>=0?'var(--neutro)':'var(--saida)';
+
+  // ── Bloco Não-Operacional ──
+  const outrasRec = sum(r=>r.tipo==='ENTRADAS'&&r.grupo!=='FATURAMENTO');
+  const outrasSai = sum(r=>r.tipo==='SAÍDAS'&&r.tipo_nivel==='NÃO OPERACIONAL');
+  const cxLiq     = cxOp + outrasRec + outrasSai;
+  const saldoAcum = saldoInicial + cxLiq;
+
+  document.getElementById('kpi-outras-rec').textContent = fmt(outrasRec);
+  document.getElementById('kpi-outras-sai').textContent = '- '+fmt(Math.abs(outrasSai));
+  document.getElementById('kpi-cx-liq').textContent     = (cxLiq>=0?'+':'')+fmt(cxLiq);
+  document.getElementById('kpi-cx-liq-n').textContent   = data.length+' transações no total';
+
+  // ── Saldo Acumulado no header ──
+  const headerVal = document.getElementById('saldoAcumHeaderVal');
+  if(headerVal){
+    headerVal.textContent = (saldoAcum>=0?'+':'')+fmt(saldoAcum);
+    headerVal.className   = 'saldo-acum-value'+(saldoAcum<0?' neg':'');
+  }
+}
+
+// ============================================================
+//  CHARTS – VISÃO GERAL
+// ============================================================
+function renderCharts(data) {
+  const saldoInicial = getSaldoInicial();
+  const sum = (fn,d) => (d||data).filter(fn).reduce((s,r)=>s+r.valor,0);
+
+  // ── Gráfico 1: Fluxo de Caixa Líquido Mensal ──
+  // Usa RAW completo (todos os meses), não apenas o filtro atual
+  const allMonthsRaw = [...new Set(RAW.map(r=>r.ref))].sort();
+  const fluxoLabels=[], fluxoMensalVals=[], fluxoMensalColors=[];
+
+  allMonthsRaw.forEach(ref=>{
+    const md = RAW.filter(r=>r.ref===ref);
+    const liq = md.reduce((s,r)=>s+r.valor, 0);
+    const mes=parseInt(ref.slice(4)), ano=ref.slice(0,4);
+    fluxoLabels.push(MESES[mes]+'/'+ano.slice(2));
+    fluxoMensalVals.push(+liq.toFixed(2));
+    fluxoMensalColors.push(liq>=0?'#00c47a':'#e8193c');
+  });
+
+  destroyChart('fluxoMensal');
+  charts['fluxoMensal']=new Chart(document.getElementById('chartFluxoMensal'),{
+    type:'bar',
+    data:{labels:fluxoLabels, datasets:[{
+      label:'Fluxo Líquido',
+      data:fluxoMensalVals,
+      backgroundColor:fluxoMensalColors,
+      borderRadius:4,
+      borderSkipped:false
+    }]},
+    options:{responsive:true, plugins:{
+      legend:{display:false},
+      datalabels:{display:false},
+      tooltip:{callbacks:{label:ctx=>'R$ '+ctx.raw.toLocaleString('pt-BR',{minimumFractionDigits:0})}},
+    }, scales:{
+      x:{ticks:{color:'#c8d6e8',font:{size:10,family:'Calibri'}},grid:{color:'rgba(31,45,68,.4)'}},
+      y:{ticks:{color:'#6b7fa3',callback:v=>{const a=Math.abs(v); return a>=1000?(v<0?'-':'')+Math.round(a/1000)+'k':'R$'+v.toLocaleString('pt-BR',{maximumFractionDigits:0})},font:{size:9}},grid:{color:'rgba(31,45,68,.4)'}},
+    },
+    plugins:[{
+      id:'fluxoLabels',
+      afterDatasetsDraw(chart){
+        const {ctx,data,scales:{x,y}}=chart;
+        ctx.save();
+        data.datasets[0].data.forEach((val,i)=>{
+          const bar=chart.getDatasetMeta(0).data[i];
+          const isPos=val>=0;
+          const label='R$ '+Math.abs(val).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+          ctx.font='bold 9px Calibri, sans-serif';
+          ctx.fillStyle=isPos?'#00e5a0':'#ff4d6d';
+          ctx.textAlign='center';
+          ctx.fillText(label, bar.x, isPos ? bar.y-5 : bar.y+14);
+        });
+        ctx.restore();
+      }
+    }]}
+  });
+
+  // ── Gráfico 2: Fluxo de Caixa Acumulado (barras por mês) ──
+  let acumMes = saldoInicial;
+  const fluxoAcumVals=[], fluxoAcumColors=[];
+  allMonthsRaw.forEach((ref,i)=>{
+    acumMes += fluxoMensalVals[i];
+    fluxoAcumVals.push(+acumMes.toFixed(2));
+    fluxoAcumColors.push(acumMes>=0?'#00c47a':'#e8193c');
+  });
+
+  destroyChart('fluxoAcum');
+  charts['fluxoAcum']=new Chart(document.getElementById('chartFluxoAcum'),{
+    type:'bar',
+    data:{labels:fluxoLabels, datasets:[{
+      label:'Saldo Acumulado',
+      data:fluxoAcumVals,
+      backgroundColor:fluxoAcumColors,
+      borderRadius:4,
+      borderSkipped:false
+    }]},
+    options:{responsive:true, plugins:{
+      legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>'R$ '+ctx.raw.toLocaleString('pt-BR',{minimumFractionDigits:0})}},
+    }, scales:{
+      x:{ticks:{color:'#c8d6e8',font:{size:10,family:'Calibri'}},grid:{color:'rgba(31,45,68,.4)'}},
+      y:{ticks:{color:'#6b7fa3',callback:v=>{const a=Math.abs(v); return a>=1000?(v<0?'-':'')+Math.round(a/1000)+'k':'R$'+v.toLocaleString('pt-BR',{maximumFractionDigits:0})},font:{size:9}},grid:{color:'rgba(31,45,68,.4)'}},
+    },
+    plugins:[{
+      id:'acumLabels',
+      afterDatasetsDraw(chart){
+        const {ctx,data}=chart;
+        ctx.save();
+        data.datasets[0].data.forEach((val,i)=>{
+          const bar=chart.getDatasetMeta(0).data[i];
+          const isPos=val>=0;
+          const label='R$ '+Math.abs(val).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+          ctx.font='bold 9px Calibri, sans-serif';
+          ctx.fillStyle=isPos?'#00e5a0':'#ff4d6d';
+          ctx.textAlign='center';
+          ctx.fillText(label, bar.x, isPos ? bar.y-5 : bar.y+14);
+        });
+        ctx.restore();
+      }
+    }]}
+  });
+
+  // ── Gráfico 3: Composição despesas operacionais com % sobre receita ──
+  const recTotal = sum(r=>r.grupo==='FATURAMENTO');
+  const despOpMap={};
+  data.filter(r=>['CUSTOS DIRETOS','DESPESAS FIXAS','DESPESAS VARIÁVEIS'].includes(r.tipo_nivel)&&r.tipo==='SAÍDAS').forEach(r=>{
+    despOpMap[r.tipo_nivel]=(despOpMap[r.tipo_nivel]||0)+Math.abs(r.valor);
+  });
+  const dopKeys=Object.keys(despOpMap);
+  const dopColors=['rgba(255,77,109,.9)','rgba(91,140,255,.9)','rgba(245,200,66,.9)'];
+  // store for click handler
+  window._despOpData = {keys:dopKeys, map:despOpMap, recTotal, data, dopColors};
+
+  destroyChart('despOp');
+  charts['despOp']=new Chart(document.getElementById('chartDespOp'),{
+    type:'doughnut',
+    data:{labels:dopKeys, datasets:[{data:dopKeys.map(k=>+despOpMap[k].toFixed(2)), backgroundColor:dopColors, borderWidth:2, borderColor:'var(--bg)', hoverOffset:8}]},
+    options:{responsive:true, maintainAspectRatio:true, cutout:'55%', plugins:{
+      legend:{position:'bottom', labels:{
+        color:'#ffffff',
+        font:{size:11, family:'Calibri, Segoe UI, Arial, sans-serif'},
+        boxWidth:12, padding:14,
+        generateLabels: chart => {
+          const ds=chart.data.datasets[0];
+          const total=ds.data.reduce((a,b)=>a+b,0);
+          return chart.data.labels.map((l,i)=>{
+            const v=ds.data[i];
+            const pctRec=recTotal>0?(v/recTotal*100).toFixed(1):'0';
+            const pctTot=total>0?(v/total*100).toFixed(1):'0';
+            return {text:`${l}  ${pctTot}%  (${pctRec}% da receita)`, fillStyle:ds.backgroundColor[i], hidden:false, index:i};
+          });
+        }
+      }},
+      tooltip:{callbacks:{label:ctx=>{
+        const v=parseFloat(ctx.raw);
+        const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+        const pctRec=recTotal>0?(v/recTotal*100).toFixed(1):'0';
+        const pctTot=total>0?(v/total*100).toFixed(1):'0';
+        return [`${ctx.label}: ${fmt(v)}`,`${pctTot}% das despesas · ${pctRec}% da receita`];
+      }}}
+    },
+    onClick:(evt,els)=>{
+      if(!els.length){ showDespDetalheAll(); return; }
+      const idx=els[0].index;
+      const tipo=window._despOpData.keys[idx];
+      const cor=window._despOpData.dopColors[idx];
+      showDespDetalhe(tipo, cor);
+    }}
+  });
+  // init detalhe
+  showDespDetalheAll();
+
+  // ── Gráfico 4: Outras Receitas ──
+  const outrasRecMap={};
+  data.filter(r=>r.tipo==='ENTRADAS'&&r.grupo!=='FATURAMENTO').forEach(r=>{
+    outrasRecMap[r.categoria]=(outrasRecMap[r.categoria]||0)+r.valor;
+  });
+  const orKeys=Object.keys(outrasRecMap);
+  destroyChart('outrasRec');
+  charts['outrasRec']=new Chart(document.getElementById('chartOutrasRec'),{type:'pie',data:{labels:orKeys,datasets:[{data:orKeys.map(k=>outrasRecMap[k].toFixed(2)),backgroundColor:COLORS,borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#e8edf5',font:{size:9,family:'Calibri'},boxWidth:8,padding:5}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmt(ctx.raw)}}}}});
+
+  // ── Gráfico 5: Outras Saídas Não Op. ──
+  const outrasSaiMap={};
+  data.filter(r=>r.tipo==='SAÍDAS'&&r.tipo_nivel==='NÃO OPERACIONAL').forEach(r=>{
+    outrasSaiMap[r.grupo]=(outrasSaiMap[r.grupo]||0)+Math.abs(r.valor);
+  });
+  const osKeys=Object.keys(outrasSaiMap).sort((a,b)=>outrasSaiMap[b]-outrasSaiMap[a]);
+  destroyChart('outrasSai');
+  charts['outrasSai']=new Chart(document.getElementById('chartOutrasSai'),{type:'bar',data:{labels:osKeys,datasets:[{data:osKeys.map(k=>outrasSaiMap[k].toFixed(2)),backgroundColor:COLORS.slice(3).map(c=>c+'cc'),borderRadius:5,borderWidth:0}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7fa3',callback:v=>'R$'+v.toLocaleString('pt-BR'),font:{size:9}},grid:{color:'#1f2d44'}},y:{ticks:{color:'#e8edf5',font:{size:10,family:'Calibri'}},grid:{display:false}}}}});
+
+  // ── Gráfico 6: Saldo acumulado linha — full width ──
+  const sorted=[...data].sort((a,b)=>a.data.localeCompare(b.data));
+  let acum=saldoInicial;
+  const acumLabels=[],acumVals=[];
+  if(sorted.length){ acumLabels.push('Início'); acumVals.push(+saldoInicial.toFixed(2)); }
+  sorted.forEach(r=>{ acum+=r.valor; acumLabels.push(r.data.slice(5)); acumVals.push(+acum.toFixed(2)); });
+  destroyChart('caixaAcum');
+  charts['caixaAcum']=new Chart(document.getElementById('chartCaixaAcum'),{
+    type:'line',
+    data:{labels:acumLabels, datasets:[
+      {label:'Saldo Acumulado', data:acumVals,
+       borderColor:'#5b8cff', backgroundColor:'rgba(91,140,255,.06)',
+       fill:true, tension:.3, pointRadius:acumVals.length<60?3:0,
+       pointBackgroundColor:acumVals.map(v=>v>=0?'#5b8cff':'#ff4d6d'),
+       segment:{borderColor:ctx=>ctx.p1.parsed.y>=0?'#5b8cff':'#ff4d6d',
+                backgroundColor:ctx=>ctx.p1.parsed.y>=0?'rgba(91,140,255,.06)':'rgba(255,77,109,.06)'}}
+      ]},
+    options:{responsive:true, interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>'Saldo: '+fmt(ctx.raw)+(ctx.raw<0?' ⚠ negativo':'')}}},
+      scales:{
+        x:{ticks:{color:'#6b7fa3',font:{size:9,family:'Calibri'},maxRotation:0,autoSkip:true,maxTicksLimit:14},grid:{color:'#1f2d44'}},
+        y:{ticks:{color:'#6b7fa3',callback:v=>'R$'+v.toLocaleString('pt-BR'),font:{size:9}},grid:{color:'#1f2d44'},afterFit:s=>{s.width=80;}}
+      }}
+  });
+
+  // Waterfall
+  renderWaterfall(filteredData());
+}
+
+function renderWaterfall(data) {
+  const sum=(fn)=>data.filter(fn).reduce((s,r)=>s+r.valor,0);
+  const fat   = sum(r=>r.grupo==='FATURAMENTO');
+  const cdir  = sum(r=>r.tipo_nivel==='CUSTOS DIRETOS');
+  const mb    = fat+cdir;
+  const saidOp= sum(r=>['DESPESAS FIXAS','DESPESAS VARIÁVEIS'].includes(r.tipo_nivel)&&r.tipo==='SAÍDAS');
+  const cxOp  = mb+saidOp;
+  const inv   = sum(r=>r.grupo==='INVESTIMENTOS');
+  const naoOp = sum(r=>r.tipo_nivel==='NÃO OPERACIONAL');
+  const final = cxOp+inv+naoOp;
+  const wL=['Faturamento','(-) Custos/Imp.','Margem Bruta','(-) Desp.Op.','Cx. Operacional','Investimentos','Não-Operacional','Superávit'];
+  const wV=[fat,cdir,mb,saidOp,cxOp,inv,naoOp,final];
+  const wC=wV.map((v,i)=>i===wV.length-1?'#5b8cff':v>=0?'rgba(0,229,160,.8)':'rgba(255,77,109,.8)');
+  destroyChart('waterfall');
+  charts['waterfall']=new Chart(document.getElementById('chartWaterfall'),{type:'bar',data:{labels:wL,datasets:[{data:wV.map(v=>+Math.abs(v).toFixed(2)),backgroundColor:wC,borderRadius:5,borderWidth:0}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const v=wV[ctx.dataIndex];return (v>=0?'+ ':'- ')+fmt(v);}}}},scales:{x:{ticks:{color:'#6b7fa3',font:{size:9},maxRotation:35},grid:{color:'#1f2d44'}},y:{ticks:{color:'#6b7fa3',callback:v=>'R$'+v.toLocaleString('pt-BR'),font:{size:9}},grid:{color:'#1f2d44'}}}}});
+}
+
+// ============================================================
+//  DFC – FULL PLAN OF ACCOUNTS + HORIZONTAL ANALYSIS
+// ============================================================
+
+// DFC structure: each line = {label, indent, type, filterFn, isSection, isResult, isSuperavit}
+// filterFn receives array of records for a specific month/period
+function buildDFCStructure() {
+  const s=(fn,d)=>d.filter(fn).reduce((acc,r)=>acc+r.valor,0);
+  return [
+    // ── ATIVIDADES OPERACIONAIS ──
+    {label:'ATIVIDADES OPERACIONAIS', indent:0, isSection:true},
+    {label:'(+) ENTRADAS OPERACIONAIS', indent:1, fn:d=>s(r=>r.grupo==='FATURAMENTO'&&r.tipo==='ENTRADAS',d)},
+    {label:'Serviços Prestados', indent:2, fn:d=>s(r=>r.grupo==='FATURAMENTO'&&r.tipo==='ENTRADAS'&&r.categoria==='Serviços Prestados',d)},
+    {label:'Devolução de Vendas', indent:2, fn:d=>s(r=>r.grupo==='FATURAMENTO'&&r.tipo==='ENTRADAS'&&(r.categoria||'').toLowerCase().includes('devolução'),d)},
+    {label:'(-) DEDUÇÕES DE VENDAS', indent:1, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&r.grupo==='FATURAMENTO',d)},
+    {label:'Devolução de Vendas', indent:2, fn:d=>0},
+    {label:'(-) CUSTOS E IMPOSTOS', indent:1, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&r.grupo==='IMPOSTOS',d)+s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&r.grupo!=='IMPOSTOS',d)},
+    {label:'(-) Impostos sobre Faturamento e Devoluções', indent:2, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&r.grupo==='IMPOSTOS',d)},
+    {label:'ISS', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('iss'),d)},
+    {label:'Parcelamento de Imposto', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('parcelamento'),d)},
+    {label:'Simples Nacional', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('simples'),d)},
+    {label:'Multas e Taxas Fiscais', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('multa'),d)},
+    {label:'(-) Materiais Aplicados na Prestação', indent:2, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&['CUSTOS'].includes(r.grupo),d)},
+    {label:'Produtos Revenda', indent:3, fn:d=>0},
+    {label:'(-) Custo Decorrente da Venda/Serviço', indent:2, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&!['IMPOSTOS','CUSTOS'].includes(r.grupo),d)},
+    {label:'Comissão Vendas', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('comissão'),d)},
+    {label:'Taxa Máquina Cartão', indent:3, fn:d=>s(r=>r.tipo_nivel==='CUSTOS DIRETOS'&&(r.categoria||'').toLowerCase().includes('cartão'),d)},
+    {label:'MARGEM BRUTA', indent:0, isResult:true, fn:d=>s(r=>r.grupo==='FATURAMENTO',d)+s(r=>r.tipo_nivel==='CUSTOS DIRETOS',d)},
+
+    // ── SAÍDAS OPERACIONAIS ──
+    {label:'(-) SAÍDAS OPERACIONAIS', indent:0, isSection:true},
+    {label:'(-) PAGAMENTO DE DESPESAS COM PESSOAL', indent:1, fn:d=>s(r=>r.grupo==='PESSOAL'&&r.tipo==='SAÍDAS',d)},
+    {label:'13º Salário', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('13'),d)},
+    {label:'Adiantamento Salário', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('adiantamento'),d)},
+    {label:'Exames Admissionais', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('exame'),d)},
+    {label:'Fardamento', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('fardamento'),d)},
+    {label:'Férias', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('férias'),d)},
+    {label:'FGTS', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('fgts'),d)},
+    {label:'Hora Extra', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('hora extra'),d)},
+    {label:'INSS', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('inss'),d)},
+    {label:'IRRF', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('irrf'),d)},
+    {label:'Plano de Saúde', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('saúde'),d)},
+    {label:'Pró-labore', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('pró'),d)},
+    {label:'Prestador de Serviço', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('prestador'),d)},
+    {label:'Salários', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('salário'),d)},
+    {label:'Vale Refeição', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('vale'),d)},
+    {label:'Transporte Alternativo', indent:2, fn:d=>s(r=>r.grupo==='PESSOAL'&&(r.categoria||'').toLowerCase().includes('transporte'),d)},
+
+    {label:'(-) PAGAMENTO DE DESPESAS COM ESTRUTURA', indent:1, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&r.tipo==='SAÍDAS',d)},
+    {label:'Água e Esgoto', indent:2, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&(r.categoria||'').toLowerCase().includes('água'),d)},
+    {label:'Aluguel', indent:2, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&(r.categoria||'').toLowerCase().includes('aluguel'),d)},
+    {label:'Energia Elétrica', indent:2, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&(r.categoria||'').toLowerCase().includes('energia'),d)},
+    {label:'Internet', indent:2, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&(r.categoria||'').toLowerCase().includes('internet'),d)},
+    {label:'Programas e Softwares', indent:2, fn:d=>s(r=>r.grupo==='ESTRUTURA'&&(r.categoria||'').toLowerCase().includes('software'),d)},
+
+    {label:'(-) PAGAMENTO DE DESPESAS COM TERCEIROS', indent:1, fn:d=>s(r=>r.grupo==='TERCEIROS'&&r.tipo==='SAÍDAS',d)},
+    {label:'Auditoria/Consultoria', indent:2, fn:d=>s(r=>r.grupo==='TERCEIROS'&&(r.categoria||'').toLowerCase().includes('consultant'),d)+s(r=>r.grupo==='TERCEIROS'&&(r.categoria||'').toLowerCase().includes('auditor'),d)},
+    {label:'Contabilidade', indent:2, fn:d=>s(r=>r.grupo==='TERCEIROS'&&(r.categoria||'').toLowerCase().includes('contab'),d)},
+    {label:'Coworking', indent:2, fn:d=>s(r=>r.grupo==='TERCEIROS'&&(r.categoria||'').toLowerCase().includes('coworking'),d)},
+
+    {label:'(-) PAGAMENTO DE DESPESAS ADMINISTRATIVA', indent:1, fn:d=>s(r=>r.grupo==='ADMINISTRATIVA'&&r.tipo==='SAÍDAS',d)},
+    {label:'Cartório', indent:2, fn:d=>s(r=>r.grupo==='ADMINISTRATIVA'&&(r.categoria||'').toLowerCase().includes('cartório'),d)},
+    {label:'Material de Escritório', indent:2, fn:d=>s(r=>r.grupo==='ADMINISTRATIVA'&&(r.categoria||'').toLowerCase().includes('escritório'),d)},
+    {label:'Material de Uso e Consumo', indent:2, fn:d=>s(r=>r.grupo==='ADMINISTRATIVA'&&(r.categoria||'').toLowerCase().includes('consumo'),d)},
+    {label:'Estacionamento', indent:2, fn:d=>s(r=>r.grupo==='ADMINISTRATIVA'&&(r.categoria||'').toLowerCase().includes('estacionamento'),d)},
+
+    {label:'(-) PAGAMENTO DE DESPESAS COM MARKETING', indent:1, fn:d=>s(r=>r.grupo==='MARKETING'&&r.tipo==='SAÍDAS',d)},
+    {label:'Despesas com Viagens/Hospedagem', indent:2, fn:d=>s(r=>r.grupo==='MARKETING'&&(r.categoria||'').toLowerCase().includes('viagem'),d)},
+    {label:'Propaganda/Eventos', indent:2, fn:d=>s(r=>r.grupo==='MARKETING'&&(r.categoria||'').toLowerCase().includes('propaganda'),d)},
+    {label:'Tráfego Pago', indent:2, fn:d=>s(r=>r.grupo==='MARKETING'&&(r.categoria||'').toLowerCase().includes('tráfego'),d)},
+
+    {label:'(-) PAGAMENTO DE DESPESAS OPERACIONAIS', indent:1, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&r.tipo==='SAÍDAS',d)},
+    {label:'Combustível', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('combust'),d)},
+    {label:'Estacionamento', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('estacionamento'),d)},
+    {label:'Manutenção Máquinas e Equipamentos', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('máquina'),d)},
+    {label:'Manutenção de Veículos', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('veículo'),d)},
+    {label:'Seguro Veículo', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('seguro'),d)},
+    {label:'Taxas e Emolumentos', indent:2, fn:d=>s(r=>r.grupo==='OPERACIONAL'&&(r.categoria||'').toLowerCase().includes('taxa'),d)},
+
+    {label:'CAIXA DAS ATIVIDADES OPERACIONAIS', indent:0, isResult:true, fn:d=>
+      s(r=>r.grupo==='FATURAMENTO',d)+
+      s(r=>r.tipo_nivel==='CUSTOS DIRETOS',d)+
+      s(r=>['DESPESAS FIXAS','DESPESAS VARIÁVEIS'].includes(r.tipo_nivel)&&r.tipo==='SAÍDAS',d)
+    },
+
+    // ── ATIVIDADES DE INVESTIMENTO ──
+    {label:'ATIVIDADES DE INVESTIMENTO', indent:0, isSection:true},
+    {label:'(+) Recebimento de Venda de Imobilizado', indent:1, fn:d=>s(r=>r.grupo==='INVESTIMENTOS'&&r.tipo==='ENTRADAS'&&(r.categoria||'').toLowerCase().includes('imóvel'),d)},
+    {label:'(+) Recebimento da Venda de Equipamentos', indent:1, fn:d=>s(r=>r.grupo==='INVESTIMENTOS'&&r.tipo==='ENTRADAS',d)},
+    {label:'(-) Investimento em Imobilizado', indent:1, fn:d=>s(r=>r.grupo==='INVESTIMENTOS'&&r.tipo==='SAÍDAS'&&(r.categoria||'').toLowerCase().includes('imóvel'),d)},
+    {label:'(-) Investimentos Máquinas/Veículos/EPI', indent:1, fn:d=>s(r=>r.grupo==='INVESTIMENTOS'&&r.tipo==='SAÍDAS',d)},
+
+    // ── ATIVIDADES NÃO-OPERACIONAIS ──
+    {label:'ATIVIDADES NÃO-OPERACIONAIS', indent:0, isSection:true},
+    {label:'(+) Recebimento de Receitas Não Operacionais', indent:1, fn:d=>s(r=>r.tipo==='ENTRADAS'&&r.tipo_nivel==='RECEITAS NÃO OPERACIONAIS'&&r.grupo!=='DISTRIBUIÇÃO',d)},
+    {label:'Receita de Empréstimo', indent:2, fn:d=>s(r=>r.tipo==='ENTRADAS'&&(r.categoria||'').toLowerCase().includes('empréstimo'),d)},
+    {label:'Outras Receitas', indent:2, fn:d=>s(r=>r.tipo==='ENTRADAS'&&r.tipo_nivel==='RECEITAS NÃO OPERACIONAIS'&&(r.categoria||'').toLowerCase().includes('outras'),d)},
+    {label:'Juros Recebido', indent:2, fn:d=>s(r=>r.tipo==='ENTRADAS'&&(r.categoria||'').toLowerCase().includes('juros'),d)},
+    {label:'(-) Pagamento de Despesas Não Operacionais', indent:1, fn:d=>s(r=>r.tipo==='SAÍDAS'&&r.tipo_nivel==='NÃO OPERACIONAL'&&!['DISTRIBUIÇÃO','PASSIVO','FINANCEIRAS','INVESTIMENTOS'].includes(r.grupo),d)},
+    {label:'(-) Amortizações', indent:1, fn:d=>s(r=>r.grupo==='PASSIVO'&&r.tipo==='SAÍDAS',d)},
+    {label:'Empréstimos Terceiros', indent:2, fn:d=>s(r=>r.grupo==='PASSIVO'&&(r.categoria||'').toLowerCase().includes('empréstimo'),d)},
+    {label:'Consórcio', indent:2, fn:d=>s(r=>r.grupo==='PASSIVO'&&(r.categoria||'').toLowerCase().includes('consórcio'),d)},
+
+    // ── ATIVIDADES DE FINANCIAMENTO ──
+    {label:'ATIVIDADES DE FINANCIAMENTO', indent:0, isSection:true},
+    {label:'(+) Receitas Financeiras', indent:1, fn:d=>s(r=>r.grupo==='FINANCEIRAS'&&r.tipo==='ENTRADAS',d)},
+    {label:'Tarifas Bancárias', indent:2, fn:d=>s(r=>r.grupo==='FINANCEIRAS'&&(r.categoria||'').toLowerCase().includes('tarifa'),d)},
+    {label:'(-) Despesas Financeiras', indent:1, fn:d=>s(r=>r.grupo==='FINANCEIRAS'&&r.tipo==='SAÍDAS',d)},
+    {label:'Juros Pagos', indent:2, fn:d=>s(r=>r.grupo==='FINANCEIRAS'&&(r.categoria||'').toLowerCase().includes('juros'),d)},
+
+    // ── FLUXO DE PARTICIPAÇÃO DE SÓCIOS ──
+    {label:'FLUXO DE PARTICIPAÇÃO DE SÓCIOS', indent:0, isSection:true},
+    {label:'(+) Aporte de Sócio', indent:1, fn:d=>s(r=>r.grupo==='DISTRIBUIÇÃO'&&r.tipo==='ENTRADAS',d)},
+    {label:'(-) Retirada de Sócio', indent:1, fn:d=>s(r=>r.grupo==='DISTRIBUIÇÃO'&&r.tipo==='SAÍDAS',d)},
+
+    // ── SUPERÁVIT ──
+    {label:'SUPERÁVIT / DÉFICIT DO EXERCÍCIO', indent:0, isSuperavit:true, fn:d=>d.reduce((acc,r)=>acc+r.valor,0)},
+  ];
+}
+
+function renderDFC() {
+  // Build list of months present in RAW
+  const allMonths = [...new Set(RAW.map(r=>r.ref))].sort();
+
+  // Init selected months (all by default)
+  if(dfcSelectedMonths.size===0) allMonths.forEach(m=>dfcSelectedMonths.add(m));
+
+  // Month toggle buttons
+  const btnContainer = document.getElementById('dfcMonthBtns');
+  btnContainer.innerHTML='';
+  allMonths.forEach(ref=>{
+    const mes=parseInt(ref.slice(4));
+    const ano=ref.slice(0,4);
+    const btn=document.createElement('button');
+    btn.className='dfc-month-btn'+(dfcSelectedMonths.has(ref)?' active':'');
+    btn.textContent=MESES[mes]+'/'+ano.slice(2);
+    btn.onclick=()=>{ dfcSelectedMonths.has(ref)?dfcSelectedMonths.delete(ref):dfcSelectedMonths.add(ref); renderDFC(); };
+    btnContainer.appendChild(btn);
+  });
+
+  // Selected months in order
+  const selMonths=[...dfcSelectedMonths].sort();
+
+  const structure = buildDFCStructure();
+  const table = document.getElementById('dfcTable');
+  table.innerHTML='';
+
+  // ── HEADER ──
+  const thead=document.createElement('thead');
+  let headHTML='<tr><th>Descrição</th>';
+  selMonths.forEach(ref=>{
+    const mes=parseInt(ref.slice(4));
+    const ano=ref.slice(0,4);
+    headHTML+=`<th>${MESES_FULL[mes]}/${ano}</th>`;
+  });
+  // AH column only if 2+ months
+  if(selMonths.length>=2) headHTML+=`<th>Total</th><th style="min-width:70px">AH %</th>`;
+  else headHTML+=`<th>Total</th>`;
+  headHTML+='</tr>';
+  thead.innerHTML=headHTML;
+  table.appendChild(thead);
+
+  // ── BODY ──
+  const tbody=document.createElement('tbody');
+
+  // precompute month data arrays
+  const monthData={};
+  selMonths.forEach(ref=>{ monthData[ref]=RAW.filter(r=>r.ref===ref); });
+  const totalData=RAW.filter(r=>selMonths.includes(r.ref));
+
+  structure.forEach(row=>{
+    const tr=document.createElement('tr');
+
+    if(row.isSection){
+      tr.className='dfc-sec';
+      let html=`<td>${row.label}</td>`;
+      selMonths.forEach(()=>html+='<td></td>');
+      html+=selMonths.length>=2?'<td></td><td></td>':'<td></td>';
+      tr.innerHTML=html; tbody.appendChild(tr); return;
+    }
+
+    // Compute values
+    const vals={}; selMonths.forEach(ref=>{ vals[ref]=row.fn?row.fn(monthData[ref]):0; });
+    const total=row.fn?row.fn(totalData):0;
+
+    // AH: compare last vs first selected month
+    let ahText='';
+    if(selMonths.length>=2){
+      const first=vals[selMonths[0]];
+      const last=vals[selMonths[selMonths.length-1]];
+      if(first!==0){ const pct=((last-first)/Math.abs(first)*100); ahText=`<span class="ah-var ${pct>=0?'ah-pos':'ah-neg'}">${pct>=0?'▲':'▼'} ${Math.abs(pct).toFixed(1)}%</span>`; }
+      else ahText=last!==0?`<span class="ah-var ah-pos">Novo</span>`:'<span class="ah-var">—</span>';
+    }
+
+    if(row.isSuperavit){
+      tr.className='dfc-superavit-row '+(total>=0?'pos':'neg');
+    } else if(row.isResult){
+      tr.className='dfc-result';
+    }
+
+    const indent=row.indent||0;
+    const labelStyle=indent===2?'padding-left:28px;':indent===3?'padding-left:44px;font-size:0.72rem;':'';
+
+    let html=`<td style="${labelStyle}">${row.label}</td>`;
+    selMonths.forEach(ref=>{
+      const v=vals[ref];
+      const cls=v===0?'dfc-zero':v>0?'val-pos':'val-neg';
+      html+=`<td class="${cls}">${v===0?'—':fmt(v)}</td>`;
+    });
+    const tcls=total===0?'dfc-zero':total>0?'val-pos':'val-neg';
+    html+=`<td class="${tcls}">${total===0?'—':fmt(total)}</td>`;
+    if(selMonths.length>=2) html+=`<td>${ahText}</td>`;
+    tr.innerHTML=html;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  renderWaterfall(totalData);
+}
+
+function selectAllMonths() {
+  const allMonths=[...new Set(RAW.map(r=>r.ref))].sort();
+  allMonths.forEach(m=>dfcSelectedMonths.add(m));
+  renderDFC();
+}
+
+// ============================================================
+//  TABELA TRANSAÇÕES
+// ============================================================
+function renderTabela(data) {
+  const grupoSel=document.getElementById('filtroGrupoTabela');
+  const curGrupo=grupoSel.value;
+  const grupos=[...new Set(RAW.map(r=>r.grupo))].sort();
+  grupoSel.innerHTML='<option value="">Todos os grupos</option>';
+  grupos.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.text=g; if(g===curGrupo)o.selected=true; grupoSel.appendChild(o); });
+
+  let rows=curGrupo?data.filter(r=>r.grupo===curGrupo):data;
+  rows=[...rows].sort((a,b)=>b.data.localeCompare(a.data));
+
+  document.getElementById('table-count').textContent=rows.length+' registros';
+  const tbody=document.getElementById('tabela-body');
+  tbody.innerHTML='';
+  rows.forEach(r=>{
+    const rawIdx=RAW.indexOf(r);
+    const isPos=r.valor>0;
+    const tr=document.createElement('tr');
+    tr.dataset.idx=rawIdx;
+    tr.innerHTML=`
+      <td style="text-align:center"><button class="btn-del-row" title="Excluir" onclick="deleteRow(${rawIdx})">✕</button></td>
+      <td><input class="cell-edit" type="date" value="${r.data}" onchange="editCell(${rawIdx},'data',this.value)"></td>
+      <td><input class="cell-edit" type="text" value="${(r.descricao||'').trim()}" onchange="editCell(${rawIdx},'descricao',this.value)" style="min-width:170px"></td>
+      <td><select class="cell-edit cell-select" onchange="editCell(${rawIdx},'grupo',this.value)">${ALL_GRUPOS.map(g=>`<option value="${g}"${r.grupo===g?' selected':''}>${g}</option>`).join('')}</select></td>
+      <td><input class="cell-edit" type="text" value="${(r.categoria||'').trim()}" onchange="editCell(${rawIdx},'categoria',this.value)" style="min-width:130px"></td>
+      <td><select class="cell-edit cell-select" onchange="editCell(${rawIdx},'tipo',this.value)"><option value="ENTRADAS"${r.tipo==='ENTRADAS'?' selected':''}>ENTRADAS</option><option value="SAÍDAS"${r.tipo==='SAÍDAS'?' selected':''}>SAÍDAS</option></select></td>
+      <td><input class="cell-edit" type="text" value="${(r.banco||'').trim()}" onchange="editCell(${rawIdx},'banco',this.value)" style="min-width:90px"></td>
+      <td><input class="cell-edit cell-valor ${isPos?'val-pos':'val-neg'}" type="number" step="0.01" value="${r.valor}" onchange="editCell(${rawIdx},'valor',parseFloat(this.value))" style="min-width:100px;text-align:right"></td>
+      <td><select class="cell-edit cell-select" onchange="editCell(${rawIdx},'tipo_nivel',this.value)" style="min-width:170px">${ALL_TIPO_NIVEL.map(t=>`<option value="${t}"${r.tipo_nivel===t?' selected':''}>${t}</option>`).join('')}</select></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function editCell(idx,field,value){
+  if(!RAW[idx])return;
+  RAW[idx][field]=value;
+  if(field==='data'){const d=new Date(value);if(!isNaN(d)){RAW[idx].mes=d.getMonth()+1;RAW[idx].ano=d.getFullYear();RAW[idx].dia=d.getDate();RAW[idx].ref=String(d.getFullYear())+String(d.getMonth()+1).padStart(2,'0');}}
+  if(field==='valor'){const inp=document.querySelector(`tr[data-idx="${idx}"] .cell-valor`);if(inp){inp.classList.toggle('val-pos',value>0);inp.classList.toggle('val-neg',value<=0);}}
+}
+function deleteRow(idx){ if(!confirm('Excluir este lançamento?'))return; RAW.splice(idx,1); render(); }
+function addNewRow(){
+  // Use the most recent ref/year/month already in RAW so the row is visible
+  const refs = [...new Set(RAW.map(r=>r.ref))].sort();
+  const latestRef = refs[refs.length-1] || String(new Date().getFullYear())+String(new Date().getMonth()+1).padStart(2,'0');
+  const ano  = parseInt(latestRef.slice(0,4));
+  const mes  = parseInt(latestRef.slice(4));
+  const dia  = 1;
+  const pad  = n=>String(n).padStart(2,'0');
+  const dataStr = `${ano}-${pad(mes)}-${pad(dia)}`;
+
+  const novo = {
+    data:dataStr, descricao:'Novo lançamento', valor:0,
+    tipo:'ENTRADAS', banco:'Nu Bank', grupo:'FATURAMENTO',
+    categoria:'Serviços Prestados', tipo_nivel:'RECEITAS OPERACIONAIS',
+    mes, ano, dia, ref:latestRef
+  };
+  RAW.unshift(novo);
+
+  // Clear ALL filters so the new row is always visible
+  document.getElementById('filtroAno').value    = '';
+  document.getElementById('filtroMes').value    = '';
+  document.getElementById('filtroTipoNivel').value = '';
+  document.getElementById('filtroGrupoTabela').value = '';
+  selectedDays.clear();
+  buildDayTimeline();
+
+  renderTabela(filteredData());
+  // Scroll to top of table
+  const scroll = document.querySelector('#transacoes .table-scroll');
+  if(scroll) scroll.scrollTop = 0;
+}
+
+function saveEdits(){
+  render();
+  const btn=document.querySelector('.btn-save-rows');
+  btn.textContent='✓ Salvo!'; btn.style.background='rgba(0,229,160,.2)'; btn.style.color='var(--entrada)'; btn.style.borderColor='rgba(0,229,160,.4)';
+  setTimeout(()=>{btn.textContent='💾 Salvar';btn.style.background='';btn.style.color='';btn.style.borderColor='';},2000);
+}
+
+// ============================================================
+//  DETALHE DESPESAS OPERACIONAIS
+// ============================================================
+function showDespDetalheAll() {
+  const d=window._despOpData;
+  if(!d){return;}
+  document.getElementById('despOpDetalheLabel').textContent='Todas as categorias operacionais';
+  const total=d.keys.reduce((s,k)=>s+(d.map[k]||0),0);
+  const recT=d.recTotal||1;
+  let html='';
+  d.keys.forEach((tipo,i)=>{
+    const v=d.map[tipo]||0;
+    const pctTot=total>0?(v/total*100).toFixed(1):'0';
+    const pctRec=recT>0?(v/recT*100).toFixed(1):'0';
+    html+=`<div class="desp-detail-item" onclick="showDespDetalhe('${tipo}','${d.dopColors[i]}')">
+      <div style="width:10px;height:10px;border-radius:50%;background:${d.dopColors[i]};flex-shrink:0;margin-right:10px"></div>
+      <div class="desp-detail-name">${tipo}</div>
+      <div class="desp-detail-val">- ${fmt(v)}</div>
+      <div class="desp-detail-pct">${pctTot}% · ${pctRec}% rec.</div>
+    </div>`;
+    // subcategorias
+    const cats={};
+    (d.data||filteredData()).filter(r=>r.tipo_nivel===tipo&&r.tipo==='SAÍDAS').forEach(r=>{
+      cats[r.categoria]=(cats[r.categoria]||0)+Math.abs(r.valor);
+    });
+    Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([cat,val])=>{
+      html+=`<div style="padding:5px 12px 5px 36px;font-size:0.76rem;color:var(--muted);border-bottom:1px solid rgba(31,45,68,.4);display:flex;justify-content:space-between">
+        <span>${cat}</span><span style="color:var(--saida);font-weight:600">${fmt(val)}</span>
+      </div>`;
+    });
+  });
+  document.getElementById('despOpDetalheContent').innerHTML=html||'<div style="color:var(--muted);font-size:0.82rem;padding:20px 0;text-align:center">Sem dados no período</div>';
+}
+
+function showDespDetalhe(tipo, cor) {
+  const d=window._despOpData;
+  if(!d){return;}
+  document.getElementById('despOpDetalheLabel').innerHTML=`<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cor};margin-right:6px"></span>${tipo}`;
+  const total=d.keys.reduce((s,k)=>s+(d.map[k]||0),0);
+  const v=d.map[tipo]||0;
+  const recT=d.recTotal||1;
+  const pctTot=total>0?(v/total*100).toFixed(1):'0';
+  const pctRec=recT>0?(v/recT*100).toFixed(1):'0';
+
+  // get subcategories
+  const cats={};
+  (d.data||filteredData()).filter(r=>r.tipo_nivel===tipo&&r.tipo==='SAÍDAS').forEach(r=>{
+    cats[r.categoria]=(cats[r.categoria]||0)+Math.abs(r.valor);
+  });
+  const sorted=Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+
+  let html=`<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Total</span>
+      <span style="font-family:'Syne',var(--font);font-weight:700;color:var(--saida);font-size:1rem">- ${fmt(v)}</span>
+    </div>
+    <div style="display:flex;gap:16px">
+      <div><div style="font-size:0.66rem;color:var(--muted)">% das despesas op.</div><div style="font-weight:700;color:var(--text)">${pctTot}%</div></div>
+      <div><div style="font-size:0.66rem;color:var(--muted)">% da receita op.</div><div style="font-weight:700;color:var(--text)">${pctRec}%</div></div>
+      <div><div style="font-size:0.66rem;color:var(--muted)">Lançamentos</div><div style="font-weight:700;color:var(--text)">${(d.data||filteredData()).filter(r=>r.tipo_nivel===tipo&&r.tipo==='SAÍDAS').length}</div></div>
+    </div>
+  </div>`;
+
+  html+='<div style="font-size:0.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Por categoria</div>';
+  sorted.forEach(([cat,val])=>{
+    const bar=v>0?(val/v*100).toFixed(0):'0';
+    html+=`<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:0.8rem;color:var(--text)">${cat}</span>
+        <span style="font-size:0.8rem;font-weight:700;color:var(--saida)">- ${fmt(val)}</span>
+      </div>
+      <div style="height:4px;background:rgba(31,45,68,.8);border-radius:2px">
+        <div style="height:100%;width:${bar}%;background:${cor};border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  });
+
+  if(sorted.length===0) html+='<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px 0">Sem lançamentos nesta categoria</div>';
+  html+=`<button onclick="showDespDetalheAll()" style="margin-top:14px;background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:7px;font-family:var(--font);font-size:0.76rem;cursor:pointer;width:100%">← Ver todas</button>`;
+  document.getElementById('despOpDetalheContent').innerHTML=html;
+}
+
+// ============================================================
+//  IMPORTAR — CLEAR + SUMMARY
+// ============================================================
+function clearImportedData() {
+  if(!confirm('Apagar todos os dados importados e restaurar os dados originais?\n\nEsta ação não pode ser desfeita.')) return;
+  RAW.length=0;
+  RAW_ORIGINAL.forEach(r=>RAW.push(Object.assign({},r)));
+  dfcSelectedMonths=new Set();
+  render();
+  updateImportSummary();
+  // Reset upload UI
+  document.getElementById('importStatus').style.display='none';
+  document.getElementById('fileInput').value='';
+  const btn=document.querySelector('.btn-clear-data');
+  btn.textContent='✓ Restaurado!';
+  setTimeout(()=>{btn.textContent='🗑 Apagar dados importados';},2000);
+}
+
+function updateImportSummary() {
+  const el=document.getElementById('importSummary');
+  if(!el)return;
+  const months=[...new Set(RAW.map(r=>r.ref))].sort();
+  const anos=[...new Set(RAW.map(r=>r.ano))];
+  el.textContent=`${RAW.length} lançamentos · ${months.length} mês(es) · ${anos.join(', ')}`;
+}
+
+// ============================================================
+//  NAVIGATION: KPI → TRANSAÇÕES
+// ============================================================
+function goToTransacoes(filtro) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('transacoes').classList.add('active');
+  document.querySelectorAll('.tab')[2].classList.add('active');
+
+  const grupoSel = document.getElementById('filtroGrupoTabela');
+  const tipoSel  = document.getElementById('filtroTipoNivel');
+  // reset both first
+  grupoSel.value = ''; tipoSel.value = '';
+
+  if(filtro==='FATURAMENTO'){
+    grupoSel.value='FATURAMENTO';
+  } else if(filtro==='CUSTOS DIRETOS'){
+    tipoSel.value='CUSTOS DIRETOS';
+  } else if(filtro==='DESPESAS FIXAS'){
+    tipoSel.value='DESPESAS FIXAS';
+  } else if(filtro==='DESPESAS VARIÁVEIS'){
+    tipoSel.value='DESPESAS VARIÁVEIS';
+  } else if(filtro==='NÃO OPERACIONAL ENTRADAS'){
+    tipoSel.value='RECEITAS NÃO OPERACIONAIS';
+  } else if(filtro==='NÃO OPERACIONAL SAÍDAS'){
+    tipoSel.value='NÃO OPERACIONAL';
+  }
+  renderTabela(filteredData());
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+function showView(id,event){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  // Only highlight tab-bar tabs (not the header import button)
+  if(event&&event.target){
+    const tabBar = document.querySelector('.tab-bar');
+    if(tabBar&&tabBar.contains(event.target)) event.target.classList.add('active');
+  }
+}
+
+// ===== IMPORT: DRAG & DROP =====
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('drag-over'); }
+function handleDragLeave(e) { document.getElementById('dropZone').classList.remove('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+function handleFile(e) { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+// ===== IMPORT: PARSE EXCEL =====
+let importedData = null;
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'array', cellDates:true });
+
+      // Tenta achar a aba "Lançamentos" (case-insensitive)
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().replace(/\s/g,'') === 'lançamentos' ||
+                                                  n.toLowerCase() === 'lancamentos' ||
+                                                  n.toLowerCase().includes('lan')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+
+      // Lê os dados a partir da linha 10 (header row) — skipea linhas de instrução
+      const json = XLSX.utils.sheet_to_json(ws, { defval:'', raw:false });
+
+      // Mapeia colunas — tenta nomes com e sem asterisco
+      function col(row, ...names) {
+        for (const n of names) {
+          const k = Object.keys(row).find(k => k.replace(/\s*\*/g,'').trim().toUpperCase() === n.toUpperCase());
+          if (k !== undefined) return String(row[k]).trim();
+        }
+        return '';
+      }
+
+      const VALID_TIPO_NIVEL = ['RECEITAS OPERACIONAIS','RECEITAS NÃO OPERACIONAIS','CUSTOS DIRETOS','DESPESAS FIXAS','DESPESAS VARIÁVEIS','NÃO OPERACIONAL','TRANSFERÊNCIAS'];
+      const VALID_TIPO = ['ENTRADAS','SAÍDAS','TRANSFERÊNCIAS'];
+
+      const parsed = [];
+      const errors = [];
+
+      json.forEach((row, i) => {
+        const lnum = i + 1;
+
+        // Pula linhas totalmente vazias ou de instrução
+        const data_raw = col(row,'DATA_MOVIMENTO','DATA MOVIMENTO','DATA');
+        const valor_raw = col(row,'VALOR');
+        if (!data_raw && !valor_raw) return;
+
+        // DATA
+        let dataStr = '';
+        if (data_raw) {
+          // Aceita YYYY-MM-DD, DD/MM/YYYY, serial Excel
+          const d = new Date(data_raw);
+          if (!isNaN(d)) {
+            dataStr = d.toISOString().slice(0,10);
+          } else if (/\d{2}\/\d{2}\/\d{4}/.test(data_raw)) {
+            const [dd,mm,yyyy] = data_raw.split('/');
+            dataStr = `${yyyy}-${mm}-${dd}`;
+          } else {
+            errors.push(`Linha ${lnum}: DATA_MOVIMENTO inválida ("${data_raw}")`);
+          }
+        } else {
+          errors.push(`Linha ${lnum}: DATA_MOVIMENTO vazia`);
+        }
+
+        // VALOR
+        const valor_str = valor_raw.replace(',','.');
+        const valor = parseFloat(valor_str);
+        if (isNaN(valor)) { errors.push(`Linha ${lnum}: VALOR inválido ("${valor_raw}")`); return; }
+
+        // TIPO
+        const tipo = col(row,'TIPO').toUpperCase();
+        if (!VALID_TIPO.includes(tipo)) errors.push(`Linha ${lnum}: TIPO inválido ("${tipo}") — use ENTRADAS ou SAÍDAS`);
+
+        // GRUPO
+        const grupo = col(row,'GRUPO').toUpperCase();
+        if (!grupo) errors.push(`Linha ${lnum}: GRUPO vazio`);
+
+        // TIPO_NIVEL
+        const tipo_nivel_raw = col(row,'TIPO_NIVEL','TIPO NIVEL','TIPO NÍVEL');
+        const tipo_nivel = tipo_nivel_raw.toUpperCase();
+        if (!VALID_TIPO_NIVEL.includes(tipo_nivel)) errors.push(`Linha ${lnum}: TIPO_NIVEL inválido ("${tipo_nivel}")`);
+
+        // Monta objeto
+        const d = new Date(dataStr);
+        const ref = col(row,'REF') || String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,'0');
+
+        parsed.push({
+          data:       dataStr,
+          descricao:  col(row,'DESCRICAO','DESCRIÇÃO','DESCRICAO / HISTORICO'),
+          valor:      valor,
+          tipo:       tipo,
+          banco:      col(row,'BANCO') || 'Nu Bank',
+          grupo:      grupo,
+          categoria:  col(row,'CATEGORIA'),
+          tipo_nivel: tipo_nivel,
+          mes:        d.getMonth()+1,
+          ano:        d.getFullYear(),
+          dia:        d.getDate(),
+          ref:        ref
+        });
+      });
+
+      const statusEl  = document.getElementById('importStatus');
+      const headerEl  = document.getElementById('statusHeader');
+      const errorsEl  = document.getElementById('errorsList');
+      const previewWrap = document.getElementById('previewWrap');
+      const btnApply  = document.getElementById('btnApply');
+      statusEl.style.display = 'flex';
+      statusEl.style.flexDirection = 'column';
+      statusEl.style.gap = '12px';
+
+      if (parsed.length === 0) {
+        headerEl.className = 'status-header status-err';
+        headerEl.textContent = `❌ Nenhum dado válido encontrado. Verifique se está usando o template correto (aba "Lançamentos").`;
+        errorsEl.style.display = 'none';
+        previewWrap.style.display = 'none';
+        btnApply.style.display = 'none';
+        return;
+      }
+
+      if (errors.length > 0) {
+        headerEl.className = 'status-header status-warn';
+        headerEl.textContent = `⚠ ${parsed.length} registros lidos com ${errors.length} aviso(s). Verifique os erros abaixo.`;
+        errorsEl.innerHTML = errors.map(e=>`• ${e}`).join('<br>');
+        errorsEl.style.display = 'block';
+      } else {
+        headerEl.className = 'status-header status-ok';
+        headerEl.textContent = `✓ ${parsed.length} registros lidos com sucesso, sem erros de validação.`;
+        errorsEl.style.display = 'none';
+      }
+
+      // Preview
+      previewWrap.style.display = 'block';
+      const thead = document.getElementById('previewHead');
+      thead.innerHTML = ['Data','Descrição','Valor','Tipo','Grupo','Tipo Nível'].map(h=>`<th style="background:var(--surface2);padding:8px 10px;font-size:0.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);white-space:nowrap">${h}</th>`).join('');
+      const tbody = document.getElementById('previewBody');
+      tbody.innerHTML = '';
+      parsed.slice(0,8).forEach(r => {
+        const pos = r.valor > 0;
+        tbody.innerHTML += `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px 10px;color:var(--muted)">${r.data}</td>
+          <td style="padding:8px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.descricao}</td>
+          <td style="padding:8px 10px;font-weight:600;color:${pos?'var(--entrada)':'var(--saida)'}">${pos?'+':''}${r.valor.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+          <td style="padding:8px 10px"><span class="badge ${pos?'badge-entrada':'badge-saida'}">${r.tipo}</span></td>
+          <td style="padding:8px 10px;font-size:0.78rem">${r.grupo}</td>
+          <td style="padding:8px 10px;font-size:0.75rem;color:var(--muted)">${r.tipo_nivel}</td>
+        </tr>`;
+      });
+      if (parsed.length > 8) tbody.innerHTML += `<tr><td colspan="6" style="padding:8px 10px;color:var(--muted);font-size:0.75rem;text-align:center">... e mais ${parsed.length-8} registros</td></tr>`;
+
+      importedData = parsed;
+      btnApply.style.display = 'block';
+
+    } catch(err) {
+      document.getElementById('importStatus').style.display = 'flex';
+      document.getElementById('importStatus').style.flexDirection = 'column';
+      document.getElementById('importStatus').style.gap = '12px';
+      document.getElementById('statusHeader').className = 'status-header status-err';
+      document.getElementById('statusHeader').textContent = `❌ Erro ao ler o arquivo: ${err.message}`;
+      document.getElementById('errorsList').style.display = 'none';
+      document.getElementById('previewWrap').style.display = 'none';
+      document.getElementById('btnApply').style.display = 'none';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== IMPORT: APPLY =====
+function applyImport() {
+  if (!importedData || importedData.length === 0) return;
+  RAW.length = 0;
+  importedData.forEach(r => RAW.push(r));
+
+  // Atualiza filtros
+  document.getElementById('filtroAno').innerHTML = '<option value="">Todos os anos</option>';
+  const anos = [...new Set(RAW.map(r=>r.ano))].sort();
+  anos.forEach(a => {
+    const o = document.createElement('option');
+    o.value = a; o.text = a; document.getElementById('filtroAno').appendChild(o);
+  });
+  document.getElementById('filtroMes').innerHTML = '<option value="">Todos os meses</option>';
+  const mesesPresentes = [...new Set(RAW.map(r=>r.mes))].sort((a,b)=>a-b);
+  mesesPresentes.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.text = MESES[m]; document.getElementById('filtroMes').appendChild(o);
+  });
+  document.getElementById('filtroTipoNivel').innerHTML = '<option value="">Todos os tipos</option>';
+  const tiposPresentes = [...new Set(RAW.map(r=>r.tipo_nivel))].sort();
+  tiposPresentes.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.text = t; document.getElementById('filtroTipoNivel').appendChild(o);
+  });
+
+  // Rebuild day timeline
+  selectedDays.clear();
+  buildDayTimeline();
+
+  render();
+  updateImportSummary();
+
+  // Feedback
+  document.getElementById('statusHeader').className = 'status-header status-ok';
+  document.getElementById('statusHeader').textContent = `✓ ${importedData.length} registros aplicados ao dashboard com sucesso! Navegue pelas abas para ver os dados atualizados.`;
+  document.getElementById('btnApply').style.display = 'none';
+
+  // Vai para visão geral após 1.5s
+  setTimeout(() => {
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('visao-geral').classList.add('active');
+    document.querySelector('.tab-bar .tab').classList.add('active');
+  }, 1500);
+}
+
+// ===== DOWNLOAD TEMPLATE (gera XLSX no browser via SheetJS) =====
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
+
+  // ── Aba Lançamentos ──
+  const wsData = [
+    // Linha 1: título (merge manual não suportado via utils, mas ok como header info)
+    ['TEIXEIRA REFRIGERAÇÃO — TEMPLATE DE IMPORTAÇÃO DE LANÇAMENTOS','','','','','','','',''],
+    ['ℹ INSTRUÇÕES:','','','','','','','',''],
+    ['• DATA_MOVIMENTO: formato AAAA-MM-DD (ex: 2025-02-14)','','','','','','','',''],
+    ['• VALOR: positivo para entradas, negativo para saídas','','','','','','','',''],
+    ['• TIPO: escreva exatamente ENTRADAS ou SAÍDAS','','','','','','','',''],
+    ['• Veja a aba "Grupos e Categorias" para valores válidos de GRUPO e TIPO_NIVEL','','','','','','','',''],
+    ['','','','','','','','',''],
+    ['','','','','','','','',''],
+    ['','','','','','','','',''],
+    // Linha 10: cabeçalhos
+    ['DATA_MOVIMENTO *','DESCRICAO','VALOR *','TIPO *','BANCO','GRUPO *','CATEGORIA','TIPO_NIVEL *','REF'],
+    // Exemplos
+    ['2025-01-20','Betel contabilidade',-399.00,'SAÍDAS','Nu Bank','TERCEIROS','Contabilidade','DESPESAS FIXAS','202501'],
+    ['2025-01-20','Empréstimo de valor',3452.15,'ENTRADAS','Nu Bank','OUTRASENTRADAS','Receita de empréstimo','RECEITAS NÃO OPERACIONAIS','202501'],
+    ['2025-02-12','SOBRAL E PALACIO PETROLEO LTDA',5443.29,'ENTRADAS','Nu Bank','FATURAMENTO','Serviços Prestados','RECEITAS OPERACIONAIS','202502'],
+    ['2025-02-12','Salário Narcelio',-3000.00,'SAÍDAS','Nu Bank','PESSOAL','Prestador de serviço','DESPESAS FIXAS','202502'],
+    ['2025-02-17','Simples nacional_Janeiro',-676.29,'SAÍDAS','Nu Bank','IMPOSTOS','Simples nacional','CUSTOS DIRETOS','202502'],
+    ['▼ Apague os exemplos acima e insira seus dados abaixo ▼','','','','','','','',''],
+  ];
+  // Linhas em branco para o usuário preencher
+  for (let i = 0; i < 100; i++) wsData.push(['','','','','','','','','']);
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:18},{wch:40},{wch:12},{wch:12},{wch:18},{wch:18},{wch:28},{wch:28},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Lançamentos');
+
+  // ── Aba Referência ──
+  const refData = [
+    ['REFERÊNCIA — GRUPOS, TIPOS E TIPO_NIVEL VÁLIDOS','','',''],
+    ['GRUPO','TIPO','TIPO_NIVEL','EXEMPLOS DE CATEGORIA'],
+    ['FATURAMENTO','ENTRADAS','RECEITAS OPERACIONAIS','Serviços Prestados, Venda de produtos'],
+    ['OUTRASENTRADAS','ENTRADAS','RECEITAS NÃO OPERACIONAIS','Receita de empréstimo, Outras Receitas, Restituição'],
+    ['DISTRIBUIÇÃO','ENTRADAS','NÃO OPERACIONAL','Aporte de valor'],
+    ['EMPRÉSTIMO','ENTRADAS','RECEITAS NÃO OPERACIONAIS','Receita de empréstimo'],
+    ['RENDIMENTO','ENTRADAS','RECEITAS NÃO OPERACIONAIS','Juros recebidos, Rendimentos'],
+    ['IMPOSTOS','SAÍDAS','CUSTOS DIRETOS','ISS, Simples nacional, Parcelamento de imposto, Multa'],
+    ['TERCEIROS','SAÍDAS','DESPESAS FIXAS','Contabilidade, Auditoria/Consultoria, Coworking'],
+    ['PESSOAL','SAÍDAS','DESPESAS FIXAS','Salários, Pró-labore, Transporte alternativo, FGTS'],
+    ['ESTRUTURA','SAÍDAS','DESPESAS FIXAS','Software, Aluguel, Internet, Energia elétrica'],
+    ['ADMINISTRATIVA','SAÍDAS','DESPESAS VARIÁVEIS','Material escritório, Cartório'],
+    ['MARKETING','SAÍDAS','DESPESAS VARIÁVEIS','Tráfego pago, Propaganda, Eventos'],
+    ['OPERACIONAL','SAÍDAS','DESPESAS VARIÁVEIS','Combustível, Manutenção veículos, Estacionamento'],
+    ['DISTRIBUIÇÃO','SAÍDAS','NÃO OPERACIONAL','Distribuição de lucros, Retirada sócio, Antecipação'],
+    ['INVESTIMENTOS','SAÍDAS','NÃO OPERACIONAL','Máquinas, Veículos, Equipamentos, EPI'],
+    ['PASSIVO','SAÍDAS','NÃO OPERACIONAL','Empréstimos terceiros, Consórcio, Parcelamento'],
+    ['FINANCEIRAS','SAÍDAS','NÃO OPERACIONAL','Tarifas bancárias, Juros pagos'],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(refData);
+  ws2['!cols'] = [{wch:20},{wch:12},{wch:28},{wch:55}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Grupos e Categorias');
+
+  XLSX.writeFile(wb, 'template_lancamentos_teixeira.xlsx');
+}
+
+// ===== INIT =====
+// ===== INIT =====
+['filtroAno','filtroMes','filtroTipoNivel'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', render);
+});
+populateFilters();
+render();
+updateImportSummary();
+</script>
+</body>
+</html>

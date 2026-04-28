@@ -40,6 +40,8 @@ export async function authMiddleware(req, res, next) {
     }
 
     req.userId       = payload.sub;
+    req.userEmail    = payload.email;
+    req.displayName  = payload.displayName;
     req.tenantId     = payload.clientId;
     req.tenantSchema = `tenant_${result.rows[0].slug}`;
     next();

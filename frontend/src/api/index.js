@@ -11,7 +11,10 @@ export const authBridge = {
   setRefreshFn: (fn) => { authBridge._refreshFn = fn; },
 };
 
-async function req(url, opts = {}, isRetry = false) {
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
+async function req(path, opts = {}, isRetry = false) {
+  const url = `${API_BASE}${path}`;
   const token = authBridge._token;
 
   const headers = {
@@ -59,8 +62,12 @@ export const api = {
   deleteCategoria:  (cat)        => req(`/api/plano/categoria/${encodeURIComponent(cat)}`,  { method: 'DELETE' }),
 
   // Saldos iniciais
-  getSaldos:    ()     => req('/api/saldos'),
-  updateSaldos: (data) => req('/api/saldos', { method: 'PUT', ...json(data) }),
+  getSaldos:       ()              => req('/api/saldos'),
+  updateSaldos:    (data)          => req('/api/saldos',                          { method: 'PUT',    ...json(data) }),
+  getSaldosEntries: ()             => req('/api/saldos/entries'),
+  getSaldosLog:    (limit = 100)   => req(`/api/saldos/log?limit=${limit}`),
+  upsertSaldoEntry: (data)         => req('/api/saldos/entry',                    { method: 'PUT',    ...json(data) }),
+  deleteSaldoEntry: (chave)        => req(`/api/saldos/entry/${encodeURIComponent(chave)}`, { method: 'DELETE' }),
 
   // Import
   importFile: (file, base) => {

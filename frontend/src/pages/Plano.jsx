@@ -4,7 +4,7 @@ import { api } from '../api/index.js';
 import { COLOR_VAR } from '../utils/formatters.js';
 import Icon from '../components/ui/Icon.jsx';
 
-const NIVEIS = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional'];
+const NIVEIS = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional', 'Entrada Não Operacional'];
 const COR_OPTS = [
   { value: 'green', label: 'Verde' },
   { value: 'red', label: 'Vermelho' },
