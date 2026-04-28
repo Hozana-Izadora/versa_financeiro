@@ -31,6 +31,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const custoCats   = [...new Set(plano.filter(p => p.nivel === 'Custo').map(p => p.cat))];
   const despOpCats  = [...new Set(plano.filter(p => p.nivel === 'Despesa Operacional').map(p => p.cat))];
   const despNopCats = [...new Set(plano.filter(p => p.nivel === 'Despesa Não Operacional').map(p => p.cat))];
+  const entNopCats  = [...new Set(plano.filter(p => p.nivel === 'Entrada Não Operacional').map(p => p.cat))];
 
   function catTotal(cats, movFilter, m) {
     let s = 0;
@@ -51,8 +52,11 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const mDespOp  = visMonths.map(m => catTotal(despOpCats,  'Saída', m));
   const mDespNop = visMonths.map(m => catTotal(despNopCats, 'Saída', m));
 
+  // Classified non-operational entries
+  const mEntNop = visMonths.map(m => catTotal(entNopCats, 'Entrada', m));
+
   // Classified entries (to detect orphaned entrada transactions)
-  const mClassRec = visMonths.map(m => catTotal(entradaCats, 'Entrada', m));
+  const mClassRec = visMonths.map(m => catTotal(entradaCats, 'Entrada', m) + catTotal(entNopCats, 'Entrada', m));
 
   // Reconciliation buckets — non-zero means transactions exist outside the plano
   const mEntNaoClass   = visMonths.map((_, i) => mRec[i] - mClassRec[i]);
@@ -82,6 +86,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const totCost    = mCost.reduce((a, b) => a + b, 0);
   const totDespOp  = mDespOp.reduce((a, b) => a + b, 0);
   const totDespNop = mDespNop.reduce((a, b) => a + b, 0);
+  const totEntNop  = mEntNop.reduce((a, b) => a + b, 0);
   const totMgB     = totRec - totCost;
   const totMgOp    = totMgB - totDespOp;
   const totLL      = totMgOp - totDespNop;
@@ -165,6 +170,12 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   rows.push({ type: 'subtotal', label: '( − ) Total Despesas Operacionais', monthValues: mDespOp, total: totDespOp, isPos: false });
   rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRec, totRef: totRec });
 
+  addSection('ENTRADAS NÃO OPERACIONAIS');
+  buildSection(entNopCats, 'Entrada');
+  if (totEntNop > 0) {
+    rows.push({ type: 'subtotal', label: '( + ) Total Entradas Não Operacionais', monthValues: mEntNop, total: totEntNop, isPos: true });
+  }
+
   addSection('DESPESAS NÃO OPERACIONAIS');
   buildSection(despNopCats, 'Saída');
   rows.push({ type: 'subtotal', label: '( − ) Total Não Operacional', monthValues: mDespNop, total: totDespNop, isPos: false });
@@ -189,7 +200,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   return {
     rows, visMonths,
-    mRec, mCost, mDespOp, mDespNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
-    totRec, totCost, totDespOp, totDespNop, totMgB, totMgOp, totLL,
+    mRec, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
+    totRec, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
   };
 }

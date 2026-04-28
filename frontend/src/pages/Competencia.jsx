@@ -338,32 +338,31 @@ export default function Competencia() {
         </>
       ) : null}
 
-      {/* ── DRE Demonstrativo ── */}
-      <div className="panel">
-        <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px]">
-              {subTab === 0 ? 'DRE Gerencial — Análise Horizontal' : 'DRE Gerencial — Demonstrativo Completo'}
+      {subTab === 1 && (
+        <div className="panel">
+          <div className="panel-hdr">
+            <div>
+              <div className="font-inter font-semibold text-[13px]">DRE Gerencial — Demonstrativo Completo</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Clique nos grupos para recolher · Clique nos itens para ver lançamentos</div>
             </div>
-            <div className="text-[10px] text-text-3 mt-0.5">Clique nas categorias para expandir · Clique nos itens para ver lançamentos</div>
+            <div className="flex gap-1.5 items-center">
+              <label className="text-[11px] text-text-3 flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" checked={showPct} onChange={e => setShowPct(e.target.checked)} />
+                Mostrar %
+              </label>
+              <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
+                <Icon name="download" size="text-[14px]" /> Exportar
+              </button>
+            </div>
           </div>
-          <div className="flex gap-1.5 items-center">
-            <label className="text-[11px] text-text-3 flex items-center gap-1 cursor-pointer">
-              <input type="checkbox" checked={showPct} onChange={e => setShowPct(e.target.checked)} />
-              Mostrar %
-            </label>
-            <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
-              <Icon name="download" size="text-[14px]" /> Exportar
-            </button>
-          </div>
+          <DreTable
+            dre={dre}
+            showPct={showPct}
+            onDrillItem={() => actions.setPage('lancamentos')}
+            onDrillGroup={() => actions.setPage('lancamentos')}
+          />
         </div>
-        <DreTable
-          dre={dre}
-          showPct={showPct}
-          onDrillItem={() => actions.setPage('lancamentos')}
-          onDrillGroup={() => actions.setPage('lancamentos')}
-        />
-      </div>
+      )}
     </div>
   );
 }

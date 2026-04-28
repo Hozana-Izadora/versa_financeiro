@@ -108,7 +108,7 @@ const S = {
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { state, actions } = useApp();
   const { user, logout } = useAuth();
-  const { currentPage, transactions } = state;
+  const { currentPage, transactions, darkMode } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
   const sections = [...new Set(NAV_ITEMS.map(i => i.section))];
 
@@ -245,6 +245,16 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               </div>
             </div>
           )}
+
+          <button
+            onClick={actions.toggleDark}
+            title={darkMode ? 'Modo claro' : 'Modo escuro'}
+            style={S.iconBtn}
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.38)'}
+          >
+            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} size="text-[16px]" />
+          </button>
 
           <button
             onClick={logout}

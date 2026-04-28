@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
-  PointElement, ArcElement, Title, Tooltip, Legend, Filler,
+  PointElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
@@ -11,10 +11,9 @@ import KpiCard from '../components/ui/KpiCard.jsx';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
+import DrillChart from '../components/ui/DrillChart.jsx';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
-
-const DONUT_COLORS = ['#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#10b981', '#6366f1'];
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
 function CNode({ label, value, sub, color, result, first, last }) {
   return (
@@ -102,10 +101,6 @@ export default function Caixa() {
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
   const lastAcum = dre.mAcum[dre.mAcum.length - 1] || 0;
 
-  // Expense groups for donut
-  const expGroups = dre.rows.filter(r => r.type === 'group' && !r.isPos);
-  const totalExp = expGroups.reduce((s, r) => s + Math.abs(r.total), 0);
-
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
 
@@ -122,22 +117,6 @@ export default function Caixa() {
       },
     };
   }
-
-  const donutData = {
-    labels: expGroups.map(r => r.label),
-    datasets: [{
-      data: expGroups.map(r => Math.abs(r.total)),
-      backgroundColor: DONUT_COLORS.slice(0, expGroups.length),
-      borderWidth: 2, borderColor: darkMode ? '#152030' : '#ffffff', hoverOffset: 6,
-    }],
-  };
-  const donutOpts = {
-    responsive: true, maintainAspectRatio: false, cutout: '62%',
-    plugins: {
-      legend: { display: false },
-      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)} (${totalExp > 0 ? (ctx.raw / totalExp * 100).toFixed(1) : 0}%)` } },
-    },
-  };
 
   const flowData = {
     labels,
@@ -217,7 +196,8 @@ export default function Caixa() {
           </div>
 
           {/* ── KPI cards ── */}
-          <div className="grid grid-cols-3 gap-3 mb-3.5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3.5">
+            <KpiCard label="Entradas Não Operacionais" value={fmtK(dre.totEntNop)} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} icon="add_circle" colorClass="kc-g" />
             <KpiCard label="Saídas Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p" />
             <KpiCard label="Saldo do Período" value={fmtK(totSaldo)} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} icon="balance" colorClass={totSaldo >= 0 ? 'kc-g' : 'kc-r'}
               delta={dre.mSaldo.length > 1 ? fmtPct(pct(dre.mSaldo[dre.mSaldo.length - 1] - dre.mSaldo[dre.mSaldo.length - 2], Math.abs(dre.mSaldo[dre.mSaldo.length - 2] || 1))) + ' vs mês ant.' : undefined}
@@ -285,54 +265,13 @@ export default function Caixa() {
             </div>
           </div>
 
-          {/* ── Composição das saídas: donut + breakdown ── */}
-          <div className="grid grid-cols-[2fr_3fr] gap-3 mb-3.5">
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px]">Composição das Saídas</div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Distribuição por categoria de despesa</div>
-                </div>
-              </div>
-              <div className="p-4 flex items-center justify-center" style={{ height: 240 }}>
-                {expGroups.length > 0
-                  ? <Doughnut data={donutData} options={donutOpts} />
-                  : <span className="text-text-3 text-sm">Sem dados no período</span>}
-              </div>
-            </div>
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px]">Detalhamento por Grupo</div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Participação % sobre total das saídas e sobre receita</div>
-                </div>
-              </div>
-              <div className="p-4 overflow-y-auto" style={{ maxHeight: 240 }}>
-                {expGroups.map((grp, i) => {
-                  const pctExp = totalExp > 0 ? Math.abs(grp.total) / totalExp * 100 : 0;
-                  const pctRec = dre.totRec > 0 ? Math.abs(grp.total) / dre.totRec * 100 : 0;
-                  return (
-                    <div key={grp.label} className="mb-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: DONUT_COLORS[i] }} />
-                          <span className="text-[12px] text-text-base font-medium">{grp.label}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[12px] font-semibold text-fin-red">{fmtK(Math.abs(grp.total))}</span>
-                          <span className="text-[10px] text-text-3 ml-1.5">{pctExp.toFixed(1)}% · {pctRec.toFixed(1)}% rec.</span>
-                        </div>
-                      </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, pctExp)}%`, background: DONUT_COLORS[i] }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          {/* ── Composição das saídas com drill-down ── */}
+          <DrillChart
+            transactions={filteredTx}
+            visMonths={visMonths}
+            year={filterState.year}
+            darkMode={darkMode}
+          />
         </>
       ) : null}
 
