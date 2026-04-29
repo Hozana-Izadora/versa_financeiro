@@ -102,26 +102,25 @@ export function AppProvider({ children }) {
   const refreshAll = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const year = state.filterState.year || new Date().getFullYear();
-      const [tx, planoData, saldos, history, orc] = await Promise.all([
+      const [tx, planoData, saldos, history] = await Promise.all([
         api.getTransactions(),
         api.getPlano(),
         api.getSaldos(),
         api.getImportHistory(),
-        api.getOrcamento(year),
       ]);
       dispatch({ type: 'SET_TRANSACTIONS', payload: tx });
       dispatch({ type: 'SET_PLANO', payload: planoData });
       dispatch({ type: 'SET_SALDOS', payload: saldos });
       dispatch({ type: 'SET_HISTORY', payload: history });
-      dispatch({ type: 'SET_ORCAMENTO', payload: orc });
 
-      // Set available months
       const txForPage = state.currentPage === 'caixa' ? tx.caixa : tx.competencia;
       const years = getYears(tx);
       const year = years[0] || new Date().getFullYear();
       const avail = getAvailableMonths(txForPage, year);
       dispatch({ type: 'SET_FILTER', payload: { year, availableMonths: avail } });
+
+      const orc = await api.getOrcamento(year);
+      dispatch({ type: 'SET_ORCAMENTO', payload: orc });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
