@@ -213,13 +213,13 @@ export default function Caixa() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Resultado Operacional — mês a mês</div>
+                  <div className="font-inter font-semibold text-[13px]">Resultado Líquido — mês a mês</div>
                   <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido</div>
                 </div>
                 <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
               </div>
               <div className="p-4 cursor-zoom-in" style={{ height: 252 }}
-                onClick={() => openModal('bar', flowData, chartOpts('R$'), 'Resultado Operacional — Caixa')}>
+                onClick={() => openModal('bar', flowData, chartOpts('R$'), 'Resultado Líquido — Caixa')}>
                 <Bar data={flowData} options={chartOpts('R$')} />
               </div>
             </div>

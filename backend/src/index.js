@@ -9,6 +9,7 @@ import transactionsRouter from './routes/transactions.js';
 import planoRouter from './routes/plano.js';
 import saldosRouter from './routes/saldos.js';
 import uploadRouter from './routes/upload.js';
+import orcamentoRouter from './routes/orcamento.js';
 import { generateSample, defaultPlano } from './seed.js';
 import * as txStore from './store/transactions.js';
 import * as planoStore from './store/plano.js';
@@ -51,6 +52,7 @@ app.use('/api/transactions', transactionsRouter);
 app.use('/api/plano',        planoRouter);
 app.use('/api/saldos',       saldosRouter);
 app.use('/api/import',       uploadRouter);
+app.use('/api/orcamento',    orcamentoRouter);
 
 // POST /api/seed
 app.post('/api/seed', async (req, res, next) => {

@@ -79,6 +79,11 @@ export const api = {
   getImportHistory: () => req('/api/import/history'),
   clearHistory:     () => req('/api/import/history', { method: 'DELETE' }),
 
+  // Orçamento
+  getOrcamento:    (ano) => req(`/api/orcamento?ano=${ano}`),
+  upsertOrcamento: (entries) => req('/api/orcamento', { method: 'PUT', ...json(entries) }),
+  deleteOrcamentoEntry: (id) => req(`/api/orcamento/${id}`, { method: 'DELETE' }),
+
   // Seed / Reset
   seed:  () => req('/api/seed',  { method: 'POST' }),
   reset: () => req('/api/reset', { method: 'DELETE' }),

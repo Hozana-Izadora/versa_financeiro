@@ -1,226 +1,371 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Bar, Line } from 'react-chartjs-2';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
   PointElement, Title, Tooltip, Legend,
 } from 'chart.js';
 import { useApp } from '../context/AppContext.jsx';
+import { api } from '../api/index.js';
+import { DRILL_TREE, sumNode } from '../utils/drillHierarchy.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
+import Icon from '../components/ui/Icon.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
-const MES12 = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-const GR = '#6DBF45', GY = 'rgba(200,208,218,.8)', RD = '#E53E3E', BL = '#2B6CB0', OR = '#F5A623';
+const MES12    = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const ALL_MES  = [0,1,2,3,4,5,6,7,8,9,10,11];
+const GR = 'rgba(109,191,69,.75)';
+const GY = 'rgba(200,208,218,.8)';
+const RD = '#E53E3E';
+const BL = '#2B6CB0';
+const OR = '#F5A623';
 
-const ORC_REALIZADO = [291, 288, 312, null, null, null, null, null, null, null, null, null];
-const ORC_ORCADO    = [285, 290, 300, 305, 308, 310, 315, 318, 320, 325, 328, 335];
-const BREAKEVEN     = 280;
-
-const CENARIOS = {
-  0: { label: 'Pessimista',     proj: [null,null,null,295,298,300,302,304,305,308,310,312], total: '3.423K', color: 'rgba(229,62,62,.55)',   desc: 'Projeção conservadora — crescimento abaixo do histórico' },
-  1: { label: 'Moderado',       proj: [null,null,null,305,308,310,315,318,320,325,328,335], total: '3.718K', color: 'rgba(200,208,218,.6)',   desc: 'Projeção baseada no histórico recente' },
-  2: { label: 'Otimista',       proj: [null,null,null,320,325,330,335,340,342,345,348,355], total: '3.919K', color: 'rgba(109,191,69,.55)',   desc: 'Projeção com aceleração de vendas' },
-  3: { label: 'Muito Otimista', proj: [null,null,null,340,348,355,360,365,368,372,378,385], total: '4.162K', color: 'rgba(43,108,176,.55)',   desc: 'Projeção com forte expansão de receita' },
-};
-
-const GASTOS_TREE = {
-  root: { label: 'Todos os Grupos', items: [
-    { key: 'fixas',     label: 'Despesas Fixas',    meta: 152.5, real: 153,  color: BL },
-    { key: 'variaveis', label: 'Despesas Variáveis', meta: 26,   real: 28,   color: RD },
-    { key: 'custos',    label: 'Custos Diretos',    meta: 34,   real: 34,   color: '#9B59B6' },
-    { key: 'naoOp',     label: 'Não Operacional',   meta: 39,   real: 39.7, color: OR },
-  ]},
-  custos: { label: 'Custos Diretos', items: [
-    { key: null, label: 'Simples Nacional', meta: 17.5, real: 18,  color: '#c39bd3' },
-    { key: null, label: 'ISS retido',       meta: 8.5,  real: 8.5, color: '#9B59B6' },
-    { key: null, label: 'Parcelamento',     meta: 7.0,  real: 7.5, color: '#6c3483' },
-    { key: null, label: 'Materiais Aplic.', meta: 1.5,  real: 0,   color: '#a29bfe' },
-  ]},
-  fixas: { label: 'Despesas Fixas', items: [
-    { key: 'pessoal',   label: 'Pessoal',   meta: 80,   real: 82,  color: '#5b9bd5' },
-    { key: 'estrutura', label: 'Estrutura', meta: 45,   real: 43,  color: BL },
-    { key: 'terceiros', label: 'Terceiros', meta: 27.5, real: 28,  color: '#1a4a7a' },
-  ]},
-  variaveis: { label: 'Despesas Variáveis', items: [
-    { key: null, label: 'Combustível',       meta: 13, real: 15,  color: '#f07070' },
-    { key: null, label: 'Manut. Veículos',   meta: 8,  real: 12,  color: RD },
-    { key: null, label: 'Taxas/Emolumentos', meta: 3,  real: 9,   color: '#a02020' },
-    { key: null, label: 'Marketing',         meta: 2,  real: 2,   color: '#ff9999' },
-  ]},
-  naoOp: { label: 'Não Operacional', items: [
-    { key: null, label: 'Distribuição Lucros', meta: 27, real: 27,  color: '#f5c26b' },
-    { key: null, label: 'Parcela Empréstimo',  meta: 8,  real: 8,   color: OR },
-    { key: null, label: 'Investimentos',       meta: 4,  real: 4.7, color: '#b07718' },
-  ]},
-  pessoal: { label: 'Pessoal', items: [
-    { key: null, label: 'Prestador Serviço', meta: 34, real: 35,  color: '#a8e07f' },
-    { key: null, label: 'Pró-labore',        meta: 25, real: 25,  color: GR },
-    { key: null, label: 'FGTS / INSS',       meta: 10, real: 10,  color: '#3d8c24' },
-    { key: null, label: 'Transporte Alt.',   meta: 11, real: 12,  color: '#5aaa36' },
-  ]},
-  estrutura: { label: 'Estrutura', items: [
-    { key: null, label: 'Aluguel',  meta: 18, real: 18, color: '#5b9bd5' },
-    { key: null, label: 'Software', meta: 9,  real: 9,  color: BL },
-    { key: null, label: 'Energia',  meta: 9,  real: 8,  color: '#1a4a7a' },
-    { key: null, label: 'Internet', meta: 9,  real: 8,  color: '#0d2d4f' },
-  ]},
-  terceiros: { label: 'Terceiros', items: [
-    { key: null, label: 'Contabilidade', meta: 16.5, real: 17, color: '#f5c26b' },
-    { key: null, label: 'Coworking',     meta: 6,    real: 6,  color: OR },
-    { key: null, label: 'Consultoria',   meta: 5,    real: 5,  color: '#b07718' },
-  ]},
-};
-
-const METRIC_DATA = {
-  0: { label: 'Resultado Líquido (R$ mil)', real: [47,43,50,null,null,null,null,null,null,null,null,null], proj: [null,null,null,49,50,51,52,53,54,55,56,57], meta: 49, isCurrency: true },
-  1: { label: 'Margem Bruta (%)',           real: [47.2,46.8,48.2,null,null,null,null,null,null,null,null,null], proj: [null,null,null,48.5,49.0,49.2,49.5,49.8,50.0,50.2,50.5,50.8], meta: 49.5, isCurrency: false },
-  2: { label: 'Margem Operacional (%)',     real: [21.0,21.5,22.6,null,null,null,null,null,null,null,null,null], proj: [null,null,null,22.0,22.2,22.5,22.8,23.0,23.2,23.4,23.6,23.8], meta: 20.3, isCurrency: false },
-  3: { label: 'Margem Líquida (%)',         real: [17.2,17.5,18.1,null,null,null,null,null,null,null,null,null], proj: [null,null,null,17.8,18.0,18.2,18.4,18.6,18.8,19.0,19.2,19.4], meta: 17.5, isCurrency: false },
-};
-
-const ORC_TABLE = [
-  { sec: true, label: 'RECEITAS' },
-  { label: 'Receita Bruta',   orcMes: 300000, realMes: 312000, orcAno: 3468000, projAno: 3718000, above: true },
-  { label: 'Receita Líquida', orcMes: 267000, realMes: 278000, orcAno: 3085200, projAno: 3316000, above: true },
-  { sec: true, label: 'CUSTOS E DESPESAS' },
-  { label: 'CMV / CPV',       orcMes: 135000, realMes: 144000, orcAno: 1560000, projAno: 1716000, above: false },
-  { res: true, label: '= Margem Bruta', orcMes: 132000, realMes: 134000, orcAno: 1525200, projAno: 1600000, above: true },
-  { label: 'Pessoal',          orcMes: 80000,  realMes: 82000,  orcAno: 924000,  projAno: 978000,  above: false },
-  { label: 'Estrutura',        orcMes: 45000,  realMes: 43000,  orcAno: 520200,  projAno: 512000,  above: true },
-  { label: 'Desp. Variáveis',  orcMes: 26000,  realMes: 28000,  orcAno: 300300,  projAno: 334000,  above: false },
-  { label: 'Terceiros',        orcMes: 27500,  realMes: 28000,  orcAno: 317900,  projAno: 334000,  above: false },
-  { res: true, label: '= Resultado Líquido', orcMes: 49000, realMes: 50300, orcAno: 566200, projAno: 600000, above: true },
+const SCENARIO_DEFS = [
+  { key: 'pessimista',      label: 'Pessimista',      color: 'rgba(229,62,62,.55)',  desc: 'Projeção conservadora' },
+  { key: 'moderado',        label: 'Moderado',        color: 'rgba(200,208,218,.6)', desc: 'Baseada no histórico recente' },
+  { key: 'otimista',        label: 'Otimista',        color: 'rgba(109,191,69,.55)', desc: 'Com aceleração de vendas' },
+  { key: 'muito_otimista',  label: 'Muito Otimista',  color: 'rgba(43,108,176,.55)', desc: 'Com forte expansão de receita' },
 ];
 
-const chartBaseOpts = (cb) => ({
-  responsive: true, maintainAspectRatio: false,
-  plugins: {
-    legend: { display: true, labels: { color: '#475569', font: { size: 10 }, boxWidth: 9, borderRadius: 2 } },
-    tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5 },
-  },
-  scales: {
-    x: { grid: { display: false }, ticks: { color: '#8A96A3', font: { size: 10 } } },
-    y: { grid: { color: '#F0F2F5' }, ticks: { color: '#8A96A3', font: { size: 10 }, callback: cb || (v => v) } },
-  },
-});
+// Gasto nodes mapeados do DRILL_TREE (L0 e L1 de saídas)
+const GASTO_NODES = DRILL_TREE.children; // [gastos-op, gastos-nop]
+const GASTO_L1 = {
+  'gastos-op':  DRILL_TREE.children[0].children,
+  'gastos-nop': DRILL_TREE.children[1].children,
+};
 
-function fmtK(v) { return v == null ? '' : 'R$' + v + 'K'; }
-function fmtBrl(v) { return v == null ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR'); }
-function varPct(real, orc) { const d = real - orc; return (d >= 0 ? '+' : '') + ((d / orc) * 100).toFixed(1) + '%'; }
-function varAbs(real, orc) { const d = real - orc; return (d >= 0 ? '+' : '') + fmtBrl(Math.abs(d)); }
+function fmtBrl(v) {
+  if (v == null) return '—';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+function fmtK(v) { return v == null ? '' : 'R$' + (v / 1000).toFixed(0) + 'K'; }
+function fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
+
+// Soma transações de um node para o ano inteiro (todos os 12 meses)
+function sumNodeYear(node, tx, year) {
+  return sumNode(node, tx, ALL_MES, year);
+}
+
+// Soma transações de um node para um mês específico
+function sumNodeMes(node, tx, year, mes) {
+  return sumNode(node, tx, [mes], year);
+}
+
+// Receita real por mês (competência, nivel='Receita', mov='Entrada')
+function receitaRealPorMes(tx, year) {
+  return ALL_MES.map(m => {
+    const total = tx.filter(r => {
+      const d = new Date(r.data + 'T12:00');
+      return d.getFullYear() === year && d.getMonth() === m
+        && r.mov === 'Entrada' && r.nivel === 'Receita';
+    }).reduce((s, r) => s + r.valor, 0);
+    return total > 0 ? total : null;
+  });
+}
 
 export default function Orcamento() {
-  const { state } = useApp();
-  const { darkMode } = state;
+  const { state, actions } = useApp();
+  const { transactions, orcamento, filterState, darkMode } = state;
+  const year = filterState.year;
+  const tx = transactions.competencia;
 
-  const [scenario, setScenario] = useState(1);
+  const [scenario, setScenario]     = useState(1);
   const [gastoStack, setGastoStack] = useState(['root']);
-  const [metric, setMetric] = useState(0);
   const [modalChart, setModalChart] = useState(null);
+  const [saving, setSaving]         = useState(false);
 
   const gc = darkMode ? '#1e2d42' : '#F0F2F5';
   const tc = darkMode ? '#8aa3be' : '#8A96A3';
+
+  // ── Parse orcamento entries into lookup maps ──────────────────
+  const orcMap = useMemo(() => {
+    const receita   = {};   // mes → valor
+    const cenarios  = {};   // key → { mes → valor }
+    const metaCat   = {};   // nodeId → valor (annual)
+    let breakeven   = 0;
+
+    for (const e of orcamento) {
+      if (e.tipo === 'receita')   receita[e.mes]    = e.valor;
+      if (e.tipo === 'breakeven') breakeven          = e.valor;
+      if (e.tipo === 'cenario') {
+        if (!cenarios[e.referencia]) cenarios[e.referencia] = {};
+        cenarios[e.referencia][e.mes] = e.valor;
+      }
+      if (e.tipo === 'meta_cat')  metaCat[e.referencia] = e.valor;
+    }
+    return { receita, cenarios, metaCat, breakeven };
+  }, [orcamento]);
+
+  // ── Actuals from transactions ─────────────────────────────────
+  const receitaReal = useMemo(() => receitaRealPorMes(tx, year), [tx, year]);
+
+  // Mês atual (último mês com dados reais)
+  const lastRealMes = useMemo(() => {
+    for (let m = 11; m >= 0; m--) if (receitaReal[m] != null) return m;
+    return -1;
+  }, [receitaReal]);
+
+  // ── Chart data ────────────────────────────────────────────────
+  const sc = SCENARIO_DEFS[scenario];
+  const orcAnualData = useMemo(() => {
+    const orcado  = ALL_MES.map(m => (orcMap.receita[m] ?? 0) / 1000 || null);
+    const cenario = ALL_MES.map(m => {
+      const v = orcMap.cenarios[sc.key]?.[m];
+      return v != null ? v / 1000 : null;
+    });
+    const beVal   = orcMap.breakeven > 0 ? orcMap.breakeven / 1000 : null;
+    return {
+      labels: MES12,
+      datasets: [
+        { label: 'Realizado',               data: receitaReal.map(v => v != null ? v/1000 : null), backgroundColor: GR, borderRadius: 4 },
+        { label: 'Orçado',                  data: orcado, backgroundColor: GY, borderRadius: 4 },
+        { label: sc.label + ' (projeção)',  data: cenario, backgroundColor: sc.color, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(0,0,0,.1)' },
+        ...(beVal ? [{ label: 'Ponto de Equilíbrio', data: Array(12).fill(beVal), type: 'line', borderColor: OR, borderWidth: 2, borderDash: [7,4], pointRadius: 0, tension: 0, fill: false }] : []),
+      ],
+    };
+  }, [receitaReal, orcMap, sc, year]);
+
+  // ── Gastos drill-down ─────────────────────────────────────────
+  const gastoItems = useMemo(() => {
+    const nodeKey = gastoStack[gastoStack.length - 1];
+    let nodes;
+    if (nodeKey === 'root')       nodes = GASTO_NODES;
+    else if (GASTO_L1[nodeKey])   nodes = GASTO_L1[nodeKey];
+    else {
+      // L1 leaf — find node in GASTO_L1
+      for (const children of Object.values(GASTO_L1)) {
+        const n = children.find(c => c.id === nodeKey);
+        if (n) { nodes = n.children ?? []; break; }
+      }
+      nodes = nodes ?? [];
+    }
+    return nodes.map(node => ({
+      node,
+      real: sumNodeYear(node, tx, year) / 1000,
+      meta: (orcMap.metaCat[node.id] ?? 0) / 1000,
+      hasChildren: !!(node.children?.length),
+    }));
+  }, [gastoStack, tx, year, orcMap]);
+
+  const gastoLabel = useMemo(() => {
+    const key = gastoStack[gastoStack.length - 1];
+    if (key === 'root') return 'Todos os Grupos';
+    for (const n of GASTO_NODES) {
+      if (n.id === key) return n.label;
+      for (const c of (n.children ?? [])) {
+        if (c.id === key) return c.label;
+      }
+    }
+    return '';
+  }, [gastoStack]);
+
+  const gastoData = useMemo(() => ({
+    labels: gastoItems.map(i => i.node.label),
+    datasets: [
+      { label: 'Meta',      data: gastoItems.map(i => i.meta), backgroundColor: GY, borderRadius: 4 },
+      { label: 'Realizado', data: gastoItems.map(i => i.real),
+        backgroundColor: gastoItems.map(i => i.real > i.meta && i.meta > 0 ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'),
+        borderRadius: 4 },
+    ],
+  }), [gastoItems]);
+
+  const gastoOpts = useMemo(() => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 9 } },
+      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5 },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } },
+      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => 'R$' + v + 'K' } },
+    },
+    onClick: (_, elements) => {
+      if (!elements.length) return;
+      const item = gastoItems[elements[0].index];
+      if (item.hasChildren) setGastoStack(s => [...s, item.node.id]);
+    },
+  }), [gastoItems, gc, tc]);
+
+  const chartBaseOpts = useCallback((cb) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 9, borderRadius: 2 } },
+      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5 },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } },
+      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: cb || (v => v) } },
+    },
+  }), [gc, tc]);
+
+  const orcAnualOpts = useMemo(() => ({
+    ...chartBaseOpts(v => 'R$' + v + 'K'),
+  }), [chartBaseOpts]);
+
+  // ── KPI cards (último mês real vs meta mensal) ────────────────
+  const kpiCards = useMemo(() => {
+    if (lastRealMes < 0) return [];
+    const m = lastRealMes;
+
+    const recReal  = receitaReal[m] ?? 0;
+    const recMeta  = orcMap.receita[m] ?? 0;
+
+    // Saídas operacionais reais no mês
+    const despOpNode = DRILL_TREE.children[0]; // gastos-op
+    const despOpReal = sumNodeMes(despOpNode, tx, year, m);
+    const despOpMeta = (orcMap.metaCat['gastos-op'] ?? 0) / 12;
+
+    // Margem operacional
+    const mgOpReal = recReal > 0 ? ((recReal - despOpReal) / recReal * 100) : 0;
+    const mgOpMeta = recMeta > 0 ? ((recMeta - despOpMeta) / recMeta * 100) : 0;
+
+    // Saídas não operacionais
+    const nopNode  = DRILL_TREE.children[1];
+    const nopReal  = sumNodeMes(nopNode, tx, year, m);
+    const nopMeta  = (orcMap.metaCat['gastos-nop'] ?? 0) / 12;
+
+    // Resultado líquido
+    const resReal  = recReal - despOpReal - nopReal;
+    const resMeta  = recMeta - despOpMeta - nopMeta;
+
+    function card(label, meta, real, higherIsBetter, isPercent = false) {
+      const diff    = real - meta;
+      const pct     = meta !== 0 ? (diff / Math.abs(meta) * 100) : 0;
+      const good    = higherIsBetter ? diff >= 0 : diff <= 0;
+      const fmtV    = isPercent ? (v => v.toFixed(1) + '%') : fmtBrl;
+      const delta   = isPercent
+        ? (diff >= 0 ? '+' : '') + diff.toFixed(1) + 'pp vs meta'
+        : fmtPct(pct) + ' vs meta';
+      return { label, meta: fmtV(meta), real: fmtV(real), good, delta };
+    }
+
+    return [
+      card('Receita Bruta',          recMeta,   recReal,   true),
+      card('Desp. Operacionais',     despOpMeta, despOpReal, false),
+      card('Margem Operacional',     mgOpMeta,  mgOpReal,  true, true),
+      card('Gastos Não Operacionais', nopMeta,  nopReal,   false),
+      card('Resultado Líquido',      resMeta,   resReal,   true),
+    ];
+  }, [lastRealMes, receitaReal, tx, year, orcMap]);
+
+  // ── Acompanhamento orçamentário (tabela) ──────────────────────
+  const orcTable = useMemo(() => {
+    if (lastRealMes < 0) return [];
+    const m = lastRealMes;
+
+    const recRealMes  = receitaReal[m] ?? 0;
+    const recOrcMes   = orcMap.receita[m] ?? 0;
+    const recOrcAno   = ALL_MES.reduce((s, i) => s + (orcMap.receita[i] ?? 0), 0);
+
+    // Projeção ano = realizado até mês m + orçado restante
+    const recProjAno  = ALL_MES.reduce((s, i) => {
+      if (receitaReal[i] != null) return s + receitaReal[i];
+      return s + (orcMap.receita[i] ?? 0);
+    }, 0);
+
+    const despOpNode = DRILL_TREE.children[0];
+    const despOpRealMes = sumNodeMes(despOpNode, tx, year, m);
+    const despOpMeta    = (orcMap.metaCat['gastos-op'] ?? 0) / 12;
+    const despOpMetaAno = orcMap.metaCat['gastos-op'] ?? 0;
+
+    // Custos reais no mês
+    const custoNode  = despOpNode.children?.[0]; // custos-diretos
+    const custoReal  = custoNode ? sumNodeMes(custoNode, tx, year, m) : 0;
+    const custoMeta  = custoNode ? (orcMap.metaCat[custoNode.id] ?? 0) / 12 : 0;
+
+    const mgBReal = recRealMes - custoReal;
+    const mgBMeta = recOrcMes - custoMeta;
+
+    const resReal = recRealMes - despOpRealMes;
+    const resMeta = recOrcMes - despOpMeta;
+
+    return [
+      { sec: true, label: 'RECEITAS' },
+      { label: 'Receita Bruta', orcMes: recOrcMes, realMes: recRealMes, orcAno: recOrcAno, projAno: recProjAno, above: true },
+      { sec: true, label: 'CUSTOS E DESPESAS' },
+      { label: 'Custos Diretos', orcMes: custoMeta, realMes: custoReal, orcAno: custoMeta * 12, projAno: custoReal * 12, above: false },
+      { res: true, label: '= Margem Bruta', orcMes: mgBMeta, realMes: mgBReal, orcAno: mgBMeta * 12, projAno: mgBReal * 12, above: true },
+      { label: 'Desp. Operacionais', orcMes: despOpMeta, realMes: despOpRealMes, orcAno: despOpMetaAno, projAno: despOpRealMes * 12, above: false },
+      { res: true, label: '= Resultado Líquido', orcMes: resMeta, realMes: resReal, orcAno: resMeta * 12, projAno: resReal * 12, above: true },
+    ];
+  }, [lastRealMes, receitaReal, tx, year, orcMap]);
+
+  // ── Salvar metas no banco ─────────────────────────────────────
+  async function saveMeta(tipo, referencia, mes, valor) {
+    setSaving(true);
+    try {
+      await api.upsertOrcamento([{ ano: year, mes: mes ?? null, tipo, referencia: referencia ?? '', valor }]);
+      const fresh = await api.getOrcamento(year);
+      actions.dispatch({ type: 'SET_ORCAMENTO', payload: fresh });
+      actions.notify('Meta salva!', 'ns');
+    } catch (e) {
+      actions.notify(e.message, 'ne');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function openModal(type, data, options, title) {
     setModalChart({ type, data, options, title });
   }
 
-  // ── Receita Anual chart ──────────────────────────────────────
-  const c = CENARIOS[scenario];
-  const orcAnualData = {
-    labels: MES12,
-    datasets: [
-      { label: 'Realizado',  data: ORC_REALIZADO, backgroundColor: GR, borderRadius: 4 },
-      { label: 'Orçado',     data: ORC_ORCADO,    backgroundColor: GY, borderRadius: 4 },
-      { label: c.label + ' (projeção)', data: c.proj, backgroundColor: c.color, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(0,0,0,.1)' },
-      { label: 'Ponto de Equilíbrio', data: Array(12).fill(BREAKEVEN), type: 'line', borderColor: OR, borderWidth: 2, borderDash: [7, 4], pointRadius: 0, tension: 0, fill: false },
-    ],
-  };
-  const orcAnualOpts = { ...chartBaseOpts(v => 'R$' + v + 'K'), scales: { ...chartBaseOpts().scales, x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => 'R$' + v + 'K' } } } };
-
-  // ── Gastos Drill-down chart ──────────────────────────────────
-  const gastoNode = GASTOS_TREE[gastoStack[gastoStack.length - 1]];
-  const gastoData = {
-    labels: gastoNode.items.map(i => i.label),
-    datasets: [
-      { label: 'Meta',      data: gastoNode.items.map(i => i.meta), backgroundColor: GY, borderRadius: 4 },
-      { label: 'Realizado', data: gastoNode.items.map(i => i.real), backgroundColor: gastoNode.items.map(i => i.real > i.meta ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'), borderRadius: 4 },
-    ],
-  };
-  const gastoOpts = {
-    ...chartBaseOpts(v => 'R$' + v + 'K'),
-    scales: { ...chartBaseOpts().scales, x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => 'R$' + v + 'K' } } },
-    onClick: (evt, elements, chart) => {
-      if (!elements.length) return;
-      const child = gastoNode.items[elements[0].index].key;
-      if (child && GASTOS_TREE[child]) setGastoStack(s => [...s, child]);
-    },
-  };
-
-  // ── Evolução Meta vs Realizado chart ─────────────────────────
-  const m = METRIC_DATA[metric];
-  const cb = m.isCurrency ? v => 'R$' + v + 'K' : v => v + '%';
-  const metricData = {
-    labels: MES12,
-    datasets: [
-      { label: 'Realizado', data: m.real, backgroundColor: GR, borderRadius: 4, type: 'bar' },
-      { label: 'Projeção',  data: m.proj, backgroundColor: 'rgba(200,208,218,.65)', borderRadius: 4, type: 'bar' },
-      { label: 'Meta',      data: Array(12).fill(m.meta), type: 'line', borderColor: BL, borderWidth: 2, borderDash: [6, 3], pointRadius: 0, tension: 0, fill: false },
-    ],
-  };
-  const metricOpts = { ...chartBaseOpts(cb), scales: { ...chartBaseOpts().scales, x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: cb } } } };
-
-  const kpiCards = [
-    { label: 'Receita Bruta',         meta: 'R$ 300K', real: 'R$ 312K', realColor: '#059669', delta: '▲ +4,0% vs meta', deltaUp: true },
-    { label: 'Desp. Operacionais',    meta: 'R$ 181K', real: 'R$ 189K', realColor: RD,         delta: '▼ +4,4% acima da meta', deltaUp: false, red: true },
-    { label: 'Margem Operacional',    meta: '20,3%',   real: '22,6%',   realColor: '#059669', delta: '▲ +2,3pp vs meta', deltaUp: true },
-    { label: 'Gastos Não Operacionais', meta: 'R$ 12K', real: 'R$ 12,7K', realColor: RD,      delta: '▼ +5,8% acima da meta', deltaUp: false, red: true },
-    { label: 'Resultado Líquido',     meta: 'R$ 49K',  real: 'R$ 50,3K', realColor: '#059669', delta: '▲ +2,7% vs meta', deltaUp: true },
-  ];
+  const hasOrcamento = orcamento.length > 0;
 
   return (
     <div className="ani">
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
 
-      {/* ── KPIs Meta vs Realizado ── */}
-      <div className="flex gap-2.5 flex-wrap mb-3.5">
-        {kpiCards.map((k, i) => (
-          <div key={i} className={`kpi-card flex-1 min-w-[155px] ${k.red ? 'kc-r' : 'kc-g'}`}>
-            <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">{k.label}</div>
-            <div className="flex gap-3 items-end mb-1">
-              <div>
-                <div className="text-[8.5px] text-text-3 mb-0.5">META</div>
-                <div className="text-[14px] font-bold text-text-3">{k.meta}</div>
-              </div>
-              <div>
-                <div className="text-[8.5px] mb-0.5" style={{ color: k.realColor }}>REALIZADO</div>
-                <div className="text-[16px] font-black text-text-base">{k.real}</div>
-              </div>
+      {/* ── Aviso sem orçamento ── */}
+      {!hasOrcamento && (
+        <div className="panel mb-3.5 flex items-center gap-3 p-4" style={{ borderLeft: '3px solid #f59e0b' }}>
+          <Icon name="info" size="text-[18px]" style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <div>
+            <div className="font-semibold text-[13px] text-text-base">Nenhuma meta cadastrada para {year}</div>
+            <div className="text-[11px] text-text-3 mt-0.5">
+              Use o painel <strong>Metas de Receita</strong> abaixo para definir os valores orçados mês a mês.
             </div>
-            <div className="text-[9.5px] font-semibold" style={{ color: k.deltaUp ? '#059669' : RD }}>{k.delta}</div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* ── KPIs Meta vs Realizado ── */}
+      {kpiCards.length > 0 && (
+        <div className="flex gap-2.5 flex-wrap mb-3.5">
+          {kpiCards.map((k, i) => (
+            <div key={i} className={`kpi-card flex-1 min-w-[155px] ${k.good ? 'kc-g' : 'kc-r'}`}>
+              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">{k.label}</div>
+              <div className="flex gap-3 items-end mb-1">
+                <div>
+                  <div className="text-[8.5px] text-text-3 mb-0.5">META</div>
+                  <div className="text-[14px] font-bold text-text-3">{k.meta}</div>
+                </div>
+                <div>
+                  <div className="text-[8.5px] mb-0.5" style={{ color: k.good ? '#059669' : RD }}>REALIZADO</div>
+                  <div className="text-[16px] font-black text-text-base">{k.real}</div>
+                </div>
+              </div>
+              <div className="text-[9.5px] font-semibold" style={{ color: k.good ? '#059669' : RD }}>{k.delta}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Seletor de cenários ── */}
       <div className="flex items-center gap-3 flex-wrap mb-3.5">
         <span className="text-[11px] font-semibold text-text-2">Cenário de Receita:</span>
         <div className="flex gap-1.5 flex-wrap">
-          {Object.entries(CENARIOS).map(([i, c]) => (
-            <button
-              key={i}
-              onClick={() => setScenario(+i)}
+          {SCENARIO_DEFS.map((s, i) => (
+            <button key={s.key} onClick={() => setScenario(i)}
               className={`px-3 py-1.5 rounded-sm border text-[11px] font-semibold transition-all cursor-pointer ${
-                scenario === +i
+                scenario === i
                   ? 'bg-accent text-white border-accent'
                   : 'bg-white dark:bg-[#1a2d42] text-text-2 dark:text-[#c4d4e4] border-slate-200 dark:border-[#2d4060] hover:border-accent hover:text-accent'
-              }`}
-            >
-              {c.label}
+              }`}>
+              {s.label}
             </button>
           ))}
         </div>
-        <span className="text-[10px] text-text-3 italic">{CENARIOS[scenario].desc}</span>
+        <span className="text-[10px] text-text-3 italic">{sc.desc}</span>
       </div>
 
       {/* ── Gráficos: Receita + Gastos ── */}
@@ -228,12 +373,9 @@ export default function Orcamento() {
         <div className="panel">
           <div className="panel-hdr">
             <div className="font-inter font-semibold text-[13px]">Receita Bruta — Realizado vs Orçado</div>
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(109,191,69,.12)', color: '#5aaa36' }}>
-              Total proj.: R$ {CENARIOS[scenario].total}
-            </span>
+            <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
           </div>
-          <div className="p-4 cursor-zoom-in" style={{ height: 210 }}
+          <div className="p-4 cursor-zoom-in" style={{ height: 220 }}
             onClick={() => openModal('bar', orcAnualData, orcAnualOpts, 'Receita Bruta — Realizado vs Orçado')}>
             <Bar data={orcAnualData} options={orcAnualOpts} />
           </div>
@@ -245,15 +387,13 @@ export default function Orcamento() {
               <div className="font-inter font-semibold text-[13px]">Gastos por Categoria — Meta vs Realizado</div>
               {gastoStack.length > 1 && (
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <button
-                    onClick={() => setGastoStack(s => s.slice(0, -1))}
-                    className="text-[10px] text-accent underline cursor-pointer"
-                  >← Voltar</button>
-                  <span className="text-[10px] text-text-3">› {gastoNode.label}</span>
+                  <button onClick={() => setGastoStack(s => s.slice(0, -1))}
+                    className="text-[10px] text-accent underline cursor-pointer">← Voltar</button>
+                  <span className="text-[10px] text-text-3">› {gastoLabel}</span>
                 </div>
               )}
             </div>
-            <span className="text-[9.5px] text-text-3">Clique numa barra para detalhar</span>
+            <span className="text-[9.5px] text-text-3">Clique para detalhar</span>
           </div>
           <div className="p-4 cursor-pointer" style={{ height: 230 }}>
             <Bar data={gastoData} options={gastoOpts} />
@@ -261,79 +401,96 @@ export default function Orcamento() {
         </div>
       </div>
 
-      {/* ── Evolução Meta vs Realizado + seletor de métrica ── */}
-      <div className="panel mb-3.5">
-        <div className="panel-hdr">
-          <div className="font-inter font-semibold text-[13px]">Evolução — Meta vs Realizado</div>
-          <div className="flex gap-1 flex-wrap">
-            {Object.entries(METRIC_DATA).map(([i, d]) => (
-              <button
-                key={i}
-                onClick={() => setMetric(+i)}
-                className={`px-2.5 py-1 rounded-sm border text-[11px] font-medium transition-all cursor-pointer ${
-                  metric === +i
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-white dark:bg-[#1a2d42] text-text-2 dark:text-[#c4d4e4] border-slate-200 dark:border-[#2d4060] hover:border-accent hover:text-accent'
-                }`}
-              >
-                {['Res. Líquido', 'Mg. Bruta', 'Mg. Op.', 'Mg. Líq.'][+i]}
-              </button>
-            ))}
+      {/* ── Tabela de acompanhamento ── */}
+      {orcTable.length > 0 && (
+        <div className="panel mb-3.5">
+          <div className="panel-hdr">
+            <div className="font-inter font-semibold text-[13px]">
+              Acompanhamento Orçamentário — {MES12[lastRealMes]} {year}
+            </div>
+            <span className="text-[9.5px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(109,191,69,.12)', color: '#5aaa36' }}>Rolling Forecast</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="orc-tbl w-full border-collapse" style={{ fontSize: 11.5 }}>
+              <thead>
+                <tr>
+                  {['Categoria','Orç. Mês','Real. Mês','Variação R$','Variação %','Orç. Ano','Proj. Ano','Status'].map(h => (
+                    <th key={h} className={`py-2 px-3.5 text-[9px] uppercase tracking-widest border-b border-slate-100 whitespace-nowrap font-bold bg-[#1C2B3A] text-white ${h === 'Categoria' ? 'text-left' : 'text-right'}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {orcTable.map((row, i) => {
+                  if (row.sec) return (
+                    <tr key={i}><td colSpan={8} className="px-3.5 py-2 font-bold text-[9.5px] uppercase tracking-[0.5px] bg-[#1C2B3A] text-white">{row.label}</td></tr>
+                  );
+                  const varR = row.realMes - row.orcMes;
+                  const varP = row.orcMes !== 0 ? ((varR / Math.abs(row.orcMes)) * 100).toFixed(1) : '—';
+                  const pos  = row.above ? varR >= 0 : varR <= 0;
+                  const cls  = pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold';
+                  const status = row.above ? (varR >= 0 ? '✔ Acima' : '✖ Abaixo') : (varR <= 0 ? '✔ Abaixo' : '✖ Acima');
+                  return (
+                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                      style={row.res ? { background: 'rgba(109,191,69,.07)', fontWeight: 800, borderTop: '2px solid rgba(109,191,69,.2)' } : {}}>
+                      <td className="px-3.5 py-2 text-left text-text-base font-medium">{row.label}</td>
+                      <td className="px-3.5 py-2 text-right text-text-2 font-mono">{fmtBrl(row.orcMes)}</td>
+                      <td className="px-3.5 py-2 text-right text-text-base font-semibold font-mono">{fmtBrl(row.realMes)}</td>
+                      <td className={`px-3.5 py-2 text-right font-mono ${cls}`}>{varR >= 0 ? '+' : ''}{fmtBrl(Math.abs(varR))}</td>
+                      <td className={`px-3.5 py-2 text-right font-mono ${cls}`}>{varR >= 0 ? '+' : ''}{typeof varP === 'string' ? varP : varP + '%'}</td>
+                      <td className="px-3.5 py-2 text-right text-text-2 font-mono">{fmtBrl(row.orcAno)}</td>
+                      <td className={`px-3.5 py-2 text-right font-mono ${pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold'}`}>{fmtBrl(row.projAno)}</td>
+                      <td className={`px-3.5 py-2 text-right ${pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold'}`}>{status}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div className="p-4 cursor-zoom-in" style={{ height: 250 }}
-          onClick={() => openModal('bar', metricData, metricOpts, METRIC_DATA[metric].label)}>
-          <Bar data={metricData} options={metricOpts} />
-        </div>
-      </div>
+      )}
 
-      {/* ── Tabela de acompanhamento orçamentário ── */}
+      {/* ── Painel de edição de metas ── */}
       <div className="panel">
         <div className="panel-hdr">
-          <div className="font-inter font-semibold text-[13px]">Acompanhamento Orçamentário — Março 2026</div>
-          <span className="text-[9.5px] font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(109,191,69,.12)', color: '#5aaa36' }}>
-            Rolling Forecast
-          </span>
+          <div>
+            <div className="font-inter font-semibold text-[13px]">Metas de Receita — {year}</div>
+            <div className="text-[10px] text-text-3 mt-0.5">Defina o orçado mensal e o ponto de equilíbrio</div>
+          </div>
+          {saving && <span className="text-[11px] text-text-3 italic">Salvando…</span>}
         </div>
-        <div className="overflow-x-auto">
-          <table className="orc-tbl w-full border-collapse" style={{ fontSize: 11.5 }}>
-            <thead>
-              <tr>
-                {['Categoria','Orç. Mês','Real. Mês','Variação R$','Variação %','Orç. Ano','Proj. Ano','Status'].map(h => (
-                  <th key={h} className={`py-2 px-3.5 text-[9px] uppercase tracking-widest border-b border-slate-100 whitespace-nowrap font-bold bg-[#1C2B3A] text-white ${h === 'Categoria' ? 'text-left' : 'text-right'}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ORC_TABLE.map((row, i) => {
-                if (row.sec) return (
-                  <tr key={i} className="r-sec">
-                    <td colSpan={8} className="px-3.5 py-2 font-bold text-[9.5px] uppercase tracking-[0.5px] bg-[#1C2B3A] text-white">{row.label}</td>
-                  </tr>
-                );
-                const varR = row.realMes - row.orcMes;
-                const varP = ((varR / row.orcMes) * 100).toFixed(1);
-                const pos = row.above ? varR >= 0 : varR <= 0;
-                const varCls = pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold';
-                const statusTxt = row.above ? (varR >= 0 ? '✔ Acima' : '✖ Abaixo') : (varR <= 0 ? '✔ Abaixo' : '✖ Acima');
-                const trCls = row.res ? 'r-res font-black' : '';
-                return (
-                  <tr key={i} className={`${trCls} border-b border-slate-100 hover:bg-slate-50 transition-colors`}
-                    style={row.res ? { background: 'rgba(109,191,69,.07)', fontWeight: 800, borderTop: '2px solid rgba(109,191,69,.2)' } : {}}>
-                    <td className="px-3.5 py-2 text-left text-text-base font-medium">{row.label}</td>
-                    <td className="px-3.5 py-2 text-right text-text-2 font-mono">{fmtBrl(row.orcMes)}</td>
-                    <td className="px-3.5 py-2 text-right text-text-base font-semibold font-mono">{fmtBrl(row.realMes)}</td>
-                    <td className={`px-3.5 py-2 text-right font-mono ${varCls}`}>{varR >= 0 ? '+' : ''}{fmtBrl(Math.abs(varR))}</td>
-                    <td className={`px-3.5 py-2 text-right font-mono ${varCls}`}>{varR >= 0 ? '+' : ''}{varP}%</td>
-                    <td className="px-3.5 py-2 text-right text-text-2 font-mono">{fmtBrl(row.orcAno)}</td>
-                    <td className={`px-3.5 py-2 text-right font-mono ${pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold'}`}>{fmtBrl(row.projAno)}</td>
-                    <td className={`px-3.5 py-2 text-right ${pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold'}`}>{statusTxt}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="p-4">
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+            {MES12.map((mes, m) => (
+              <div key={m}>
+                <div className="text-[9px] uppercase tracking-widest text-text-3 mb-1">{mes}</div>
+                <input
+                  type="number"
+                  className="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+                  placeholder="R$"
+                  defaultValue={orcMap.receita[m] ?? ''}
+                  onBlur={e => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v) && v > 0) saveMeta('receita', '', m, v);
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-semibold text-text-2">Ponto de Equilíbrio (anual R$):</span>
+            <input
+              type="number"
+              className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+              style={{ width: 140 }}
+              placeholder="R$"
+              defaultValue={orcMap.breakeven || ''}
+              onBlur={e => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v) && v > 0) saveMeta('breakeven', '', null, v);
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
