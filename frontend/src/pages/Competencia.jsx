@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import React, { useState, useMemo } from 'react';
+import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
-  PointElement, ArcElement, Title, Tooltip, Legend, Filler,
+  PointElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
@@ -11,18 +11,9 @@ import KpiCard from '../components/ui/KpiCard.jsx';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
+import DrillChart from '../components/ui/DrillChart.jsx';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Title, Tooltip, Legend, Filler);
-
-const DONUT_COLORS = ['#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899', '#10b981', '#6366f1'];
-
-// Sub-group data for pizza drill-down
-const PIZZA_SUBGROUPS = {
-  'Pessoal':          [{ label: 'Prestador Serviço', color: '#a8e07f' }, { label: 'Pró-labore', color: '#6DBF45' }, { label: 'FGTS/INSS', color: '#3d8c24' }, { label: 'Transporte Alt.', color: '#5aaa36' }],
-  'Estrutura':        [{ label: 'Aluguel', color: '#5b9bd5' }, { label: 'Softwares', color: '#2B6CB0' }, { label: 'Energia', color: '#1a4a7a' }, { label: 'Internet', color: '#0d2d4f' }],
-  'Desp. Variáveis':  [{ label: 'Combustível', color: '#f07070' }, { label: 'Manut. Veículos', color: '#E53E3E' }, { label: 'Taxas', color: '#a02020' }],
-  'Terceiros':        [{ label: 'Contabilidade', color: '#f5c26b' }, { label: 'Coworking', color: '#F5A623' }, { label: 'Consultoria', color: '#b07718' }],
-};
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
 function CNode({ label, value, sub, color, result, first, last }) {
   return (
@@ -59,8 +50,6 @@ export default function Competencia() {
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
   const [modalChart, setModalChart] = useState(null);
-  const [pizzaDrillLabel, setPizzaDrillLabel] = useState(null); // null = main view
-  const pizzaRef = useRef(null);
 
   const tx = transactions.competencia;
   const filteredTx = useMemo(() => tx.filter(r => {
@@ -97,58 +86,6 @@ export default function Competencia() {
       },
     };
   }
-
-  // Expense groups for donut
-  const expGroups = dre.rows.filter(r => r.type === 'group' && !r.isPos);
-  const totalExp = expGroups.reduce((s, r) => s + Math.abs(r.total), 0);
-
-  // Pizza drill-down data
-  const pizzaGroups = pizzaDrillLabel
-    ? (() => {
-        const subs = PIZZA_SUBGROUPS[pizzaDrillLabel];
-        const parent = expGroups.find(g => g.label === pizzaDrillLabel);
-        if (!subs || !parent) return expGroups;
-        const parentTotal = Math.abs(parent.total);
-        return subs.map((s, i) => ({ label: s.label, total: -(parentTotal / subs.length), color: s.color }));
-      })()
-    : expGroups;
-
-  const pizzaTotal = pizzaDrillLabel
-    ? Math.abs(expGroups.find(g => g.label === pizzaDrillLabel)?.total || 0)
-    : totalExp;
-
-  const donutData = {
-    labels: pizzaGroups.map(r => r.label),
-    datasets: [{
-      data: pizzaGroups.map(r => Math.abs(r.total || 0)),
-      backgroundColor: pizzaDrillLabel
-        ? (PIZZA_SUBGROUPS[pizzaDrillLabel] || []).map(s => s.color)
-        : DONUT_COLORS.slice(0, expGroups.length),
-      borderWidth: 2, borderColor: darkMode ? '#152030' : '#ffffff', hoverOffset: 8,
-    }],
-  };
-
-  const donutOpts = {
-    responsive: true, maintainAspectRatio: false, cutout: '58%',
-    onClick: (evt, elements) => {
-      if (!elements.length) {
-        setPizzaDrillLabel(null);
-        return;
-      }
-      if (pizzaDrillLabel) {
-        setPizzaDrillLabel(null);
-        return;
-      }
-      const grp = expGroups[elements[0].index];
-      if (grp && PIZZA_SUBGROUPS[grp.label]) setPizzaDrillLabel(grp.label);
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5,
-        callbacks: { label: ctx => ` ${ctx.label}: ${fmt(Math.abs(ctx.raw))} (${pizzaTotal > 0 ? (Math.abs(ctx.raw) / pizzaTotal * 100).toFixed(1) : 0}%)` + (pizzaDrillLabel ? '' : (PIZZA_SUBGROUPS[ctx.label] ? ' — clique para detalhar' : '')) },
-      },
-    },
-  };
 
   const margins = [
     { pctVal: fmtPct(pct(dre.totMgB, dre.totRec)), label: 'Margem Bruta', val: fmtK(dre.totMgB), color: '#10b981', w: Math.min(100, Math.max(0, pct(dre.totMgB, dre.totRec))) },
@@ -224,10 +161,10 @@ export default function Competencia() {
               delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
             />
-            <KpiCard label="Margem Operacional" value={fmtPct(pct(dre.totMgOp, dre.totRec))} sub={`EBIT ${fmtK(dre.totMgOp)}`} icon="gps_fixed" colorClass="kc-c"
+            {/* <KpiCard label="Margem Operacional" value={fmtPct(pct(dre.totMgOp, dre.totRec))} sub={`EBIT ${fmtK(dre.totMgOp)}`} icon="gps_fixed" colorClass="kc-c"
               delta={moPct.length > 1 ? (moPct[moPct.length - 1] - moPct[moPct.length - 2]).toFixed(1) + 'pp vs mês ant.' : undefined}
               deltaDir={moPct.length > 1 && moPct[moPct.length - 1] >= moPct[moPct.length - 2] ? 'up' : 'down'}
-            />
+            /> */}
           </div>
 
           {/* ── Margin cards ── */}
@@ -273,68 +210,13 @@ export default function Competencia() {
             </div>
           </div>
 
-          {/* ── Composição das despesas: donut + breakdown ── */}
-          <div className="grid grid-cols-[2fr_3fr] gap-3 mb-3.5">
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px]">Composição das Despesas</div>
-                  <div className="text-[10px] text-text-3 mt-0.5">
-                    {pizzaDrillLabel
-                      ? <><button onClick={() => setPizzaDrillLabel(null)} className="text-accent underline cursor-pointer mr-1">← Voltar</button><span className="text-text-3">{pizzaDrillLabel}</span></>
-                      : 'Clique numa fatia para detalhar'
-                    }
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 flex items-center justify-center" style={{ height: 240 }}>
-                {expGroups.length > 0
-                  ? <Doughnut ref={pizzaRef} data={donutData} options={donutOpts} />
-                  : <span className="text-text-3 text-sm">Sem dados no período</span>}
-              </div>
-            </div>
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px]">Detalhamento por Grupo</div>
-                  <div className="text-[10px] text-text-3 mt-0.5">
-                    {pizzaDrillLabel ? `Subgrupos de ${pizzaDrillLabel}` : 'Participação % sobre total das despesas e sobre receita'}
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 overflow-y-auto" style={{ maxHeight: 240 }}>
-                {pizzaGroups.map((grp, i) => {
-                  const groupTotal = Math.abs(grp.total || 0);
-                  const pctExp = pizzaTotal > 0 ? groupTotal / pizzaTotal * 100 : 0;
-                  const pctRec = dre.totRec > 0 ? groupTotal / dre.totRec * 100 : 0;
-                  const dotColor = pizzaDrillLabel
-                    ? (PIZZA_SUBGROUPS[pizzaDrillLabel]?.[i]?.color || DONUT_COLORS[i])
-                    : DONUT_COLORS[i];
-                  const canDrill = !pizzaDrillLabel && PIZZA_SUBGROUPS[grp.label];
-                  return (
-                    <div key={grp.label} className={`mb-3 ${canDrill ? 'cursor-pointer' : ''}`}
-                      onClick={() => canDrill && setPizzaDrillLabel(grp.label)}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: dotColor }} />
-                          <span className="text-[12px] text-text-base font-medium">{grp.label}</span>
-                          {canDrill && <span className="text-[9px] text-text-3">›</span>}
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[12px] font-semibold text-fin-red">{fmtK(groupTotal)}</span>
-                          <span className="text-[10px] text-text-3 ml-1.5">{pctExp.toFixed(1)}%{!pizzaDrillLabel ? ` · ${pctRec.toFixed(1)}% rec.` : ''}</span>
-                        </div>
-                      </div>
-                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, pctExp)}%`, background: dotColor }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          {/* ── Composição das saídas com drill-down ── */}
+          <DrillChart
+            transactions={filteredTx}
+            visMonths={visMonths}
+            year={filterState.year}
+            darkMode={darkMode}
+          />
         </>
       ) : null}
 

@@ -13,6 +13,7 @@ const initialState = {
   planoCores: {},
   saldosIniciais: {},
   importHistory: [],
+  orcamento: [],
   currentPage: 'caixa',
   filterState: {
     year: new Date().getFullYear(),
@@ -36,6 +37,8 @@ function reducer(state, action) {
       return { ...state, saldosIniciais: action.payload };
     case 'SET_HISTORY':
       return { ...state, importHistory: action.payload };
+    case 'SET_ORCAMENTO':
+      return { ...state, orcamento: action.payload };
     case 'SET_PAGE':
       return {
         ...state,
@@ -99,16 +102,19 @@ export function AppProvider({ children }) {
   const refreshAll = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const [tx, planoData, saldos, history] = await Promise.all([
+      const year = state.filterState.year || new Date().getFullYear();
+      const [tx, planoData, saldos, history, orc] = await Promise.all([
         api.getTransactions(),
         api.getPlano(),
         api.getSaldos(),
         api.getImportHistory(),
+        api.getOrcamento(year),
       ]);
       dispatch({ type: 'SET_TRANSACTIONS', payload: tx });
       dispatch({ type: 'SET_PLANO', payload: planoData });
       dispatch({ type: 'SET_SALDOS', payload: saldos });
       dispatch({ type: 'SET_HISTORY', payload: history });
+      dispatch({ type: 'SET_ORCAMENTO', payload: orc });
 
       // Set available months
       const txForPage = state.currentPage === 'caixa' ? tx.caixa : tx.competencia;
