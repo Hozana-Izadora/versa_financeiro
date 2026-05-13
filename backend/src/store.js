@@ -11,9 +11,10 @@ const defaultState = {
   transactions: { caixa: [], competencia: [] },
   plano: defaultPlano,
   planoCores: {
-    'RECEITA BRUTA': 'green',
-    'CUSTOS DIRETOS': 'red',
-    'DESPESAS OPERACIONAIS': 'yellow',
+    'RECEITA BRUTA':             'green',
+    'CUSTOS DIRETOS':            'red',
+    'DESPESAS FIXAS':            'yellow',
+    'DESPESAS VARIÁVEIS':        'orange',
     'DESPESAS NÃO OPERACIONAIS': 'purple',
   },
   saldosIniciais: {},
