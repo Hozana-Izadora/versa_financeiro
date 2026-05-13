@@ -70,10 +70,19 @@ export const api = {
   deleteSaldoEntry: (chave)        => req(`/api/saldos/entry/${encodeURIComponent(chave)}`, { method: 'DELETE' }),
 
   // Import
-  importFile: (file, base) => {
+  previewImport: (file, base, colMap = {}) => {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('base', base);
+    if (Object.keys(colMap).length) fd.append('colMap', JSON.stringify(colMap));
+    return req('/api/import/preview', { method: 'POST', body: fd });
+  },
+  importFile: (file, base, colMap = {}, forceImbalanced = false) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('base', base);
+    if (Object.keys(colMap).length) fd.append('colMap', JSON.stringify(colMap));
+    if (forceImbalanced) fd.append('forceImbalanced', 'true');
     return req('/api/import', { method: 'POST', body: fd });
   },
   getImportHistory: () => req('/api/import/history'),

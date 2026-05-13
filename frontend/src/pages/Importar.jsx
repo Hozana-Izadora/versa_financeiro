@@ -358,19 +358,249 @@ function SaldosTab({ actions }) {
   );
 }
 
+const FIELD_LABELS = {
+  data: 'Data', descricao: 'Descrição', categoria: 'Categoria',
+  valor: 'Valor', movimento: 'Movimento', regime: 'Regime',
+};
+
+// ── Import preview panel ──────────────────────────────────────────────────────
+function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap }) {
+  const [colMap, setColMap]             = useState(preview.colMap ?? {});
+  const [forceImbalanced, setForce]     = useState(false);
+  const [remapping, setRemapping]       = useState(false);
+
+  const { orphans, transfers, summary } = preview;
+  const hasOrphans   = orphans.length > 0;
+  const hasTransfers = transfers.count > 0;
+  const unbalanced   = hasTransfers && !transfers.balanced;
+
+  async function handleRemap() {
+    setRemapping(true);
+    try { await onRemap(colMap); }
+    finally { setRemapping(false); }
+  }
+
+  const colMapDirty = JSON.stringify(colMap) !== JSON.stringify(preview.colMap);
+
+  return (
+    <div className="space-y-4">
+      {/* Column mapping */}
+      <div className="panel">
+        <div className="panel-hdr">
+          <div>
+            <div className="font-inter font-semibold text-[13px]">Mapeamento de Colunas</div>
+            <div className="text-[10px] text-text-3 mt-0.5">
+              Ajuste se o sistema não detectou corretamente qual coluna corresponde a cada campo
+            </div>
+          </div>
+        </div>
+        <div className="p-3 grid grid-cols-2 gap-3">
+          {Object.keys(FIELD_LABELS).map(field => (
+            <div key={field}>
+              <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">{FIELD_LABELS[field]}</div>
+              <select
+                value={colMap[field] || ''}
+                onChange={e => setColMap(m => ({ ...m, [field]: e.target.value || null }))}
+                className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1.5 bg-bg-1 text-text-base w-full focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="">(não detectado)</option>
+                {preview.headers.map(h => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+        {colMapDirty && (
+          <div className="px-3 pb-3">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleRemap}
+              disabled={remapping}
+            >
+              <Icon name="refresh" size="text-[14px]" />
+              {remapping ? 'Analisando...' : 'Re-analisar com novo mapeamento'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Orphan categories */}
+      {hasOrphans && (
+        <div className="panel border border-amber-200 dark:border-amber-700">
+          <div className="panel-hdr bg-amber-50 dark:bg-amber-900/20">
+            <div className="flex items-center gap-2">
+              <Icon name="warning" size="text-[16px]" className="text-amber-500" />
+              <div>
+                <div className="font-inter font-semibold text-[13px] text-amber-700 dark:text-amber-400">
+                  {summary.orphanCount} lançamento{summary.orphanCount !== 1 ? 's' : ''} com categoria não identificada
+                </div>
+                <div className="text-[10px] text-amber-600 dark:text-amber-500 mt-0.5">
+                  Serão vinculados automaticamente ao fallback padrão
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="border-b border-amber-100 dark:border-amber-800">
+                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Categoria no arquivo</th>
+                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Tipo de mov.</th>
+                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Fallback aplicado</th>
+                  <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Qtd</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orphans.map(o => (
+                  <tr key={o.categoria} className="border-b border-amber-50 dark:border-amber-900/30">
+                    <td className="px-4 py-2 font-mono text-amber-700 dark:text-amber-400">{o.categoria}</td>
+                    <td className="px-4 py-2">
+                      <span className={`tag ${o.mov === 'Entrada' ? 't-entrada' : 't-saida'}`}>{o.mov}</span>
+                    </td>
+                    <td className="px-4 py-2 text-text-2">{o.fallback}</td>
+                    <td className="px-4 py-2 text-right font-mono font-semibold">{o.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2 text-[10px] text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-900/10">
+            Para mapear corretamente, crie os tipos no Plano de Contas e reimporte com a coluna "Categoria" preenchida com o nome exato do tipo.
+          </div>
+        </div>
+      )}
+
+      {/* Transfer balance */}
+      {hasTransfers && (
+        <div className={`panel border ${unbalanced ? 'border-red-200 dark:border-red-700' : 'border-emerald-200 dark:border-emerald-700'}`}>
+          <div className={`panel-hdr ${unbalanced ? 'bg-red-50 dark:bg-red-900/20' : 'bg-emerald-50 dark:bg-emerald-900/20'}`}>
+            <div className="flex items-center gap-2">
+              <Icon
+                name={unbalanced ? 'error' : 'swap_horiz'}
+                size="text-[16px]"
+                className={unbalanced ? 'text-red-500' : 'text-emerald-500'}
+              />
+              <div>
+                <div className={`font-inter font-semibold text-[13px] ${unbalanced ? 'text-red-700 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                  {transfers.count} transferência{transfers.count !== 1 ? 's' : ''} entre contas identificada{transfers.count !== 1 ? 's' : ''} —{' '}
+                  {unbalanced ? 'saldo desequilibrado' : 'balanceadas'}
+                </div>
+                <div className="text-[10px] text-text-3 mt-0.5">
+                  Essas movimentações serão excluídas das métricas do DRE e fluxo de caixa
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 grid grid-cols-3 gap-3 text-[11px]">
+            <div className="text-center">
+              <div className="text-[10px] text-text-3 mb-0.5">Entradas</div>
+              <div className="font-mono font-semibold text-emerald-600">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transfers.totalEntrada)}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] text-text-3 mb-0.5">Saídas</div>
+              <div className="font-mono font-semibold text-red-500">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transfers.totalSaida)}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] text-text-3 mb-0.5">Delta (deve ser 0)</div>
+              <div className={`font-mono font-semibold ${Math.abs(transfers.delta) < 0.01 ? 'text-emerald-600' : 'text-red-500'}`}>
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(transfers.delta)}
+              </div>
+            </div>
+          </div>
+          {unbalanced && (
+            <div className="px-4 pb-3">
+              <label className="flex items-center gap-2 text-[12px] text-text-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={forceImbalanced}
+                  onChange={e => setForce(e.target.checked)}
+                  className="rounded"
+                />
+                Importar mesmo com transferências desequilibradas
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Summary + actions */}
+      <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-3">
+        <div className="text-[13px]">
+          <span className="font-semibold text-text-base">{summary.total}</span>
+          <span className="text-text-3 ml-1">lançamentos prontos para importação</span>
+          {hasTransfers && (
+            <span className="text-text-3 ml-2">
+              ({transfers.count} transferência{transfers.count !== 1 ? 's' : ''} excluída{transfers.count !== 1 ? 's' : ''} do DRE)
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+            <Icon name="close" size="text-[14px]" /> Cancelar
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => onConfirm(colMap, forceImbalanced)}
+            disabled={unbalanced && !forceImbalanced}
+          >
+            <Icon name="check_circle" size="text-[14px]" /> Confirmar Importação
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function Importar() {
   const { state, actions } = useApp();
-  const { importHistory, filterState } = state;
-  const [activeTab, setActiveTab] = useState('upload');
+  const { importHistory }  = state;
+  const [activeTab, setActiveTab]   = useState('upload');
   const [uploadBase, setUploadBase] = useState('caixa');
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging]     = useState(false);
+  const [previewData, setPreview]   = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const fileRef = useRef();
 
   async function processFile(file) {
+    setPreviewFile(file);
+    setIsPreviewing(true);
     try {
-      const res = await api.importFile(file, uploadBase);
+      const res = await api.previewImport(file, uploadBase);
+      setPreview(res);
+    } catch (e) {
+      actions.notify('Erro ao analisar arquivo: ' + e.message, 'ne');
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  async function handleRemap(colMap) {
+    setIsPreviewing(true);
+    try {
+      const res = await api.previewImport(previewFile, uploadBase, colMap);
+      setPreview(res);
+    } catch (e) {
+      actions.notify('Erro ao re-analisar: ' + e.message, 'ne');
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  async function handleConfirm(colMap, forceImbalanced) {
+    try {
+      const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced);
       await actions.refreshAll();
-      actions.notify(`${res.imported} lançamentos importados para a base ${uploadBase === 'caixa' ? 'Caixa' : 'Competência'}!`, 'ns');
+      setPreview(null);
+      setPreviewFile(null);
+      const base = uploadBase === 'caixa' ? 'Caixa' : 'Competência';
+      actions.notify(`${res.imported} lançamentos importados para a base ${base}!`, 'ns');
     } catch (e) {
       actions.notify('Erro: ' + e.message, 'ne');
     }
@@ -381,17 +611,6 @@ export default function Importar() {
       const res = await api.seed();
       await actions.refreshAll();
       actions.notify(`${res.caixaCount + res.competenciaCount} lançamentos de exemplo carregados!`, 'ni');
-    } catch (e) {
-      actions.notify(e.message, 'ne');
-    }
-  }
-
-  async function clearAll() {
-    if (!confirm('Limpar todos os dados?')) return;
-    try {
-      await api.reset();
-      await actions.refreshAll();
-      actions.notify('Dados limpos.', 'ni');
     } catch (e) {
       actions.notify(e.message, 'ne');
     }
@@ -418,13 +637,15 @@ export default function Importar() {
       {/* Upload tab */}
       {activeTab === 'upload' && (
         <div>
+          {/* Base selector — always visible */}
           <div className="mb-5">
             <div className="font-inter font-bold text-sm mb-1.5">Selecionar base de destino</div>
-            <div className="flex gap-2 items-center mb-4">
+            <div className="flex gap-2 items-center">
               <button
                 className="btn btn-ghost"
                 style={uploadBase === 'caixa' ? { borderColor: '#10b981', color: '#10b981' } : {}}
                 onClick={() => setUploadBase('caixa')}
+                disabled={!!previewData}
               >
                 <Icon name="account_balance_wallet" size="text-[15px]" /> Base Caixa
               </button>
@@ -432,59 +653,87 @@ export default function Importar() {
                 className="btn btn-ghost"
                 style={uploadBase === 'competencia' ? { borderColor: '#7c3aed', color: '#7c3aed' } : {}}
                 onClick={() => setUploadBase('competencia')}
+                disabled={!!previewData}
               >
                 <Icon name="trending_up" size="text-[15px]" /> Base Competência
               </button>
               <span className="text-xs font-semibold" style={{ color: uploadBase === 'caixa' ? '#10b981' : '#7c3aed' }}>
-                → Importando para: {uploadBase === 'caixa' ? 'Caixa' : 'Competência'}
+                → {uploadBase === 'caixa' ? 'Caixa' : 'Competência'}
               </span>
             </div>
           </div>
 
-          <div
-            className={`upload-zone ${dragging ? 'drag' : ''}`}
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }}
-          >
-            <input
-              type="file" accept=".xlsx,.xls,.csv" ref={fileRef}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full"
-              onChange={e => e.target.files[0] && processFile(e.target.files[0])}
-            />
-            <Icon name="folder_open" size="text-[42px]" className="text-text-3 opacity-40 block mx-auto mb-2.5" />
-            <div className="font-inter font-bold text-[15px] mb-1.5">Arraste ou clique para selecionar</div>
-            <div className="text-xs text-text-2 mb-2.5">Excel (.xlsx, .xls) ou CSV (vírgula ou ponto-e-vírgula)</div>
-            <div className="flex gap-1.5 justify-center">
-              {['.XLSX', '.XLS', '.CSV'].map(f => (
-                <span key={f} className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-[10px] text-text-3 font-semibold">{f}</span>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <div className="font-inter font-bold text-[13px] mb-2.5">Colunas esperadas</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                ['Data', 'DD/MM/AAAA ou ISO'],
-                ['Descrição', 'Texto livre'],
-                ['Categoria', 'Conforme plano de contas'],
-                ['Valor', 'Numérico (R$ 1.250,00)'],
-                ['Movimento / Tipo', 'Entrada ou Saída'],
-                ['Regime', 'Caixa ou Competência'],
-              ].map(([n, d]) => (
-                <div key={n} className="bg-slate-50 border border-slate-100 rounded-sm px-3 py-2 text-xs">
-                  <strong className="text-accent">{n}</strong>
-                  <span className="text-text-3 ml-1.5">→ {d}</span>
+          {/* Stage 1: Upload zone (no preview yet) */}
+          {!previewData && !isPreviewing && (
+            <>
+              <div
+                className={`upload-zone ${dragging ? 'drag' : ''}`}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }}
+              >
+                <input
+                  type="file" accept=".xlsx,.xls,.csv" ref={fileRef}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                  onChange={e => { if (e.target.files[0]) processFile(e.target.files[0]); e.target.value = ''; }}
+                />
+                <Icon name="folder_open" size="text-[42px]" className="text-text-3 opacity-40 block mx-auto mb-2.5" />
+                <div className="font-inter font-bold text-[15px] mb-1.5">Arraste ou clique para selecionar</div>
+                <div className="text-xs text-text-2 mb-2.5">Excel (.xlsx, .xls) ou CSV (vírgula ou ponto-e-vírgula)</div>
+                <div className="flex gap-1.5 justify-center">
+                  {['.XLSX', '.XLS', '.CSV'].map(f => (
+                    <span key={f} className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-[10px] text-text-3 font-semibold">{f}</span>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div className="mt-5 flex gap-2.5 items-center">
-            <button className="btn btn-green" onClick={loadSample}><Icon name="casino" size="text-[15px]" /> Carregar Dados de Exemplo</button>
-            <span className="text-[11px] text-text-3">Carrega dados fictícios nas duas bases para explorar o dashboard</span>
-          </div>
+              <div className="mt-5">
+                <div className="font-inter font-bold text-[13px] mb-2.5">Colunas esperadas</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    ['Data', 'DD/MM/AAAA ou ISO'],
+                    ['Descrição', 'Texto livre'],
+                    ['Categoria', 'Conforme plano de contas'],
+                    ['Valor', 'Numérico (R$ 1.250,00)'],
+                    ['Movimento / Tipo', 'Entrada ou Saída'],
+                    ['Regime', 'Caixa ou Competência'],
+                  ].map(([n, d]) => (
+                    <div key={n} className="bg-slate-50 border border-slate-100 rounded-sm px-3 py-2 text-xs">
+                      <strong className="text-accent">{n}</strong>
+                      <span className="text-text-3 ml-1.5">→ {d}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-5 flex gap-2.5 items-center">
+                <button className="btn btn-green" onClick={loadSample}>
+                  <Icon name="casino" size="text-[15px]" /> Carregar Dados de Exemplo
+                </button>
+                <span className="text-[11px] text-text-3">Carrega dados fictícios nas duas bases para explorar o dashboard</span>
+              </div>
+            </>
+          )}
+
+          {/* Loading spinner */}
+          {isPreviewing && (
+            <div className="py-16 text-center text-text-3">
+              <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-3" />
+              <div className="text-[13px]">Analisando arquivo...</div>
+            </div>
+          )}
+
+          {/* Stage 2: Preview panel */}
+          {previewData && !isPreviewing && (
+            <ImportPreview
+              preview={previewData}
+              file={previewFile}
+              base={uploadBase}
+              onConfirm={handleConfirm}
+              onCancel={() => { setPreview(null); setPreviewFile(null); }}
+              onRemap={handleRemap}
+            />
+          )}
         </div>
       )}
 

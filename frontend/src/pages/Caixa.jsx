@@ -12,6 +12,9 @@ import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
+import MarginsPanel from '../components/ui/MarginsPanel.jsx';
+import InfoPopover from '../components/ui/InfoPopover.jsx';
+import { calcCicloSeries } from '../utils/cicloCalc.js';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
@@ -135,18 +138,49 @@ export default function Caixa() {
     ],
   };
 
-  // Ciclo Financeiro (static demo data — PMR/PMP requires external data)
-  const cicloLabels = labels.length >= 3 ? labels.slice(-Math.min(6, labels.length)) : labels;
-  const cicloLen = cicloLabels.length;
+  // Ciclo Financeiro — timing intra-mensal calculado a partir das datas dos lançamentos
+  // PMR: dia médio ponderado em que entradas chegam | PMP: dia médio ponderado em que saídas saem
+  // Ciclo = PMP − PMR (positivo = recebe antes de pagar = saudável)
+  const cicloSeries = useMemo(
+    () => calcCicloSeries(tx, filterState.year, visMonths),
+    [tx, filterState.year, visMonths]
+  );
+  const cicloLabels = labels;
   const cicloData = {
     labels: cicloLabels,
     datasets: [
-      { label: 'PMR — Prazo Médio Recebimento (dias)', data: [28, 26, 24, 25, 23, 22].slice(-cicloLen), backgroundColor: 'rgba(109,191,69,.7)', borderRadius: 4 },
-      { label: 'PMP — Prazo Médio Pagamento (dias)',   data: [35, 34, 36, 35, 37, 38].slice(-cicloLen), backgroundColor: 'rgba(43,108,176,.7)', borderRadius: 4 },
-      { label: 'Ciclo de Caixa (dias)', data: [18, 16, 14, 15, 12, 10].slice(-cicloLen), type: 'line', borderColor: '#E53E3E', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#E53E3E', tension: .4, fill: false },
+      {
+        label: 'PMR — Dia médio de recebimento',
+        data: cicloSeries.map(s => s.pmr),
+        backgroundColor: 'rgba(109,191,69,.7)', borderRadius: 4,
+      },
+      {
+        label: 'PMP — Dia médio de pagamento',
+        data: cicloSeries.map(s => s.pmp),
+        backgroundColor: 'rgba(43,108,176,.7)', borderRadius: 4,
+      },
+      {
+        label: 'Ciclo de Caixa (PMP − PMR)',
+        data: cicloSeries.map(s => s.ciclo),
+        type: 'line', borderColor: '#E53E3E', borderWidth: 2.5,
+        pointRadius: 4, pointBackgroundColor: '#E53E3E', tension: .4, fill: false,
+      },
     ],
   };
-  const cicloOpts = { ...chartOpts('%'), scales: { ...chartOpts('%').scales, y: { ...chartOpts('%').scales.y, ticks: { color: tc, callback: v => v + 'd' } } }, plugins: { ...chartOpts('%').plugins, tooltip: { ...chartOpts('%').plugins.tooltip, callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} dias` } } } };
+  const cicloOpts = {
+    ...chartOpts('%'),
+    scales: {
+      ...chartOpts('%').scales,
+      y: { ...chartOpts('%').scales.y, ticks: { color: tc, callback: v => `${v}` } },
+    },
+    plugins: {
+      ...chartOpts('%').plugins,
+      tooltip: {
+        ...chartOpts('%').plugins.tooltip,
+        callbacks: { label: ctx => ` ${ctx.dataset.label}: dia ${ctx.raw ?? 'N/A'}` },
+      },
+    },
+  };
 
   // Margem Operacional Caixa vs Competência
   const moCaixaPct = dre.mMgOp.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0);
@@ -195,16 +229,25 @@ export default function Caixa() {
             <CNode last result label="Caixa Operacional" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
           </div>
 
+          {/* ── Painel de Margens ── */}
+          <MarginsPanel dre={dre} />
+
           {/* ── KPI cards ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3.5">
-            <KpiCard label="Entradas Não Operacionais" value={fmtK(dre.totEntNop)} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} icon="add_circle" colorClass="kc-g" />
-            <KpiCard label="Saídas Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p" />
+            <KpiCard label="Entradas Não Operacionais" value={fmtK(dre.totEntNop)} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} icon="add_circle" colorClass="kc-g"
+              info={{ title: 'Entradas Não Operacionais', description: 'Soma de todas as entradas classificadas como "Entrada Não Operacional" no Plano de Contas (ex.: rendimentos financeiros, venda de ativo, receitas eventuais).\n\nSão adicionadas ao Resultado Líquido após a apuração do resultado operacional.' }}
+            />
+            <KpiCard label="Saídas Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p"
+              info={{ title: 'Saídas Não Operacionais', description: 'Soma de todas as saídas classificadas como "Despesa Não Operacional" (ex.: despesas financeiras, impostos sobre lucro, distribuição de lucros).\n\nSão subtraídas do Resultado Líquido após o cálculo da Margem Operacional.' }}
+            />
             <KpiCard label="Saldo do Período" value={fmtK(totSaldo)} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} icon="balance" colorClass={totSaldo >= 0 ? 'kc-g' : 'kc-r'}
               delta={dre.mSaldo.length > 1 ? fmtPct(pct(dre.mSaldo[dre.mSaldo.length - 1] - dre.mSaldo[dre.mSaldo.length - 2], Math.abs(dre.mSaldo[dre.mSaldo.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mSaldo.length > 1 && dre.mSaldo[dre.mSaldo.length - 1] >= dre.mSaldo[dre.mSaldo.length - 2] ? 'up' : 'down'}
+              info={{ title: 'Saldo do Período', description: 'Diferença entre todas as Entradas e Saídas no período filtrado (regime Caixa).\n\nFórmula: Σ Entradas − Σ Saídas (meses selecionados)\n\nO delta indica a variação entre os dois últimos meses visíveis.' }}
             />
             <KpiCard label="Saldo Acumulado" value={fmtK(lastAcum)} sub={`Acumulado ${filterState.year}`} icon="trending_up" colorClass="kc-b"
               delta={lastAcum >= 0 ? 'Saldo positivo' : 'Saldo negativo'} deltaDir={lastAcum >= 0 ? 'up' : 'down'}
+              info={{ title: 'Saldo Acumulado', description: 'Saldo do período adicionado ao saldo inicial (abertura de caixa) definido em Configurações.\n\nÉ a soma progressiva mês a mês: cada mês acumula o saldo do mês anterior mais o resultado corrente.\n\nReflete a posição de caixa total desde o início do ano.' }}
             />
           </div>
 
@@ -213,7 +256,13 @@ export default function Caixa() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Resultado Líquido — mês a mês</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Resultado Líquido — mês a mês
+                    <InfoPopover
+                      title="Resultado Líquido — mês a mês"
+                      description={'Barras empilhadas com Entradas (verde) e Saídas totais (vermelho) por mês, mais uma linha de Saldo Líquido (azul).\n\nSaldo = Entradas − (Custos Diretos + Desp. Operacionais + Desp. Não Op.)\n\nRegime Caixa: considera a data efetiva do movimento financeiro.'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido</div>
                 </div>
                 <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
@@ -226,7 +275,13 @@ export default function Caixa() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Saldo Acumulado</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Saldo Acumulado
+                    <InfoPopover
+                      title="Saldo Acumulado"
+                      description={'Linha verde: posição de caixa acumulada mês a mês, partindo do saldo inicial configurado.\n\nLinha tracejada azul: tendência linear calculada entre o primeiro e o último ponto visível.\n\nPermite identificar se o caixa está em trajetória de crescimento ou deterioração no período.'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Evolução com linha de tendência</div>
                 </div>
               </div>
@@ -242,7 +297,13 @@ export default function Caixa() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Ciclo Financeiro — PMR, PMP e Ciclo de Caixa</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Ciclo Financeiro — PMR, PMP e Ciclo de Caixa
+                    <InfoPopover
+                      title="Ciclo Financeiro"
+                      description={'PMR (Prazo Médio de Recebimento): dia médio ponderado pelo valor em que as entradas ocorreram no mês.\n\nPMP (Prazo Médio de Pagamento): dia médio ponderado em que as saídas ocorreram.\n\nCiclo de Caixa = PMP − PMR\n  Positivo → empresa recebe antes de pagar (saudável)\n  Negativo → empresa paga antes de receber (pressão de liquidez)\n\nOs dias são calculados a partir das datas reais dos lançamentos.'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Prazos médios de recebimento e pagamento</div>
                 </div>
               </div>
@@ -254,7 +315,13 @@ export default function Caixa() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Margem Operacional — Caixa vs Competência</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Margem Operacional — Caixa vs Competência
+                    <InfoPopover
+                      title="Margem Operacional — Caixa vs Competência"
+                      description={'Compara a Margem Operacional (%) calculada nos dois regimes contábeis para os mesmos meses.\n\nMargem Op. = (Receita − Custos Diretos − Desp. Operacionais) ÷ Receita × 100\n\nCaixa: usa a data do movimento financeiro real.\nCompetência: usa a data de competência do fato gerador.\n\nDivergências grandes indicam diferenças de timing entre o econômico e o financeiro.'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Comparativo dos dois regimes</div>
                 </div>
               </div>
@@ -265,12 +332,13 @@ export default function Caixa() {
             </div>
           </div>
 
-          {/* ── Composição das saídas com drill-down ── */}
+          {/* ── Composição das saídas com drill-down (4 níveis) ── */}
           <DrillChart
             transactions={filteredTx}
             visMonths={visMonths}
             year={filterState.year}
             darkMode={darkMode}
+            plano={plano}
           />
         </>
       ) : null}

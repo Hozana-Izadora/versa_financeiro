@@ -22,7 +22,8 @@ const PORT = process.env.PORT || 3001;
 const DEFAULT_PLANO_CORES = {
   'RECEITA BRUTA':             'green',
   'CUSTOS DIRETOS':            'red',
-  'DESPESAS OPERACIONAIS':     'yellow',
+  'DESPESAS FIXAS':            'yellow',
+  'DESPESAS VARIÁVEIS':        'orange',
   'DESPESAS NÃO OPERACIONAIS': 'purple',
 };
 

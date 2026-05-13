@@ -12,6 +12,8 @@ import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
+import MarginsPanel from '../components/ui/MarginsPanel.jsx';
+import InfoPopover from '../components/ui/InfoPopover.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
 
@@ -88,10 +90,14 @@ export default function Competencia() {
   }
 
   const margins = [
-    { pctVal: fmtPct(pct(dre.totMgB, dre.totRec)), label: 'Margem Bruta', val: fmtK(dre.totMgB), color: '#10b981', w: Math.min(100, Math.max(0, pct(dre.totMgB, dre.totRec))) },
-    { pctVal: fmtPct(pct(dre.totMgOp, dre.totRec)), label: 'Margem Operacional', val: fmtK(dre.totMgOp), color: '#06b6d4', w: Math.min(100, Math.max(0, pct(dre.totMgOp, dre.totRec))) },
-    { pctVal: fmtPct(pct(dre.totLL, dre.totRec)), label: 'Margem Líquida', val: fmtK(dre.totLL), color: '#8b5cf6', w: Math.min(100, Math.max(0, pct(dre.totLL, dre.totRec))) },
-    { pctVal: fmtPct(pct(dre.totCost, dre.totRec)), label: '% Custo s/ Receita', val: fmtK(dre.totCost), color: '#ef4444', w: Math.min(100, Math.max(0, pct(dre.totCost, dre.totRec))) },
+    { pctVal: fmtPct(pct(dre.totMgB, dre.totRec)), label: 'Margem Bruta', val: fmtK(dre.totMgB), color: '#10b981', w: Math.min(100, Math.max(0, pct(dre.totMgB, dre.totRec))),
+      info: 'Receita Bruta menos Custos Diretos.\nFórmula: (Receita − Custos) ÷ Receita' },
+    { pctVal: fmtPct(pct(dre.totMgOp, dre.totRec)), label: 'Margem Operacional', val: fmtK(dre.totMgOp), color: '#06b6d4', w: Math.min(100, Math.max(0, pct(dre.totMgOp, dre.totRec))),
+      info: 'Margem Bruta menos Despesas Operacionais (fixas + variáveis).\nFórmula: (Mg.Bruta − Desp.Op.) ÷ Receita' },
+    { pctVal: fmtPct(pct(dre.totLL, dre.totRec)), label: 'Margem Líquida', val: fmtK(dre.totLL), color: '#8b5cf6', w: Math.min(100, Math.max(0, pct(dre.totLL, dre.totRec))),
+      info: 'Resultado após todas as despesas, incluindo não operacionais.\nFórmula: Lucro Líquido ÷ Receita' },
+    { pctVal: fmtPct(pct(dre.totCost, dre.totRec)), label: '% Custo s/ Receita', val: fmtK(dre.totCost), color: '#ef4444', w: Math.min(100, Math.max(0, pct(dre.totCost, dre.totRec))),
+      info: 'Peso dos Custos Diretos sobre a Receita Bruta.\nFórmula: Custos Diretos ÷ Receita' },
   ];
 
   const dreChartData = {
@@ -154,12 +160,18 @@ export default function Competencia() {
             <CNode last result label="EBIT" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
           </div>
 
+          {/* ── Painel de Margens ── */}
+          <MarginsPanel dre={dre} />
+
           {/* ── KPI cards ── */}
           <div className="grid grid-cols-3 gap-3 mb-3.5">
-            <KpiCard label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p" />
+            <KpiCard label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p"
+              info={{ title: 'Despesas Não Operacionais', description: 'Soma das saídas classificadas como "Despesa Não Operacional" no Plano de Contas (ex.: despesas financeiras, impostos sobre o resultado, distribuição de lucros).\n\nSão subtraídas após a apuração do EBIT para chegar ao Lucro Líquido.' }}
+            />
             <KpiCard label="Lucro Líquido" value={fmtK(dre.totLL)} sub={fmtPct(pct(dre.totLL, dre.totRec)) + ' de margem líquida'} icon="diamond" colorClass={dre.totLL >= 0 ? 'kc-g' : 'kc-r'}
               delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
+              info={{ title: 'Lucro Líquido', description: 'Resultado final do período no regime de competência.\n\nFórmula: EBIT − Despesas Não Operacionais\n\nO delta indica a variação em relação ao mês imediatamente anterior no período filtrado.' }}
             />
             {/* <KpiCard label="Margem Operacional" value={fmtPct(pct(dre.totMgOp, dre.totRec))} sub={`EBIT ${fmtK(dre.totMgOp)}`} icon="gps_fixed" colorClass="kc-c"
               delta={moPct.length > 1 ? (moPct[moPct.length - 1] - moPct[moPct.length - 2]).toFixed(1) + 'pp vs mês ant.' : undefined}
@@ -172,7 +184,10 @@ export default function Competencia() {
             {margins.map((m, i) => (
               <div key={i} className="bg-card border border-slate-100 rounded-card px-4 py-3.5 text-center">
                 <div className="font-inter font-black text-[28px] mb-0.5" style={{ color: m.color }}>{m.pctVal}</div>
-                <div className="text-[9.5px] uppercase tracking-widest text-text-3">{m.label}</div>
+                <div className="text-[9.5px] uppercase tracking-widest text-text-3 flex items-center justify-center gap-1">
+                  {m.label}
+                  {m.info && <InfoPopover title={m.label} description={m.info} />}
+                </div>
                 <div className="text-xs text-text-2 mt-0.5 font-mono">{m.val}</div>
                 <div className="h-[3px] bg-slate-100 rounded-full mt-2 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.w}%`, background: m.color }} />
@@ -186,7 +201,13 @@ export default function Competencia() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Resultado Operacional — mês a mês</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Resultado Operacional — mês a mês
+                    <InfoPopover
+                      title="Resultado Operacional — mês a mês"
+                      description={'Barras com Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nLucro Líquido = Receita − Custos Diretos − Desp. Operacionais − Desp. Não Op.\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador, independente do pagamento.'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
                 </div>
                 <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
@@ -199,7 +220,13 @@ export default function Competencia() {
             <div className="panel">
               <div className="panel-hdr">
                 <div>
-                  <div className="font-inter font-semibold text-[13px]">Evolução das Margens</div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Evolução das Margens
+                    <InfoPopover
+                      title="Evolução das Margens (%)"
+                      description={'Três linhas mostrando a evolução percentual das margens ao longo dos meses:\n\nMargem Bruta % = (Receita − Custos Diretos) ÷ Receita\nMargem Op. % = (Margem Bruta − Desp. Op.) ÷ Receita\nMargem Líq. % = Lucro Líquido ÷ Receita\n\nMeses com receita zero são ignorados (ponto omitido).'}
+                    />
+                  </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
                 </div>
               </div>
@@ -210,12 +237,13 @@ export default function Competencia() {
             </div>
           </div>
 
-          {/* ── Composição das saídas com drill-down ── */}
+          {/* ── Composição das saídas com drill-down (4 níveis) ── */}
           <DrillChart
             transactions={filteredTx}
             visMonths={visMonths}
             year={filterState.year}
             darkMode={darkMode}
+            plano={plano}
           />
         </>
       ) : null}

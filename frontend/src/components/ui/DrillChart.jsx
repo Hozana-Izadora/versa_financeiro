@@ -2,9 +2,10 @@ import React, { useMemo } from 'react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { useDrillDown } from '../../hooks/useDrillDown';
-import { sumNode } from '../../utils/drillHierarchy';
+import { buildDrillTree, DRILL_TREE, sumNode } from '../../utils/drillHierarchy';
 import { fmt, fmtK } from '../../utils/formatters';
 import Icon from './Icon';
+import InfoPopover from './InfoPopover';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -14,8 +15,12 @@ const COLORS = [
   '#14b8a6', '#a78bfa',
 ];
 
-export default function DrillChart({ transactions, visMonths, year, darkMode }) {
-  const { currentChildren, breadcrumb, handleDrillDown, handleDrillUp, depth } = useDrillDown();
+export default function DrillChart({ transactions, visMonths, year, darkMode, plano }) {
+  const tree = useMemo(
+    () => plano?.length ? buildDrillTree(plano) : DRILL_TREE,
+    [plano]
+  );
+  const { currentChildren, breadcrumb, handleDrillDown, handleDrillUp, depth } = useDrillDown(tree);
 
   // Calcula valor de cada filho no nível atual
   const items = useMemo(() =>
@@ -77,7 +82,13 @@ export default function DrillChart({ transactions, visMonths, year, darkMode }) 
       {/* ── Cabeçalho com breadcrumb ── */}
       <div className="panel-hdr" style={{ alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="font-inter font-semibold text-[13px]">Composição das Saídas</div>
+          <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+              Composição das Saídas
+              <InfoPopover
+                title="Composição das Saídas"
+                description={'Gráfico de rosca com navegação hierárquica de 4 níveis:\n  Operacional / Não Op. → Categoria → Grupo → Tipo\n\nClique em uma fatia do gráfico ou em um item da lista para detalhar o nível seguinte. Use o breadcrumb no topo ou o botão ← para voltar.\n\nOs valores são a soma de todas as transações de Saída no período filtrado, agrupadas conforme o Plano de Contas cadastrado.'}
+              />
+            </div>
 
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 6, flexWrap: 'wrap' }}>

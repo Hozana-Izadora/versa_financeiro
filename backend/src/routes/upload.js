@@ -9,6 +9,7 @@ import * as historyStore from '../store/importHistory.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ── Column auto-detection aliases ─────────────────────────────────────────────
 const COL_ALIASES = {
   data:      ['data', 'date', 'dt', 'vencimento', 'competencia'],
   descricao: ['descrição', 'descricao', 'description', 'historico', 'memo', 'obs'],
@@ -17,6 +18,18 @@ const COL_ALIASES = {
   movimento: ['tipo', 'movimento', 'operacao', 'entrada_saida'],
   regime:    ['regime', 'tipo_lancamento'],
 };
+
+// Fallback plano items for orphan categories
+const FALLBACK_SAIDA   = { tipo: 'Material de Escritório',       grp: 'Estrutura',          cat: 'DESPESAS FIXAS',  nivel: 'Despesa Operacional' };
+const FALLBACK_ENTRADA = { tipo: 'Outras Receitas Operacionais', grp: 'Receita Operacional', cat: 'RECEITA BRUTA',   nivel: 'Receita'             };
+
+// Plano item for inter-account transfers (system-managed, not in user plano)
+const TRANSFER_PLANO = { cat: 'TRANSFERÊNCIAS', grp: 'Transferências', tipo: 'Transferência entre Contas', nivel: 'Transferência' };
+
+// Matches "transferência entre contas" / "conta própria" in pt-BR
+const TRANSFER_RE = /transf[eê]r[eê]ncia\s+entre|entre\s+conta|conta\s+pr[oó]pria/i;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseValor(raw) {
   if (typeof raw === 'number') return Math.abs(raw);
@@ -37,67 +50,163 @@ function parseValor(raw) {
   return isNaN(r) ? 0 : Math.abs(r);
 }
 
-function mapCol(headers, field) {
-  const aliases = COL_ALIASES[field];
-  for (const a of aliases) {
-    const h = headers.find(h => h.toLowerCase().includes(a));
-    if (h) return h;
-  }
-  return null;
-}
-
-function autoPlano(desc, plano) {
-  const d = (desc || '').toLowerCase();
-  for (const p of plano) {
-    if (d.includes(p.tipo.toLowerCase().substring(0, 8))) return p;
-  }
-  return plano[Math.floor(Math.random() * plano.length)];
-}
-
-function parseRows(rows, plano) {
-  if (!rows.length) return [];
-  const headers = Object.keys(rows[0]);
+/**
+ * Builds field → column-header mapping, merging user overrides with auto-detection.
+ * @param {string[]} headers - column headers from the file (original casing)
+ * @param {object}   override - { fieldName: 'ExactColumnHeader', ... }
+ */
+function resolveColMap(headers, override = {}) {
   const cm = {};
-  ['data', 'descricao', 'categoria', 'valor', 'movimento', 'regime'].forEach(f => {
-    cm[f] = mapCol(headers, f);
-  });
+  for (const field of Object.keys(COL_ALIASES)) {
+    if (override[field]) {
+      cm[field] = headers.find(h => h.toLowerCase() === override[field].toLowerCase()) ?? null;
+    } else {
+      const aliases = COL_ALIASES[field];
+      cm[field] = headers.find(h => aliases.some(a => h.toLowerCase().includes(a))) ?? null;
+    }
+  }
+  return cm;
+}
 
-  return rows.map(r => {
-    const cat = cm.categoria ? r[cm.categoria] : '';
-    const p = plano.find(x => x.cat === cat || x.tipo === cat) || autoPlano(cm.descricao ? r[cm.descricao] : '', plano);
+function parseDate(rawDate) {
+  if (rawDate === '' || rawDate == null) return new Date().toISOString().split('T')[0];
+  const s = String(rawDate).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s))            return s.substring(0, 10);
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+    const [d, m, y] = s.split(/[\/\-]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4,5}$/.test(s)) {
+    const d = new Date(Math.round((parseFloat(s) - 25569) * 86400 * 1000));
+    if (!isNaN(d)) return d.toISOString().split('T')[0];
+  }
+  return new Date().toISOString().split('T')[0];
+}
 
-    const rawDate = cm.data ? r[cm.data] : '';
-    let dateFmt = new Date().toISOString().split('T')[0];
-    if (rawDate !== '') {
-      const s = String(rawDate).trim();
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) dateFmt = s.substring(0, 10);
-      else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
-        const pts = s.split(/[\/\-]/);
-        dateFmt = `${pts[2]}-${pts[1].padStart(2, '0')}-${pts[0].padStart(2, '0')}`;
-      } else if (/^\d{4,5}$/.test(s)) {
-        const d = new Date(Math.round((parseFloat(s) - 25569) * 86400 * 1000));
-        if (!isNaN(d)) dateFmt = d.toISOString().split('T')[0];
-      }
+function parseMov(raw) {
+  return /entrada|receit[ao]|crédito|credito|income|créd\b|cred\b/i.test(String(raw ?? ''))
+    ? 'Entrada' : 'Saída';
+}
+
+/**
+ * Resolves a spreadsheet row's category to a plano item.
+ *
+ * Priority order:
+ *   1. Transfer keywords in description or category cell
+ *   2. Exact tipo match (case-insensitive)
+ *   3. Exact cat match
+ *   4. Exact grp match
+ *   5. Description fuzzy match (first 10 chars of tipo)
+ *   6. Orphan → apply fallback (Despesas Fixas/Estrutura for exits, Receita Bruta for entries)
+ */
+function resolveCategory(catRaw, descRaw, mov, plano) {
+  const cat  = String(catRaw  ?? '').trim();
+  const desc = String(descRaw ?? '').trim();
+
+  if (TRANSFER_RE.test(cat) || TRANSFER_RE.test(desc)) {
+    return { planoItem: TRANSFER_PLANO, isTransfer: true, isOrphan: false };
+  }
+
+  const catLc = cat.toLowerCase();
+  const found = plano.find(p => p.tipo.toLowerCase() === catLc)
+             ?? plano.find(p => p.cat.toLowerCase()  === catLc)
+             ?? plano.find(p => p.grp.toLowerCase()  === catLc)
+             ?? (desc ? plano.find(p => desc.toLowerCase().includes(p.tipo.toLowerCase().slice(0, 10))) : null);
+
+  if (found) return { planoItem: found, isTransfer: false, isOrphan: false };
+
+  const fallback = mov === 'Entrada' ? FALLBACK_ENTRADA : FALLBACK_SAIDA;
+  const fallbackItem = plano.find(p => p.tipo === fallback.tipo) ?? fallback;
+  return { planoItem: fallbackItem, isTransfer: false, isOrphan: true, originalCat: cat || '(sem categoria)' };
+}
+
+/**
+ * Converts raw spreadsheet rows into structured transaction records.
+ * Returns { records, orphans, transfers }.
+ *
+ * records[]  – ready to insert (with _orphan/_transfer metadata flags)
+ * orphans[]  – { categoria, fallback, mov, count }
+ * transfers  – { count, totalEntrada, totalSaida, delta, balanced }
+ *
+ * Transfer rows use mov='Transferência' so dreBuilder naturally excludes them
+ * from all DRE sums (sumMonth filters by movFilter = 'Entrada' | 'Saída').
+ */
+function parseRows(rawRows, plano, cm, baseRegime) {
+  const orphanMap = new Map();
+  let transferEntrada = 0, transferSaida = 0;
+
+  const records = rawRows.map((row, idx) => {
+    const rawMov = cm.movimento ? row[cm.movimento] : '';
+    const mov    = parseMov(rawMov);
+    const valor  = parseValor(cm.valor ? row[cm.valor] : 0);
+    if (valor === 0) return null;
+
+    const rawCat  = cm.categoria ? row[cm.categoria] : '';
+    const rawDesc = cm.descricao ? row[cm.descricao] : '';
+    const { planoItem, isTransfer, isOrphan, originalCat } = resolveCategory(rawCat, rawDesc, mov, plano);
+
+    if (isOrphan && originalCat) {
+      if (!orphanMap.has(originalCat)) orphanMap.set(originalCat, { count: 0, fallback: planoItem.tipo, mov });
+      orphanMap.get(originalCat).count++;
     }
 
-    const valor = parseValor(cm.valor ? r[cm.valor] : 0);
-    const rawMov = cm.movimento ? r[cm.movimento] : '';
-    const mov = /entrada|receit|crédito|credito|income/i.test(rawMov) ? 'Entrada' : 'Saída';
-    const rawReg = cm.regime ? r[cm.regime] : '';
-    const regime = /competên|competenc|accrual/i.test(rawReg) ? 'Competência' : 'Caixa';
+    // Track transfer balance before overriding mov
+    if (isTransfer) {
+      if (mov === 'Entrada') transferEntrada += valor;
+      else transferSaida += valor;
+    }
 
     return {
-      data: dateFmt,
-      desc: cm.descricao ? r[cm.descricao] : 'Lançamento',
-      cat: p.cat, grp: p.grp, tipo: p.tipo, nivel: p.nivel,
-      valor: Math.abs(valor), mov, regime,
+      data:   parseDate(cm.data ? row[cm.data] : ''),
+      desc:   String(rawDesc || `Lançamento ${idx + 1}`),
+      cat:    planoItem.cat,
+      grp:    planoItem.grp,
+      tipo:   planoItem.tipo,
+      nivel:  planoItem.nivel,
+      valor,
+      mov:    isTransfer ? 'Transferência' : mov,
+      regime: baseRegime,
+      _orphan:   isOrphan,
+      _transfer: isTransfer,
     };
-  }).filter(r => r.valor > 0);
+  }).filter(Boolean);
+
+  const orphans = [...orphanMap.entries()].map(([categoria, info]) => ({
+    categoria,
+    fallback: info.fallback,
+    mov:      info.mov,
+    count:    info.count,
+  }));
+
+  const delta = Math.round((transferEntrada - transferSaida) * 100) / 100;
+  const transfers = {
+    count:        records.filter(r => r._transfer).length,
+    totalEntrada: transferEntrada,
+    totalSaida:   transferSaida,
+    delta,
+    balanced:     Math.abs(delta) < 0.01,
+  };
+
+  return { records, orphans, transfers };
+}
+
+// ── File readers ──────────────────────────────────────────────────────────────
+
+function readFile(buffer, ext) {
+  if (ext === 'csv') return parseCSV(buffer.toString('utf-8'));
+  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
+  return raw.map(row => {
+    const o = {};
+    Object.entries(row).forEach(([k, v]) => { o[k] = v instanceof Date ? v.toISOString().split('T')[0] : v; });
+    return o;
+  });
 }
 
 function parseCSV(text) {
   function countSep(line, sep) { let c = 0, q = false; for (const ch of line) { if (ch === '"') q = !q; else if (!q && ch === sep) c++; } return c; }
-  const fl = text.split('\n')[0] || '';
+  const fl  = text.split('\n')[0] || '';
   const sep = countSep(fl, ';') >= countSep(fl, ',') ? ';' : ',';
   function parseLine(line) {
     const f = []; let cur = '', q = false, i = 0;
@@ -108,55 +217,113 @@ function parseCSV(text) {
       else cur += c;
       i++;
     }
-    f.push(cur.trim());
-    return f;
+    f.push(cur.trim()); return f;
   }
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const lines   = text.split(/\r?\n/).filter(l => l.trim());
   const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/['"]/g, '').trim());
   return lines.slice(1).filter(l => l.trim()).map(l => {
-    const v = parseLine(l);
-    const o = {};
-    headers.forEach((h, i) => o[h] = (v[i] || '').replace(/^"|"$/g, ''));
+    const v = parseLine(l), o = {};
+    headers.forEach((h, i) => { o[h] = (v[i] || '').replace(/^"|"$/g, ''); });
     return o;
   });
 }
 
-// POST /api/import
-router.post('/', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/import/preview
+ *
+ * Parses the file and returns a structured preview without inserting anything.
+ * The client uses this to show column mapping, orphan warnings and transfer
+ * balance before the user confirms the import.
+ *
+ * Multipart body:
+ *   file   – xlsx / csv
+ *   base   – 'caixa' | 'competencia'
+ *   colMap – JSON string: { data?, descricao?, categoria?, valor?, movimento?, regime? }
+ *            Each value is the exact column header to use for that field.
+ *
+ * Response: { headers, colMap, rows, orphans, transfers, summary }
+ */
+router.post('/preview', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
-  const base = req.body.base === 'competencia' ? 'Competência' : 'Caixa';
-  const ext = req.file.originalname.split('.').pop().toLowerCase();
+  const base           = req.body.base === 'competencia' ? 'Competência' : 'Caixa';
+  const ext            = req.file.originalname.split('.').pop().toLowerCase();
+  const colMapOverride = req.body.colMap ? JSON.parse(req.body.colMap) : {};
 
   try {
     const { plano } = await planoStore.getPlano(req.tenantSchema);
+    const rawRows   = readFile(req.file.buffer, ext);
+    if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
 
-    let rows = [];
-    if (ext === 'csv') {
-      rows = parseCSV(req.file.buffer.toString('utf-8'));
-    } else {
-      const wb = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
-      rows = raw.map(row => {
-        const o = {};
-        Object.entries(row).forEach(([k, v]) => { o[k] = v instanceof Date ? v.toISOString().split('T')[0] : v; });
-        return o;
+    const headers = Object.keys(rawRows[0]);
+    const cm      = resolveColMap(headers, colMapOverride);
+    const { records, orphans, transfers } = parseRows(rawRows, plano, cm, base);
+
+    res.json({
+      headers,
+      colMap: cm,
+      rows:   records,
+      orphans,
+      transfers,
+      summary: {
+        total:         records.length,
+        orphanCount:   orphans.reduce((s, o) => s + o.count, 0),
+        transferCount: transfers.count,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/import
+ *
+ * Parses the file, validates transfer balance and inserts transactions.
+ *
+ * Multipart body:
+ *   file             – xlsx / csv
+ *   base             – 'caixa' | 'competencia'
+ *   colMap           – JSON string (optional column override)
+ *   forceImbalanced  – 'true' to proceed even when transfers don't balance
+ *
+ * Response: { imported, transfers, history }
+ * Error 422: transfer imbalance (unless forceImbalanced=true)
+ */
+router.post('/', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+
+  const base            = req.body.base === 'competencia' ? 'Competência' : 'Caixa';
+  const ext             = req.file.originalname.split('.').pop().toLowerCase();
+  const colMapOverride  = req.body.colMap ? JSON.parse(req.body.colMap) : {};
+  const forceImbalanced = req.body.forceImbalanced === 'true';
+
+  try {
+    const { plano } = await planoStore.getPlano(req.tenantSchema);
+    const rawRows   = readFile(req.file.buffer, ext);
+    if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
+
+    const headers = Object.keys(rawRows[0]);
+    const cm      = resolveColMap(headers, colMapOverride);
+    const { records, transfers } = parseRows(rawRows, plano, cm, base);
+
+    if (!forceImbalanced && transfers.count > 0 && !transfers.balanced) {
+      return res.status(422).json({
+        error: `Transferências desequilibradas: delta de R$ ${transfers.delta.toFixed(2)}. Envie forceImbalanced=true para importar mesmo assim.`,
+        transfers,
       });
     }
 
-    // Force regime to match the chosen base
-    const parsed = parseRows(rows, plano).map(r => ({ ...r, regime: base }));
-
-    await txStore.bulkInsertTransactions(req.tenantSchema, parsed);
+    const toInsert = records.map(({ _orphan, _transfer, ...r }) => r);
+    await txStore.bulkInsertTransactions(req.tenantSchema, toInsert);
 
     const history = await historyStore.addImportEntry(req.tenantSchema, {
       name: req.file.originalname,
-      rows: parsed.length,
+      rows: toInsert.length,
       base,
     });
 
-    res.json({ imported: parsed.length, history });
+    res.json({ imported: toInsert.length, transfers, history });
   } catch (err) { next(err); }
 });
 
