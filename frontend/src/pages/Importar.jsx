@@ -15,6 +15,7 @@ const COLUMN_ALIASES = [
 
 const TABS = [
   ['upload', 'upload_file', 'Upload'],
+  ['plano', 'account_tree', 'Plano de Contas'],
   ['saldos', 'account_balance_wallet', 'Saldos Iniciais'],
   ['historico', 'history', 'Histórico'],
   ['mapeamento', 'tune', 'Mapeamento'],
@@ -556,16 +557,325 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap }) {
   );
 }
 
+// ── Confirm modal ────────────────────────────────────────────────────────────
+function ConfirmModal({ title, body, confirmLabel = 'Confirmar', confirmCls = 'btn-red', onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }}>
+      <div className="bg-card rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <Icon name="warning" size="text-[20px]" className="text-red-500" />
+          </div>
+          <div>
+            <div className="font-inter font-bold text-[15px] text-text-base mb-1">{title}</div>
+            <div className="text-[13px] text-text-2 leading-relaxed">{body}</div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancelar</button>
+          <button className={`btn ${confirmCls} btn-sm`} onClick={onConfirm}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Plano import ─────────────────────────────────────────────────────────────
+
+const CATS    = ['RECEITA BRUTA', 'CUSTOS DIRETOS', 'DESPESAS FIXAS', 'DESPESAS VARIÁVEIS', 'DESPESAS NÃO OPERACIONAIS', 'ENTRADAS NÃO OPERACIONAIS'];
+const NIVELES = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional', 'Entrada Não Operacional'];
+
+function catColor(cat) {
+  const map = {
+    'RECEITA BRUTA':              'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    'CUSTOS DIRETOS':             'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    'DESPESAS FIXAS':             'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+    'DESPESAS VARIÁVEIS':         'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+    'DESPESAS NÃO OPERACIONAIS':  'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    'ENTRADAS NÃO OPERACIONAIS':  'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+  };
+  return map[cat] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+}
+
+function PlanoImportTab({ actions }) {
+  const [phase, setPhase]       = useState('upload'); // upload | preview | done
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [items, setItems]       = useState([]);        // editable preview rows
+  const [selected, setSelected] = useState(new Set()); // set of tipos to create
+  const [result, setResult]     = useState(null);
+  const fileRef = useRef();
+
+  async function processFile(file) {
+    setLoading(true);
+    try {
+      const res = await api.previewPlanoImport(file);
+      const newItems = res.items.map(item => ({ ...item, _editing: false }));
+      setItems(newItems);
+      // Pre-select all non-existing items
+      setSelected(new Set(newItems.filter(i => !i.exists).map(i => i.tipo)));
+      setPhase('preview');
+    } catch (e) {
+      actions.notify('Erro ao analisar arquivo: ' + e.message, 'ne');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggleAll(newItems) {
+    const newSet = new Set(newItems.filter(i => !i.exists).map(i => i.tipo));
+    setSelected(prev => {
+      const allNew = newItems.filter(i => !i.exists);
+      const allSelected = allNew.every(i => prev.has(i.tipo));
+      return allSelected ? new Set() : newSet;
+    });
+  }
+
+  function toggleItem(tipo) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(tipo) ? next.delete(tipo) : next.add(tipo);
+      return next;
+    });
+  }
+
+  function updateItem(tipo, field, value) {
+    setItems(prev => prev.map(i => i.tipo === tipo ? { ...i, [field]: value } : i));
+  }
+
+  async function handleConfirm() {
+    const toCreate = items.filter(i => selected.has(i.tipo));
+    if (toCreate.length === 0) { actions.notify('Nenhum item selecionado.', 'ni'); return; }
+    setLoading(true);
+    try {
+      const res = await api.importPlano(toCreate.map(({ tipo, cat, grp, nivel }) => ({ tipo, cat, grp, nivel })));
+      await actions.refreshAll();
+      setResult(res);
+      setPhase('done');
+      actions.notify(`${res.created} tipo${res.created !== 1 ? 's' : ''} adicionado${res.created !== 1 ? 's' : ''} ao plano de contas!`, 'ns');
+    } catch (e) {
+      actions.notify('Erro: ' + e.message, 'ne');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function reset() { setPhase('upload'); setItems([]); setSelected(new Set()); setResult(null); }
+
+  const newItems      = items.filter(i => !i.exists);
+  const existingItems = items.filter(i => i.exists);
+  const selectedCount = selected.size;
+  const allNewSelected = newItems.length > 0 && newItems.every(i => selected.has(i.tipo));
+
+  if (phase === 'done' && result) {
+    return (
+      <div className="text-center py-12">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-4">
+          <Icon name="check_circle" size="text-[36px]" className="text-emerald-500" />
+        </div>
+        <div className="font-inter font-bold text-lg mb-1">{result.created} tipo{result.created !== 1 ? 's' : ''} criado{result.created !== 1 ? 's' : ''}</div>
+        <div className="text-[12px] text-text-3 mb-6">
+          {result.skipped > 0 && `${result.skipped} já existia${result.skipped !== 1 ? 'm' : ''} e foram ignorado${result.skipped !== 1 ? 's' : ''}.`}
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={reset}>
+          <Icon name="upload_file" size="text-[14px]" /> Nova importação
+        </button>
+      </div>
+    );
+  }
+
+  if (phase === 'preview') {
+    return (
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-inter font-bold text-sm">{items.length} categoria{items.length !== 1 ? 's' : ''} encontrada{items.length !== 1 ? 's' : ''}</div>
+            <div className="text-[11px] text-text-3 mt-0.5">
+              {newItems.length} nova{newItems.length !== 1 ? 's' : ''} · {existingItems.length} já existe{existingItems.length !== 1 ? 'm' : ''}
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={reset}>
+            <Icon name="close" size="text-[13px]" /> Cancelar
+          </button>
+        </div>
+
+        <div className="panel overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-700">
+                <th className="px-3 py-2.5 w-6">
+                  <input
+                    type="checkbox"
+                    checked={allNewSelected}
+                    onChange={() => toggleAll(items)}
+                    className="rounded"
+                  />
+                </th>
+                <th className="text-left px-3 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Tipo (do arquivo)</th>
+                <th className="text-left px-3 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Categoria</th>
+                <th className="text-left px-3 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Grupo</th>
+                <th className="text-left px-3 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Nível</th>
+                <th className="text-right px-3 py-2.5 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Qtd</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map(item => (
+                <tr
+                  key={item.tipo}
+                  className={`border-b border-slate-50 dark:border-slate-800 transition-colors ${
+                    item.exists
+                      ? 'opacity-50'
+                      : selected.has(item.tipo)
+                      ? 'bg-blue-50/40 dark:bg-blue-900/10'
+                      : ''
+                  }`}
+                >
+                  <td className="px-3 py-2.5 text-center">
+                    {item.exists ? (
+                      <Icon name="check" size="text-[14px]" className="text-emerald-500" />
+                    ) : (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(item.tipo)}
+                        onChange={() => toggleItem(item.tipo)}
+                        className="rounded"
+                      />
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono font-medium text-text-base max-w-[220px]">
+                    <div className="truncate" title={item.tipo}>{item.tipo}</div>
+                    {item.exists && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-semibold">já existe</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {item.exists ? (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${catColor(item.cat)}`}>{item.cat}</span>
+                    ) : (
+                      <select
+                        value={item.cat}
+                        onChange={e => updateItem(item.tipo, 'cat', e.target.value)}
+                        className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent w-full"
+                      >
+                        {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {item.exists ? (
+                      <span className="text-text-2">{item.grp}</span>
+                    ) : (
+                      <input
+                        type="text"
+                        value={item.grp}
+                        onChange={e => updateItem(item.tipo, 'grp', e.target.value)}
+                        className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent w-full min-w-[110px]"
+                      />
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {item.exists ? (
+                      <span className="text-text-3 text-[11px]">{item.nivel}</span>
+                    ) : (
+                      <select
+                        value={item.nivel}
+                        onChange={e => updateItem(item.tipo, 'nivel', e.target.value)}
+                        className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent w-full"
+                      >
+                        {NIVELES.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-text-3">{item.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-3">
+          <div className="text-[13px]">
+            <span className="font-semibold text-text-base">{selectedCount}</span>
+            <span className="text-text-3 ml-1">tipo{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''} para criar</span>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleConfirm}
+            disabled={selectedCount === 0 || loading}
+          >
+            <Icon name="add_circle" size="text-[14px]" />
+            {loading ? 'Criando...' : `Criar ${selectedCount} tipo${selectedCount !== 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Upload phase
+  return (
+    <div>
+      <div className="mb-4">
+        <div className="font-inter font-bold text-sm mb-1">Importar Plano de Contas</div>
+        <div className="text-[12px] text-text-3">
+          Carregue a mesma planilha usada para importar lançamentos. O sistema extrai as categorias únicas,
+          classifica automaticamente e permite ajustar antes de criar.
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-16 text-center text-text-3">
+          <div className="inline-block w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-3" />
+          <div className="text-[13px]">Analisando categorias...</div>
+        </div>
+      ) : (
+        <>
+          <div
+            className={`upload-zone ${dragging ? 'drag' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); }}
+          >
+            <input
+              type="file" accept=".xlsx,.xls,.csv" ref={fileRef}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full"
+              onChange={e => { if (e.target.files[0]) processFile(e.target.files[0]); e.target.value = ''; }}
+            />
+            <Icon name="account_tree" size="text-[42px]" className="text-text-3 opacity-40 block mx-auto mb-2.5" />
+            <div className="font-inter font-bold text-[15px] mb-1.5">Arraste ou clique para selecionar</div>
+            <div className="text-xs text-text-2 mb-2.5">A planilha deve ter uma coluna "Categoria" e "Movimento/Tipo"</div>
+            <div className="flex gap-1.5 justify-center">
+              {['.XLSX', '.XLS', '.CSV'].map(f => (
+                <span key={f} className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full text-[10px] text-text-3 font-semibold">{f}</span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg text-[12px] text-blue-700 dark:text-blue-300 space-y-1">
+            <div className="flex items-start gap-1.5">
+              <Icon name="info" size="text-[14px]" className="mt-0.5 shrink-0" />
+              <span>O sistema lê a coluna <strong>Categoria</strong> da planilha, determina o tipo de movimento predominante (Entrada/Saída) e sugere cat, grupo e nível automaticamente.</span>
+            </div>
+            <div className="pl-5">Você pode revisar e ajustar cada campo antes de confirmar a criação.</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Importar() {
   const { state, actions } = useApp();
   const { importHistory }  = state;
-  const [activeTab, setActiveTab]   = useState('upload');
-  const [uploadBase, setUploadBase] = useState('caixa');
-  const [dragging, setDragging]     = useState(false);
-  const [previewData, setPreview]   = useState(null);
-  const [previewFile, setPreviewFile] = useState(null);
+  const [activeTab, setActiveTab]       = useState('upload');
+  const [uploadBase, setUploadBase]     = useState('caixa');
+  const [dragging, setDragging]         = useState(false);
+  const [previewData, setPreview]       = useState(null);
+  const [previewFile, setPreviewFile]   = useState(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null); // { title, body, onConfirm }
   const fileRef = useRef();
 
   async function processFile(file) {
@@ -616,14 +926,72 @@ export default function Importar() {
     }
   }
 
+  function askConfirm(title, body, onConfirm) {
+    setConfirmModal({ title, body, onConfirm });
+  }
+
   async function clearHistory() {
-    await api.clearHistory();
-    actions.dispatch({ type: 'SET_HISTORY', payload: [] });
-    actions.notify('Histórico limpo.', 'ni');
+    askConfirm(
+      'Limpar histórico de importações?',
+      'O histórico será apagado, mas os lançamentos importados permanecem. Esta ação não pode ser desfeita.',
+      async () => {
+        setConfirmModal(null);
+        await api.clearHistory();
+        actions.dispatch({ type: 'SET_HISTORY', payload: [] });
+        actions.notify('Histórico limpo.', 'ni');
+      }
+    );
+  }
+
+  async function deleteImport(h) {
+    askConfirm(
+      `Excluir importação "${h.name}"?`,
+      `Serão removidos ${h.rows} lançamento${h.rows !== 1 ? 's' : ''} da base ${h.base} vinculados a esta importação. O plano de contas e outros lançamentos não serão afetados.`,
+      async () => {
+        setConfirmModal(null);
+        try {
+          const res = await api.deleteImport(h.id);
+          actions.dispatch({ type: 'SET_HISTORY', payload: res.history });
+          await actions.refreshAll();
+          actions.notify(`Importação excluída: ${res.deleted.txDeleted} lançamentos removidos.`, 'ni');
+        } catch (e) {
+          actions.notify('Erro ao excluir: ' + e.message, 'ne');
+        }
+      }
+    );
+  }
+
+  async function resetAllData() {
+    askConfirm(
+      'Apagar TODOS os dados?',
+      'Esta ação remove todas as transações, saldos, histórico de importações e redefine o plano de contas para os valores padrão. Esta ação é irreversível.',
+      async () => {
+        setConfirmModal(null);
+        try {
+          await api.reset();
+          await actions.refreshAll();
+          actions.notify('Dados limpos.', 'ni');
+        } catch (e) {
+          actions.notify('Erro: ' + e.message, 'ne');
+        }
+      }
+    );
   }
 
   return (
     <div className="ani">
+      {/* Confirm modal */}
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          body={confirmModal.body}
+          confirmLabel="Confirmar exclusão"
+          confirmCls="btn-red"
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+
       {/* Tabs */}
       <div className="flex border-b border-slate-100 mb-4">
         {TABS.map(([id, icon, label]) => (
@@ -737,6 +1105,9 @@ export default function Importar() {
         </div>
       )}
 
+      {/* Plano tab */}
+      {activeTab === 'plano' && <PlanoImportTab actions={actions} />}
+
       {/* Saldos tab */}
       {activeTab === 'saldos' && <SaldosTab actions={actions} />}
 
@@ -744,31 +1115,73 @@ export default function Importar() {
       {activeTab === 'historico' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <div className="font-inter font-bold text-sm">Histórico de Importações</div>
-            <button className="btn btn-red btn-sm" onClick={clearHistory}><Icon name="delete" size="text-[14px]" /> Limpar histórico</button>
+            <div>
+              <div className="font-inter font-bold text-sm">Histórico de Importações</div>
+              <div className="text-[11px] text-text-3 mt-0.5">
+                Clique em <Icon name="delete" size="text-[12px]" className="inline" /> para excluir uma importação e seus lançamentos vinculados
+              </div>
+            </div>
+            {importHistory.length > 0 && (
+              <button className="btn btn-ghost btn-sm text-text-3" onClick={clearHistory}>
+                <Icon name="delete_sweep" size="text-[14px]" /> Limpar histórico
+              </button>
+            )}
           </div>
+
           {importHistory.length === 0 ? (
             <div className="text-center py-12 text-text-3">
               <Icon name="inbox" size="text-[40px]" className="opacity-30 block mx-auto mb-3" />
               <div className="font-inter text-base text-text-2 mb-1.5">Nenhuma importação</div>
               <div className="text-xs">Faça upload de um arquivo para registrar aqui.</div>
             </div>
-          ) : importHistory.map((h, i) => (
-            <div key={i} className="bg-white border border-slate-100 rounded-sm px-4 py-3 mb-2 flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-[13px]">{h.name}</div>
-                <div className="text-[11px] text-text-3">{h.rows} registros · Base: {h.base} · {h.date}</div>
-              </div>
-              <span className="tag t-entrada"><Icon name="check_circle" size="text-[12px]" className="mr-0.5" /> OK</span>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {importHistory.map((h) => (
+                <div key={h.id ?? h.name} className="bg-card border border-slate-100 dark:border-slate-700 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="shrink-0 w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                      <Icon name="check_circle" size="text-[16px]" className="text-emerald-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[13px] truncate">{h.name}</div>
+                      <div className="text-[11px] text-text-3 flex items-center gap-2 flex-wrap">
+                        <span>{h.rows} lançamento{h.rows !== 1 ? 's' : ''}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        <span>Base: {h.base}</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                        <span>{h.date}</span>
+                        {!h.id && (
+                          <span className="text-amber-500 text-[10px]">(exclusão individual indisponível — importado antes da v4)</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {h.id ? (
+                    <button
+                      className="shrink-0 btn btn-ghost btn-sm text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      title="Excluir esta importação e seus lançamentos"
+                      onClick={() => deleteImport(h)}
+                      style={{ padding: '4px 8px' }}
+                    >
+                      <Icon name="delete" size="text-[15px]" />
+                    </button>
+                  ) : (
+                    <div style={{ width: 32 }} />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-          <div className="mt-4 flex gap-2.5 items-center">
-            <button className="btn btn-red btn-sm" onClick={async () => {
-              if (!confirm('Limpar todos os dados?')) return;
-              await api.reset();
-              await actions.refreshAll();
-              actions.notify('Dados limpos.', 'ni');
-            }}><Icon name="delete_forever" size="text-[14px]" /> Limpar todos os dados</button>
+          )}
+
+          {/* Danger zone */}
+          <div className="mt-6 border border-red-200 dark:border-red-800 rounded-lg p-4 bg-red-50/50 dark:bg-red-900/10">
+            <div className="font-inter font-semibold text-[13px] text-red-700 dark:text-red-400 mb-1">Zona de perigo</div>
+            <div className="text-[12px] text-red-600 dark:text-red-500 mb-3">
+              O botão abaixo remove <strong>todos os dados</strong>: transações, saldos, histórico de importações e redefine o plano de contas. Esta ação é irreversível.
+            </div>
+            <button className="btn btn-red btn-sm" onClick={resetAllData}>
+              <Icon name="delete_forever" size="text-[14px]" /> Apagar todos os dados
+            </button>
           </div>
         </div>
       )}

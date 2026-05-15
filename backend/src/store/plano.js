@@ -49,6 +49,34 @@ export async function createPlanoItem(tenantSchema, item) {
 }
 
 /**
+ * Bulk-creates plano items in a single transaction.
+ * Items whose `tipo` already exists are skipped (no error).
+ * Returns { created, skipped }.
+ */
+export async function bulkCreatePlanoItems(tenantSchema, items) {
+  return withTenant(tenantSchema, async (client) => {
+    await client.query('BEGIN');
+    try {
+      let created = 0, skipped = 0;
+      for (const item of items) {
+        const exists = await client.query(`SELECT 1 FROM plano WHERE tipo = $1`, [item.tipo]);
+        if (exists.rowCount > 0) { skipped++; continue; }
+        await client.query(
+          `INSERT INTO plano (tipo, grp, cat, nivel) VALUES ($1, $2, $3, $4)`,
+          [item.tipo, item.grp, item.cat, item.nivel]
+        );
+        created++;
+      }
+      await client.query('COMMIT');
+      return { created, skipped };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    }
+  });
+}
+
+/**
  * Updates a plano item and cascades the rename to all transactions.
  * Runs inside a single DB transaction for atomicity.
  * Returns the full updated plano array.

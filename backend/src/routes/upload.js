@@ -29,6 +29,55 @@ const TRANSFER_PLANO = { cat: 'TRANSFERÊNCIAS', grp: 'Transferências', tipo: '
 // Matches "transferência entre contas" / "conta própria" in pt-BR
 const TRANSFER_RE = /transf[eê]r[eê]ncia\s+entre|entre\s+conta|conta\s+pr[oó]pria/i;
 
+// ── Plano auto-classification rules ──────────────────────────────────────────
+// Each rule: [regex, suggestion]. Applied in order; first match wins.
+const PLANO_RULES = [
+  [/(vend[a-z]*\s*(de\s*)?(produto|servi[cç])|receita|faturamento)/i,
+   { cat: 'RECEITA BRUTA', grp: 'Receita Operacional', nivel: 'Receita' }],
+  [/(juro[s]?\s*receb|rendimento\s*de\s*aplic|recebimento\s*de\s*juro)/i,
+   { cat: 'RECEITA BRUTA', grp: 'Receita Financeira', nivel: 'Receita' }],
+  [/ajuste\s*de\s*caixa\s*cr[eé]dito/i,
+   { cat: 'ENTRADAS NÃO OPERACIONAIS', grp: 'Outras Entradas', nivel: 'Entrada Não Operacional' }],
+  [/mat[eé]ria[\s\-]*prima/i,
+   { cat: 'CUSTOS DIRETOS', grp: 'Custo de Produção', nivel: 'Custo' }],
+  [/(simples\s*nacional|icms|iss\s*[\-–]|imposto\s*sob|pis\b|cofins|irpj|csll)/i,
+   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos', nivel: 'Despesa Não Operacional' }],
+  [/(inss\s*[\-–]\s*empresa|fgts[\s\-]*empresa)/i,
+   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos', nivel: 'Despesa Não Operacional' }],
+  [/(contribui[cç][aã]o\s*sindical)/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+  [/(taxa[s]?\s*banc[aá]|tarifa[s]?\/taxa|tarifas?\/taxas?|emprest|cons[oó]rcio|pagamento\s*de\s*emprest)/i,
+   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Despesas Financeiras', nivel: 'Despesa Não Operacional' }],
+  [/investimento[s]?\s*[\-–]/i,
+   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Investimentos', nivel: 'Despesa Não Operacional' }],
+  [/(sal[aá]rio[s]?|hora\s*extra|pró[\s\-]*labore|pro[\s\-]*labore|f[eé]rias|rescis[aã]|indeniza|uniform|adiantamento\s*sal|exame[s]?\s*admiss)/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+  [/(benef[íi]cio|plano\s*de\s*sa[úu]de|vale\s*trans|prêmio[s]?|b[oô]nus|distribui[cç][aã]o\s*de\s*lucro)/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+  [/(inss\b|fgts\b|tempor[aá]rio[s]?|di[aá]ria[s]?|alimenta[cç])/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+  [/(software|programa\s*de\s*computador|inform[aá]tica\s*(manut|infra)?)/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Tecnologia', nivel: 'Despesa Operacional' }],
+  [/(aluguel|energia\s*el[eé]trica|[aá]gua\s*e\s*esgoto|internet|telefone|m[oó]vel\s*linha[s]?|limpeza|conserva[cç]|manutenção\s*e\s*reparo[s]?|copa\s*e\s*cozinha|vigil[aâ]nci|material\s*de\s*escrit)/i,
+   { cat: 'DESPESAS FIXAS', grp: 'Estrutura', nivel: 'Despesa Operacional' }],
+  [/(ve[íi]culo|combust[íi]vel|estacionamento|ipva|licenciamento|manutenção\s*ve[íi]cul|seguros?\s*[\-–]\s*ve[íi])/i,
+   { cat: 'DESPESAS VARIÁVEIS', grp: 'Veículos', nivel: 'Despesa Operacional' }],
+  [/(marketing|publicidade|propaganda\s*\/|evento[s]?|confratern|doa[cç][oõ]e?s?\/brindes?|comiss[aã]o\s*(vend|produ))/i,
+   { cat: 'DESPESAS VARIÁVEIS', grp: 'Comercial', nivel: 'Despesa Operacional' }],
+  [/(contabilidade|audit|consultor|honor[aá]rio|advocat|jur[íi]dico|viage[nm]|hosped|servi[cç]o[s]?\s*de\s*terceiro)/i,
+   { cat: 'DESPESAS VARIÁVEIS', grp: 'Administrativo', nivel: 'Despesa Operacional' }],
+];
+
+const DEFAULT_SAIDA_PLANO   = { cat: 'DESPESAS FIXAS',  grp: 'Estrutura',           nivel: 'Despesa Operacional' };
+const DEFAULT_ENTRADA_PLANO = { cat: 'RECEITA BRUTA',   grp: 'Receita Operacional', nivel: 'Receita'             };
+
+function classifyCategory(tipo, primaryMov) {
+  for (const [re, suggestion] of PLANO_RULES) {
+    if (re.test(tipo)) return suggestion;
+  }
+  return primaryMov === 'Entrada' ? DEFAULT_ENTRADA_PLANO : DEFAULT_SAIDA_PLANO;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseValor(raw) {
@@ -315,13 +364,14 @@ router.post('/', requirePermission('importar', 'write'), upload.single('file'), 
     }
 
     const toInsert = records.map(({ _orphan, _transfer, ...r }) => r);
-    await txStore.bulkInsertTransactions(req.tenantSchema, toInsert);
 
-    const history = await historyStore.addImportEntry(req.tenantSchema, {
+    // Register the import entry first to get the ID, then tag the transactions
+    const { importId, history } = await historyStore.addImportEntry(req.tenantSchema, {
       name: req.file.originalname,
       rows: toInsert.length,
       base,
     });
+    await txStore.bulkInsertTransactions(req.tenantSchema, toInsert, importId);
 
     res.json({ imported: toInsert.length, transfers, history });
   } catch (err) { next(err); }
@@ -334,11 +384,105 @@ router.get('/history', requirePermission('importar', 'read'), async (req, res, n
   } catch (err) { next(err); }
 });
 
-// DELETE /api/import/history
+// DELETE /api/import/history/:id — deletes a single import and its transactions
+router.delete('/history/:id', requirePermission('importar', 'write'), async (req, res, next) => {
+  const importId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(importId)) return res.status(400).json({ error: 'ID inválido' });
+  try {
+    const deleted = await historyStore.deleteImportEntry(req.tenantSchema, importId);
+    if (!deleted) return res.status(404).json({ error: 'Importação não encontrada' });
+    const txDeleted = await txStore.deleteImportTransactions(req.tenantSchema, importId);
+    const history   = await historyStore.getImportHistory(req.tenantSchema);
+    res.json({ deleted: { ...deleted, txDeleted }, history });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/import/history — clears all import history (does NOT delete transactions)
 router.delete('/history', requirePermission('importar', 'write'), async (req, res, next) => {
   try {
     await historyStore.clearImportHistory(req.tenantSchema);
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/import/plano-preview
+ *
+ * Reads an xlsx/csv file and extracts unique categories for plano creation.
+ * Returns suggested plano items (with auto-classification) and marks which
+ * tipos already exist in the current plano.
+ *
+ * Response: { items: [{ tipo, cat, grp, nivel, primaryMov, count, exists }] }
+ */
+router.post('/plano-preview', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+
+  const ext = req.file.originalname.split('.').pop().toLowerCase();
+  try {
+    const { plano } = await planoStore.getPlano(req.tenantSchema);
+    const existingTipos = new Set(plano.map(p => p.tipo.toLowerCase()));
+
+    const rawRows = readFile(req.file.buffer, ext);
+    if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
+
+    const headers = Object.keys(rawRows[0]);
+    const cm = resolveColMap(headers, {});
+
+    // Aggregate categories: { tipo -> { entradas, saidas } }
+    const catMap = new Map();
+    for (const row of rawRows) {
+      const rawCat = cm.categoria ? row[cm.categoria] : '';
+      const cat = String(rawCat ?? '').trim();
+      if (!cat || TRANSFER_RE.test(cat)) continue;
+
+      const rawMov = cm.movimento ? row[cm.movimento] : '';
+      const mov = parseMov(rawMov);
+
+      if (!catMap.has(cat)) catMap.set(cat, { entradas: 0, saidas: 0 });
+      const entry = catMap.get(cat);
+      if (mov === 'Entrada') entry.entradas++; else entry.saidas++;
+    }
+
+    const items = [...catMap.entries()].map(([tipo, { entradas, saidas }]) => {
+      const primaryMov = entradas >= saidas ? 'Entrada' : 'Saída';
+      const suggestion = classifyCategory(tipo, primaryMov);
+      return {
+        tipo,
+        ...suggestion,
+        primaryMov,
+        count: entradas + saidas,
+        exists: existingTipos.has(tipo.toLowerCase()),
+      };
+    });
+
+    // Sort: new items first, then by cat+grp+tipo
+    items.sort((a, b) => {
+      if (a.exists !== b.exists) return a.exists ? 1 : -1;
+      return (a.cat + a.grp + a.tipo).localeCompare(b.cat + b.grp + b.tipo, 'pt-BR');
+    });
+
+    res.json({ items });
+  } catch (err) { next(err); }
+});
+
+/**
+ * POST /api/import/plano
+ *
+ * Creates plano items from the confirmed list (skips existing tipos).
+ *
+ * Body: { items: [{ tipo, cat, grp, nivel }] }
+ * Response: { created, skipped, plano }
+ */
+router.post('/plano', requirePermission('importar', 'write'), async (req, res, next) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Lista de itens vazia' });
+  }
+
+  try {
+    const { created, skipped } = await planoStore.bulkCreatePlanoItems(req.tenantSchema, items);
+    const { plano, planoCores } = await planoStore.getPlano(req.tenantSchema);
+    res.json({ created, skipped, plano, planoCores });
   } catch (err) { next(err); }
 });
 
