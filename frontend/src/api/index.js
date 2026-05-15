@@ -85,8 +85,15 @@ export const api = {
     if (forceImbalanced) fd.append('forceImbalanced', 'true');
     return req('/api/import', { method: 'POST', body: fd });
   },
-  getImportHistory: () => req('/api/import/history'),
-  clearHistory:     () => req('/api/import/history', { method: 'DELETE' }),
+  getImportHistory:      () => req('/api/import/history'),
+  deleteImport:          (id) => req(`/api/import/history/${id}`, { method: 'DELETE' }),
+  clearHistory:          () => req('/api/import/history', { method: 'DELETE' }),
+  previewPlanoImport: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return req('/api/import/plano-preview', { method: 'POST', body: fd });
+  },
+  importPlano: (items) => req('/api/import/plano', { method: 'POST', ...json({ items }) }),
 
   // Orçamento
   getOrcamento:    (ano) => req(`/api/orcamento?ano=${ano}`),

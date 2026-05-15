@@ -99,18 +99,19 @@ export async function deleteTransaction(tenantSchema, id) {
 
 /**
  * Bulk-inserts transactions (used by import and seed routes).
+ * Pass importId to link rows to a specific import batch; null for seed data.
  * Returns the count of inserted rows.
  */
-export async function bulkInsertTransactions(tenantSchema, txList) {
+export async function bulkInsertTransactions(tenantSchema, txList, importId = null) {
   if (!txList.length) return 0;
   return withTenant(tenantSchema, async (client) => {
     await client.query('BEGIN');
     try {
       for (const tx of txList) {
         await client.query(
-          `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [tx.data, tx.desc, tx.cat, tx.grp, tx.tipo, tx.nivel, tx.valor, tx.mov, tx.regime]
+          `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [tx.data, tx.desc, tx.cat, tx.grp, tx.tipo, tx.nivel, tx.valor, tx.mov, tx.regime, importId]
         );
       }
       await client.query('COMMIT');
@@ -119,6 +120,20 @@ export async function bulkInsertTransactions(tenantSchema, txList) {
       await client.query('ROLLBACK');
       throw err;
     }
+  });
+}
+
+/**
+ * Deletes all transactions that belong to a specific import batch.
+ * Returns the number of deleted rows.
+ */
+export async function deleteImportTransactions(tenantSchema, importId) {
+  return withTenant(tenantSchema, async (client) => {
+    const { rowCount } = await client.query(
+      `DELETE FROM transactions WHERE import_id = $1`,
+      [importId]
+    );
+    return rowCount;
   });
 }
 

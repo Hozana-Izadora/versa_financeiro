@@ -46,13 +46,16 @@ BEGIN
       tipo       TEXT            NOT NULL,
       nivel      TEXT            NOT NULL,
       valor      NUMERIC(15,2)   NOT NULL CHECK (valor >= 0),
-      mov        TEXT            NOT NULL CHECK (mov IN ('Entrada', 'Saída')),
+      mov        TEXT            NOT NULL,
       regime     TEXT            NOT NULL CHECK (regime IN ('Caixa', 'Competência')),
+      import_id  BIGINT          REFERENCES %I.import_history(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ     NOT NULL DEFAULT now()
     )
-  $t$, v_schema);
+  $t$, v_schema, v_schema);
 
   EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%s_tx_regime_data ON %I.transactions (regime, data)',
+    p_slug, v_schema);
+  EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%s_tx_import_id ON %I.transactions (import_id)',
     p_slug, v_schema);
   EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%s_tx_cat ON %I.transactions (cat)',
     p_slug, v_schema);

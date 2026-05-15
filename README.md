@@ -4,6 +4,7 @@ Sistema de gerência financeira multi-cliente com DRE por Caixa e Competência.
 
 ## Sumário
 
+- [Funcionalidades](#funcionalidades)
 - [Requisitos](#requisitos)
 - [Instalação — primeira vez](#instalação--primeira-vez)
 - [Execução em desenvolvimento](#execução-em-desenvolvimento)
@@ -12,8 +13,48 @@ Sistema de gerência financeira multi-cliente com DRE por Caixa e Competência.
 - [Novo usuário — criar acesso ao sistema](#novo-usuário--criar-acesso-ao-sistema)
 - [Controle de acesso por módulo (roles)](#controle-de-acesso-por-módulo-roles)
 - [Fluxo completo para onboarding de um novo cliente](#fluxo-completo-para-onboarding-de-um-novo-cliente)
+- [Importação de dados](#importação-de-dados)
+- [Migrations disponíveis](#migrations-disponíveis)
 - [Build de produção](#build-de-produção)
 - [Verificação de saúde da API](#verificação-de-saúde-da-api)
+
+---
+
+## Funcionalidades
+
+### DRE — Demonstrativo de Resultado
+- Visão por **Caixa** (movimentação realizada) e **Competência** (regime de competência)
+- Filtros por ano, mês e grupo de contas
+- Gráficos de evolução mensal de receita, custo e resultado
+- Drill-down por categoria de despesa
+- Métricas de margem bruta, margem operacional e lucro líquido com comparativo vs. orçamento
+- Saldo inicial e acumulado de caixa
+
+### Lançamentos
+- CRUD completo de transações com campos: data, descrição, categoria, valor, movimento e regime
+- Vinculação automática ao plano de contas
+
+### Plano de Contas
+- Estrutura hierárquica: **Categoria → Grupo → Tipo**
+- CRUD de categorias, grupos e tipos via interface
+- Níveis contábeis: Receita, Custo, Despesa Operacional, Despesa Não Operacional, Entrada Não Operacional
+- Cores personalizáveis por categoria
+
+### Orçamento
+- Planejamento por tipo e mês
+- Comparativo realizado vs. orçado no DRE
+
+### Saldos Iniciais
+- Saldo de abertura por ano e ajustes mensais para cálculo correto do acumulado de caixa
+- Histórico de alterações com auditoria
+
+### Importação de dados
+- Upload de planilhas `.xlsx` / `.xls` / `.csv` para as bases Caixa e Competência
+- Detecção automática de colunas com aliases configuráveis
+- Preview antes de confirmar: mapeamento de colunas, aviso de categorias não encontradas, validação de transferências entre contas
+- **Importação do Plano de Contas** direto da planilha — extrai categorias únicas, classifica automaticamente (18 regras baseadas em keywords) e permite revisar/ajustar cada item antes de criar
+- Exclusão seletiva por importação — remove apenas os lançamentos daquele lote sem afetar o plano de contas ou outros dados
+- Histórico de importações com rastreabilidade por lote
 
 ---
 
@@ -251,10 +292,112 @@ WHERE u.email = 'usuario@exemplo.com' AND r.name = 'somente_leitura';
 ```
 1. psql → SELECT admin.provision_tenant('slug', 'Nome');
 2. node backend/scripts/createUser.js --email ... --password ... --name ... --client slug
-3. (opcional) Carregar plano de contas padrão via interface → Importar → "Carregar Dados de Exemplo"
+3. Login na interface → Importar → aba "Plano de Contas" → enviar planilha → revisar → criar
+4. Importar → aba "Upload" → enviar planilha de lançamentos (Caixa ou Competência)
 ```
 
 O usuário já pode fazer login em `http://localhost:5173` usando e-mail e senha.
+
+---
+
+## Importação de dados
+
+### Formato esperado da planilha
+
+| Coluna | Aliases aceitos | Exemplo |
+|--------|-----------------|---------|
+| Data | `data`, `date`, `dt`, `vencimento`, `competencia` | `15/03/2025` |
+| Descrição | `descrição`, `descricao`, `historico`, `memo`, `obs` | `Pgto fornecedor` |
+| Categoria | `categoria`, `category`, `conta`, `plano` | `SALÁRIOS` |
+| Valor | `valor`, `value`, `amount`, `montante` | `3.500,00` |
+| Movimento/Tipo | `tipo`, `movimento`, `operacao`, `entrada_saida` | `Saída` |
+| Regime | `regime`, `tipo_lancamento` | `Caixa` |
+
+A detecção de colunas é case-insensitive e por substring — ex.: uma coluna chamada `"Histórico"` é mapeada para o campo Descrição automaticamente.
+
+### Importar o Plano de Contas
+
+A aba **Plano de Contas** da tela Importar permite criar o plano a partir da mesma planilha de lançamentos:
+
+1. Envie o arquivo → o sistema extrai todas as categorias únicas da coluna `Categoria`
+2. Para cada categoria, detecta o movimento predominante (Entrada/Saída) e aplica a classificação automática:
+
+| Keyword na categoria | Classificação sugerida |
+|----------------------|------------------------|
+| `salário`, `hora extra`, `pró-labore`, `inss`, `fgts`, `férias`, `rescisão`, `benefício`, `uniforme`, `adiantamento`, `exames admissionais`, `alimentação` | DESPESAS FIXAS / Pessoal |
+| `aluguel`, `energia elétrica`, `água e esgoto`, `internet`, `telefone`, `limpeza`, `copa e cozinha`, `manutenção e reparos`, `vigilância`, `material de escritório` | DESPESAS FIXAS / Estrutura |
+| `software`, `programa de computador`, `informática` | DESPESAS FIXAS / Tecnologia |
+| `veículo`, `combustível`, `estacionamento`, `ipva`, `seguros — veículos` | DESPESAS VARIÁVEIS / Veículos |
+| `marketing`, `publicidade`, `propaganda`, `eventos`, `comissão`, `doações/brindes` | DESPESAS VARIÁVEIS / Comercial |
+| `contabilidade`, `auditoria`, `consultoria`, `honorários`, `viagens`, `serviços de terceiros` | DESPESAS VARIÁVEIS / Administrativo |
+| `simples nacional`, `icms`, `iss`, `inss — empresa`, `fgts-empresa` | DESPESAS NÃO OPERACIONAIS / Impostos e Tributos |
+| `taxas bancárias`, `tarifas`, `empréstimos`, `consórcio`, `pagamento de empréstimos` | DESPESAS NÃO OPERACIONAIS / Despesas Financeiras |
+| `investimentos —` | DESPESAS NÃO OPERACIONAIS / Investimentos |
+| `vendas`, `receita`, `faturamento` | RECEITA BRUTA / Receita Operacional |
+| `juros recebidos`, `rendimentos de aplicações` | RECEITA BRUTA / Receita Financeira |
+| `ajuste de caixa crédito` | ENTRADAS NÃO OPERACIONAIS / Outras Entradas |
+| `matéria-prima` | CUSTOS DIRETOS / Custo de Produção |
+
+3. Revise e ajuste categoria, grupo e nível de cada item na tabela
+4. Marque os itens desejados (itens já existentes são exibidos mas não podem ser recriados)
+5. Clique em **Criar N tipos**
+
+### Excluir uma importação
+
+Cada lançamento importado é vinculado ao seu lote por um `import_id`. No histórico de importações é possível excluir um lote específico:
+
+- Clique no ícone de lixeira ao lado da importação desejada
+- Um modal de confirmação exibe quantos lançamentos serão removidos e confirma que **o plano de contas e outros dados não são afetados**
+- A exclusão remove apenas os lançamentos daquele lote
+
+> Importações realizadas antes da migration `004_import_id` não possuem `import_id` e não oferecem a opção de exclusão individual — apenas o reset geral.
+
+### Zona de perigo — Apagar todos os dados
+
+O botão **Apagar todos os dados** (aba Histórico → Zona de perigo) remove:
+- Todas as transações
+- Todos os saldos iniciais
+- Todo o histórico de importações
+- Redefine o plano de contas para os valores padrão
+
+Um modal de confirmação é exibido antes da ação.
+
+---
+
+## Migrations disponíveis
+
+O `migrate.js` executa **todos os `.sql`** da pasta `migrations/` em ordem alfabética. Migrations marcadas com a tag `REQUIRES: run as postgres superuser` são **puladas automaticamente** quando o runner conecta como `financas_app` (que é o caso no Docker), com um aviso no log — elas devem ser aplicadas manualmente.
+
+| Arquivo | Precisa de superusuário? | O que faz |
+|---------|:------------------------:|-----------|
+| `001_admin_schema.sql` | não* | Schema `admin`, tabelas de clientes, usuários, roles e tokens |
+| `002_provision_function.sql` | não* | Função `admin.provision_tenant()` com todas as tabelas por tenant |
+| `003_saldos_audit.sql` | não | Tabela de auditoria de saldos (`saldo_audit_log`) |
+| `003_orcamento.sql` | não | Tabela de orçamento (`orcamento`) |
+| `004_import_id.sql` | **sim** | Coluna `import_id` em `transactions` para rastreabilidade por lote |
+
+\* Roles e schema `admin` já são criados pelo script `postgres/init/01_roles.sh` antes do runner executar.
+
+### `docker compose up` aplica a 004 automaticamente?
+
+**Não.** O serviço `migrate` conecta como `financas_app`, que não tem permissão de `ALTER TABLE` nas tabelas criadas pelo superusuário via `provision_tenant`. O runner detecta isso e **pula** a migration com aviso no log — o backend sobe normalmente.
+
+Para aplicar a `004`, rode manualmente como `postgres`:
+
+```bash
+# Se usar Docker:
+docker compose exec db psql -U postgres -d financas \
+  -f /dev/stdin < backend/migrations/004_import_id.sql
+
+# Ou copie o arquivo para dentro do container:
+docker compose cp backend/migrations/004_import_id.sql db:/tmp/004.sql
+docker compose exec db psql -U postgres -d financas -f /tmp/004.sql
+
+# Sem Docker (psql local):
+psql -U postgres -d financas -f backend/migrations/004_import_id.sql
+```
+
+> A migration é **idempotente** — usa `ADD COLUMN IF NOT EXISTS` e `CREATE INDEX IF NOT EXISTS`, então pode ser executada mais de uma vez sem problema.
 
 ---
 
