@@ -1,16 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Bar } from 'react-chartjs-2';
 import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
-  PointElement, Title, Tooltip, Legend,
-} from 'chart.js';
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
+  Legend, ResponsiveContainer, ReferenceLine, Cell,
+} from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { DRILL_TREE, sumNode } from '../utils/drillHierarchy.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import Icon from '../components/ui/Icon.jsx';
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
 const MES12    = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const ALL_MES  = [0,1,2,3,4,5,6,7,8,9,10,11];
@@ -74,8 +71,10 @@ export default function Orcamento() {
   const [modalChart, setModalChart] = useState(null);
   const [saving, setSaving]         = useState(false);
 
-  const gc = darkMode ? '#1e2d42' : '#F0F2F5';
-  const tc = darkMode ? '#8aa3be' : '#8A96A3';
+  const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
+  const tc = darkMode ? '#8aa3be' : '#94a3b8';
+  const axisProps = { tick: { fill: tc, fontSize: 10 }, axisLine: false, tickLine: false };
+  const gridProps = { strokeDasharray: '3 3', stroke: gc, vertical: false };
 
   // ── Parse orcamento entries into lookup maps ──────────────────
   const orcMap = useMemo(() => {
@@ -107,23 +106,12 @@ export default function Orcamento() {
 
   // ── Chart data ────────────────────────────────────────────────
   const sc = SCENARIO_DEFS[scenario];
-  const orcAnualData = useMemo(() => {
-    const orcado  = ALL_MES.map(m => (orcMap.receita[m] ?? 0) / 1000 || null);
-    const cenario = ALL_MES.map(m => {
-      const v = orcMap.cenarios[sc.key]?.[m];
-      return v != null ? v / 1000 : null;
-    });
-    const beVal   = orcMap.breakeven > 0 ? orcMap.breakeven / 1000 : null;
-    return {
-      labels: MES12,
-      datasets: [
-        { label: 'Realizado',               data: receitaReal.map(v => v != null ? v/1000 : null), backgroundColor: GR, borderRadius: 4 },
-        { label: 'Orçado',                  data: orcado, backgroundColor: GY, borderRadius: 4 },
-        { label: sc.label + ' (projeção)',  data: cenario, backgroundColor: sc.color, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(0,0,0,.1)' },
-        ...(beVal ? [{ label: 'Ponto de Equilíbrio', data: Array(12).fill(beVal), type: 'line', borderColor: OR, borderWidth: 2, borderDash: [7,4], pointRadius: 0, tension: 0, fill: false }] : []),
-      ],
-    };
-  }, [receitaReal, orcMap, sc, year]);
+  const orcAnualData = useMemo(() => MES12.map((month, m) => ({
+    month,
+    Realizado:              receitaReal[m] != null ? +(receitaReal[m] / 1000).toFixed(1) : null,
+    Orçado:                 (orcMap.receita[m] ?? 0) > 0 ? +((orcMap.receita[m] ?? 0) / 1000).toFixed(1) : null,
+    [sc.label + ' (proj)']: orcMap.cenarios[sc.key]?.[m] != null ? +(orcMap.cenarios[sc.key][m] / 1000).toFixed(1) : null,
+  })), [receitaReal, orcMap, sc]);
 
   // ── Gastos drill-down ─────────────────────────────────────────
   const gastoItems = useMemo(() => {
@@ -159,48 +147,31 @@ export default function Orcamento() {
     return '';
   }, [gastoStack]);
 
-  const gastoData = useMemo(() => ({
-    labels: gastoItems.map(i => i.node.label),
-    datasets: [
-      { label: 'Meta',      data: gastoItems.map(i => i.meta), backgroundColor: GY, borderRadius: 4 },
-      { label: 'Realizado', data: gastoItems.map(i => i.real),
-        backgroundColor: gastoItems.map(i => i.real > i.meta && i.meta > 0 ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'),
-        borderRadius: 4 },
-    ],
-  }), [gastoItems]);
+  const gastoData = useMemo(() => gastoItems.map(i => ({
+    name: i.node.label,
+    Meta:      +i.meta.toFixed(1),
+    Realizado: +i.real.toFixed(1),
+    _excede:   i.real > i.meta && i.meta > 0,
+    _hasChildren: i.hasChildren,
+  })), [gastoItems]);
 
-  const gastoOpts = useMemo(() => ({
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 9 } },
-      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5 },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } },
-      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: v => 'R$' + v + 'K' } },
-    },
-    onClick: (_, elements) => {
-      if (!elements.length) return;
-      const item = gastoItems[elements[0].index];
-      if (item.hasChildren) setGastoStack(s => [...s, item.node.id]);
-    },
-  }), [gastoItems, gc, tc]);
+  const breakeven = orcMap.breakeven > 0 ? +(orcMap.breakeven / 1000).toFixed(1) : null;
 
-  const chartBaseOpts = useCallback((cb) => ({
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { labels: { color: tc, font: { size: 10 }, boxWidth: 9, borderRadius: 2 } },
-      tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5 },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } },
-      y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 }, callback: cb || (v => v) } },
-    },
-  }), [gc, tc]);
-
-  const orcAnualOpts = useMemo(() => ({
-    ...chartBaseOpts(v => 'R$' + v + 'K'),
-  }), [chartBaseOpts]);
+  function OrcTooltip({ active, payload, label }) {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: '#1C1C1C', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
+        <div style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+        {payload.map((p, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#aaa', marginTop: 2 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.fill || p.color, display: 'inline-block', flexShrink: 0 }} />
+            <span>{p.name}:</span>
+            <span style={{ color: '#fff' }}>R${p.value}K</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // ── KPI cards (último mês real vs meta mensal) ────────────────
   const kpiCards = useMemo(() => {
@@ -305,8 +276,8 @@ export default function Orcamento() {
     }
   }
 
-  function openModal(type, data, options, title) {
-    setModalChart({ type, data, options, title });
+  function openModal(title, element) {
+    setModalChart({ title, element });
   }
 
   const hasOrcamento = orcamento.length > 0;
@@ -368,36 +339,76 @@ export default function Orcamento() {
         <span className="text-[10px] text-text-3 italic">{sc.desc}</span>
       </div>
 
-      {/* ── Gráficos: Receita + Gastos ── */}
-      <div className="grid grid-cols-2 gap-3 mb-3.5">
-        <div className="panel">
-          <div className="panel-hdr">
-            <div className="font-inter font-semibold text-[13px]">Receita Bruta — Realizado vs Orçado</div>
-            <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
-          </div>
-          <div className="p-4 cursor-zoom-in" style={{ height: 220 }}
-            onClick={() => openModal('bar', orcAnualData, orcAnualOpts, 'Receita Bruta — Realizado vs Orçado')}>
-            <Bar data={orcAnualData} options={orcAnualOpts} />
-          </div>
+      {/* ── Gráfico: Receita Bruta ── */}
+      <div className="panel mb-3.5">
+        <div className="panel-hdr">
+          <div className="font-inter font-semibold text-[13px]">Receita Bruta — Realizado vs Orçado</div>
+          <span className="text-[9.5px] text-text-3 cursor-pointer"
+            onClick={() => openModal('Receita Bruta — Realizado vs Orçado',
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={orcAnualData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid {...gridProps} />
+                  <XAxis dataKey="month" {...axisProps} />
+                  <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
+                  <RcTooltip content={<OrcTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
+                  <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
+                  <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
+                  <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
+                  {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
+                </BarChart>
+              </ResponsiveContainer>
+            )}>⤢ ampliar</span>
         </div>
+        <div className="p-4" style={{ height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={orcAnualData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid {...gridProps} />
+              <XAxis dataKey="month" {...axisProps} />
+              <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
+              <RcTooltip content={<OrcTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
+              <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
+              <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
+              <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
+              {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-        <div className="panel">
-          <div className="panel-hdr">
-            <div>
-              <div className="font-inter font-semibold text-[13px]">Gastos por Categoria — Meta vs Realizado</div>
-              {gastoStack.length > 1 && (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <button onClick={() => setGastoStack(s => s.slice(0, -1))}
-                    className="text-[10px] text-accent underline cursor-pointer">← Voltar</button>
-                  <span className="text-[10px] text-text-3">› {gastoLabel}</span>
-                </div>
-              )}
-            </div>
-            <span className="text-[9.5px] text-text-3">Clique para detalhar</span>
+      {/* ── Gráfico: Gastos por Categoria ── */}
+      <div className="panel mb-3.5">
+        <div className="panel-hdr">
+          <div>
+            <div className="font-inter font-semibold text-[13px]">Gastos por Categoria — Meta vs Realizado</div>
+            {gastoStack.length > 1 && (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <button onClick={() => setGastoStack(s => s.slice(0, -1))} className="text-[10px] text-accent underline cursor-pointer">← Voltar</button>
+                <span className="text-[10px] text-text-3">› {gastoLabel}</span>
+              </div>
+            )}
           </div>
-          <div className="p-4 cursor-pointer" style={{ height: 230 }}>
-            <Bar data={gastoData} options={gastoOpts} />
-          </div>
+          <span className="text-[9.5px] text-text-3">Clique para detalhar</span>
+        </div>
+        <div className="p-4" style={{ height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={gastoData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid {...gridProps} />
+              <XAxis dataKey="name" {...axisProps} />
+              <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
+              <RcTooltip content={<OrcTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
+              <Bar dataKey="Meta" fill={GY} radius={[4,4,0,0]} />
+              <Bar dataKey="Realizado" radius={[4,4,0,0]}
+                onClick={(entry, index) => { if (gastoItems[index]?.hasChildren) setGastoStack(s => [...s, gastoItems[index].node.id]); }}
+                style={{ cursor: 'pointer' }}>
+                {gastoData.map((entry, i) => (
+                  <Cell key={i} fill={entry._excede ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

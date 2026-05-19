@@ -1,21 +1,35 @@
 import React, { useState, useMemo } from 'react';
-import { Bar, Line } from 'react-chartjs-2';
+import { motion } from 'framer-motion';
+import { staggerContainer } from '../lib/utils.js';
 import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
-  PointElement, Title, Tooltip, Legend, Filler,
-} from 'chart.js';
+  ComposedChart, LineChart, Bar, Line, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
+  Legend, ResponsiveContainer,
+} from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
 import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths } from '../utils/formatters.js';
-import KpiCard from '../components/ui/KpiCard.jsx';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
-import MarginsPanel from '../components/ui/MarginsPanel.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
+function ChartTip({ active, payload, label, formatter }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#1C1C1C', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
+      <div style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#aaa', marginTop: 2 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color || p.fill, display: 'inline-block', flexShrink: 0 }} />
+          <span>{p.name}:</span>
+          <span style={{ color: '#fff' }}>{formatter ? formatter(p.value, p.name) : p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function CNode({ label, value, sub, color, result, first, last }) {
   return (
@@ -29,6 +43,7 @@ function CNode({ label, value, sub, color, result, first, last }) {
     </div>
   );
 }
+
 function CSep({ symbol }) {
   return <div className="cascade-sep">{symbol}</div>;
 }
@@ -54,12 +69,12 @@ export default function Competencia() {
   const [modalChart, setModalChart] = useState(null);
 
   const tx = transactions.competencia;
+
   const filteredTx = useMemo(() => tx.filter(r => {
     const d = new Date(r.data + 'T12:00');
-    const yOk = d.getFullYear() === filterState.year;
-    const mOk = filterState.months.size === 0 || filterState.months.has(d.getMonth());
-    const gOk = filterState.group === 'all' || r.grp === filterState.group;
-    return yOk && mOk && gOk;
+    return d.getFullYear() === filterState.year &&
+      (filterState.months.size === 0 || filterState.months.has(d.getMonth())) &&
+      (filterState.group === 'all' || r.grp === filterState.group);
   }), [tx, filterState]);
 
   const visMonths = useMemo(() => {
@@ -72,58 +87,70 @@ export default function Competencia() {
     [filteredTx, plano, visMonths, filterState, saldosIniciais]);
 
   const labels = visMonths.map(m => MONTHS[m]);
+
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
+  const axisProps = { tick: { fill: tc, fontSize: 11 }, axisLine: false, tickLine: false };
+  const gridProps = { strokeDasharray: '3 3', stroke: gc, vertical: false };
+  const legendStyle = { wrapperStyle: { fontSize: 11, color: tc } };
 
-  function chartOpts(unit) {
-    return {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: darkMode ? '#c4d4e4' : '#475569', font: { family: 'Outfit', size: 11 } } },
-        tooltip: { backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa', padding: 9, cornerRadius: 5, callbacks: { label: ctx => ` ${unit === '%' ? ctx.raw + '%' : fmt(ctx.raw)}` } },
-      },
-      scales: {
-        x: { ticks: { color: tc, font: { size: 11 } }, grid: { color: gc } },
-        y: { ticks: { color: tc, callback: v => unit === '%' ? v + '%' : fmtK(v) }, grid: { color: gc } },
-      },
-    };
+  // ── KPI helpers ──────────────────────────────────────────────────
+  const mbPct = useMemo(() => dre.mMgB.map((v, i)  => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
+  const moPct = useMemo(() => dre.mMgOp.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
+  const llPct = useMemo(() => dre.mLL.map((v, i)   => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
+
+  // ── Chart data ───────────────────────────────────────────────────
+  const dreChartData = useMemo(() => labels.map((month, i) => ({
+    month,
+    Receita:      dre.mRec[i],
+    'Custos+Desp': dre.mCost[i] + dre.mDespOp[i] + dre.mDespNop[i],
+    'Lucro Líq.': dre.mLL[i],
+  })), [labels, dre]);
+
+  const mgChartData = useMemo(() => labels.map((month, i) => ({
+    month,
+    'Mg. Bruta %': mbPct[i],
+    'Mg. Op. %':   moPct[i],
+    'Mg. Líq. %':  llPct[i],
+  })), [labels, mbPct, moPct, llPct]);
+
+  // ── Chart renders ────────────────────────────────────────────────
+  function renderDreChart(h) {
+    return (
+      <ResponsiveContainer width="100%" height={h}>
+        <ComposedChart data={dreChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="month" {...axisProps} />
+          <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
+          <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
+          <Legend {...legendStyle} />
+          <Bar dataKey="Receita"      fill="rgba(16,185,129,.7)"  radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)"   radius={[4, 4, 0, 0]} />
+          <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    );
   }
 
-  const margins = [
-    { pctVal: fmtPct(pct(dre.totMgB, dre.totRec)), label: 'Margem Bruta', val: fmtK(dre.totMgB), color: '#10b981', w: Math.min(100, Math.max(0, pct(dre.totMgB, dre.totRec))),
-      info: 'Receita Bruta menos Custos Diretos.\nFórmula: (Receita − Custos) ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totMgOp, dre.totRec)), label: 'Margem Operacional', val: fmtK(dre.totMgOp), color: '#06b6d4', w: Math.min(100, Math.max(0, pct(dre.totMgOp, dre.totRec))),
-      info: 'Margem Bruta menos Despesas Operacionais (fixas + variáveis).\nFórmula: (Mg.Bruta − Desp.Op.) ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totLL, dre.totRec)), label: 'Margem Líquida', val: fmtK(dre.totLL), color: '#8b5cf6', w: Math.min(100, Math.max(0, pct(dre.totLL, dre.totRec))),
-      info: 'Resultado após todas as despesas, incluindo não operacionais.\nFórmula: Lucro Líquido ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totCost, dre.totRec)), label: '% Custo s/ Receita', val: fmtK(dre.totCost), color: '#ef4444', w: Math.min(100, Math.max(0, pct(dre.totCost, dre.totRec))),
-      info: 'Peso dos Custos Diretos sobre a Receita Bruta.\nFórmula: Custos Diretos ÷ Receita' },
-  ];
+  function renderMgChart(h) {
+    return (
+      <ResponsiveContainer width="100%" height={h}>
+        <LineChart data={mgChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="month" {...axisProps} />
+          <YAxis tickFormatter={v => v + '%'} {...axisProps} width={40} />
+          <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
+          <Legend {...legendStyle} />
+          <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }}  activeDot={{ r: 5 }} />
+          <Line dataKey="Mg. Op. %"   type="monotone" stroke="rgba(6,182,212,1)"   strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }}   activeDot={{ r: 5 }} />
+          <Line dataKey="Mg. Líq. %"  type="monotone" stroke="rgba(139,92,246,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }}  activeDot={{ r: 5 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
 
-  const dreChartData = {
-    labels,
-    datasets: [
-      { label: 'Receita', data: dre.mRec, backgroundColor: 'rgba(16,185,129,.7)', borderRadius: 4, borderSkipped: false },
-      { label: 'Custos+Desp', data: dre.mCost.map((v, i) => v + dre.mDespOp[i] + dre.mDespNop[i]), backgroundColor: 'rgba(239,68,68,.6)', borderRadius: 4, borderSkipped: false },
-      { label: 'Lucro Líq.', data: dre.mLL, type: 'line', borderColor: 'rgba(139,92,246,.9)', backgroundColor: 'rgba(139,92,246,.08)', tension: .4, fill: true, pointRadius: 4 },
-    ],
-  };
-
-  const mbPct = dre.mMgB.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0);
-  const moPct = dre.mMgOp.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0);
-  const llPct = dre.mLL.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0);
-
-  const mgData = {
-    labels,
-    datasets: [
-      { label: 'Mg. Bruta %',   data: mbPct, borderColor: 'rgba(16,185,129,1)', backgroundColor: 'rgba(16,185,129,.08)', tension: .4, fill: false, pointRadius: 4 },
-      { label: 'Mg. Op. %',    data: moPct, borderColor: 'rgba(6,182,212,1)', backgroundColor: 'rgba(6,182,212,.08)', tension: .4, fill: false, pointRadius: 4 },
-      { label: 'Mg. Líq. %',  data: llPct, borderColor: 'rgba(139,92,246,1)', backgroundColor: 'rgba(139,92,246,.08)', tension: .4, fill: false, pointRadius: 4 },
-    ],
-  };
-
-  function openModal(type, data, options, title) {
-    setModalChart({ type, data, options, title });
+  function openModal(title, element) {
+    setModalChart({ title, element });
   }
 
   function exportDRE() {
@@ -133,14 +160,14 @@ export default function Competencia() {
       rows.push([row.label, ...row.monthValues.map(v => v.toFixed(2)), row.total.toFixed(2)]);
     });
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `DRE_${filterState.year}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <div className="ani">
+    <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
 
       <SubtabBar active={subTab} onChange={setSubTab} />
@@ -158,93 +185,59 @@ export default function Competencia() {
             <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" />
             <CSep symbol="=" />
             <CNode last result label="EBIT" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
-          </div>          
+          </div>
 
           {/* ── KPI cards ── */}
           <div className="grid grid-cols-2 gap-3 mb-3.5">
-            <KpiCard label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p"
-              info={{ title: 'Despesas Não Operacionais', description: 'Soma das saídas classificadas como "Despesa Não Operacional" no Plano de Contas (ex.: despesas financeiras, impostos sobre o resultado, distribuição de lucros).\n\nSão subtraídas após a apuração do EBIT para chegar ao Lucro Líquido.' }}
-            />
-            <KpiCard label="Lucro Líquido" value={fmtK(dre.totLL)} sub={fmtPct(pct(dre.totLL, dre.totRec)) + ' de margem líquida'} icon="diamond" colorClass={dre.totLL >= 0 ? 'kc-g' : 'kc-r'}
-              delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
-              deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
-              info={{ title: 'Lucro Líquido', description: 'Resultado final do período no regime de competência.\n\nFórmula: EBIT − Despesas Não Operacionais\n\nO delta indica a variação em relação ao mês imediatamente anterior no período filtrado.' }}
-            />
-            {/* <KpiCard label="Margem Operacional" value={fmtPct(pct(dre.totMgOp, dre.totRec))} sub={`EBIT ${fmtK(dre.totMgOp)}`} icon="gps_fixed" colorClass="kc-c"
-              delta={moPct.length > 1 ? (moPct[moPct.length - 1] - moPct[moPct.length - 2]).toFixed(1) + 'pp vs mês ant.' : undefined}
-              deltaDir={moPct.length > 1 && moPct[moPct.length - 1] >= moPct[moPct.length - 2] ? 'up' : 'down'}
-            /> */}
-          </div>
-          
-          {/* ── Painel de Margens ── */}
-          <MarginsPanel dre={dre} />
-
-          {/* ── Margin cards ── */}
-          <div className="grid grid-cols-4 gap-2.5 mb-3.5">
-            {margins.map((m, i) => (
-              <div key={i} className="bg-card border border-slate-100 rounded-card px-4 py-3.5 text-center">
-                <div className="font-inter font-black text-[28px] mb-0.5" style={{ color: m.color }}>{m.pctVal}</div>
-                <div className="text-[9.5px] uppercase tracking-widest text-text-3 flex items-center justify-center gap-1">
-                  {m.label}
-                  {m.info && <InfoPopover title={m.label} description={m.info} />}
-                </div>
-                <div className="text-xs text-text-2 mt-0.5 font-mono">{m.val}</div>
-                <div className="h-[3px] bg-slate-100 rounded-full mt-2 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.w}%`, background: m.color }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Charts: resultado mensal + evolução das margens ── */}
-          <div className="grid grid-cols-[3fr_2fr] gap-3 mb-3.5">
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                    Resultado Operacional — mês a mês
-                    <InfoPopover
-                      title="Resultado Operacional — mês a mês"
-                      description={'Barras com Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nLucro Líquido = Receita − Custos Diretos − Desp. Operacionais − Desp. Não Op.\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador, independente do pagamento.'}
-                    />
-                  </div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
-                </div>
-                <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
-              </div>
-              <div className="p-4 cursor-zoom-in" style={{ height: 252 }}
-                onClick={() => openModal('bar', dreChartData, chartOpts('R$'), 'Resultado Operacional — Competência')}>
-                <Bar data={dreChartData} options={chartOpts('R$')} />
-              </div>
+            <div className="kpi-card kc-p">
+              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">Desp. Não Operacionais</div>
+              <div className="font-inter font-bold text-[22px] tracking-tight text-[#8b5cf6]">{fmtK(dre.totDespNop)}</div>
+              <div className="text-[11px] text-text-3 mt-0.5">{fmtPct(pct(dre.totDespNop, dre.totRec))} da receita</div>
             </div>
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                    Evolução das Margens
-                    <InfoPopover
-                      title="Evolução das Margens (%)"
-                      description={'Três linhas mostrando a evolução percentual das margens ao longo dos meses:\n\nMargem Bruta % = (Receita − Custos Diretos) ÷ Receita\nMargem Op. % = (Margem Bruta − Desp. Op.) ÷ Receita\nMargem Líq. % = Lucro Líquido ÷ Receita\n\nMeses com receita zero são ignorados (ponto omitido).'}
-                    />
-                  </div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
+            <div className={`kpi-card ${dre.totLL >= 0 ? 'kc-g' : 'kc-r'}`}>
+              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">Lucro Líquido</div>
+              <div className="font-inter font-bold text-[22px] tracking-tight" style={{ color: dre.totLL >= 0 ? '#10b981' : '#ef4444' }}>{fmtK(dre.totLL)}</div>
+              <div className="text-[11px] text-text-3 mt-0.5">{fmtPct(pct(dre.totLL, dre.totRec))} de margem líquida</div>
+              {dre.mLL.length > 1 && (
+                <div className={`text-[10px] font-semibold mt-0.5 ${dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? '▲' : '▼'} {fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1)))} vs mês ant.
                 </div>
-              </div>
-              <div className="p-4 cursor-zoom-in" style={{ height: 252 }}
-                onClick={() => openModal('line', mgData, chartOpts('%'), 'Evolução das Margens')}>
-                <Line data={mgData} options={chartOpts('%')} />
-              </div>
+              )}
             </div>
           </div>
 
-          {/* ── Composição das saídas com drill-down (4 níveis) ── */}
-          <DrillChart
-            transactions={filteredTx}
-            visMonths={visMonths}
-            year={filterState.year}
-            darkMode={darkMode}
-            plano={plano}
-          />
+          {/* ── Chart: resultado mensal ── */}
+          <div className="panel mb-3.5">
+            <div className="panel-hdr">
+              <div>
+                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                  Resultado Operacional — mês a mês
+                  <InfoPopover title="Resultado Operacional — mês a mês" description={'Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador.'} />
+                </div>
+                <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
+              </div>
+              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
+            </div>
+            <div className="p-4" style={{ height: 280 }}>{renderDreChart(280)}</div>
+          </div>
+
+          {/* ── Chart: evolução das margens ── */}
+          <div className="panel mb-3.5">
+            <div className="panel-hdr">
+              <div>
+                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                  Evolução das Margens
+                  <InfoPopover title="Evolução das Margens (%)" description={'Mg. Bruta % = (Receita − Custos) ÷ Receita\nMg. Op. % = (Mg. Bruta − Desp. Op.) ÷ Receita\nMg. Líq. % = Lucro Líquido ÷ Receita'} />
+                </div>
+                <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
+              </div>
+              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
+            </div>
+            <div className="p-4" style={{ height: 280 }}>{renderMgChart(280)}</div>
+          </div>
+
+          {/* ── Composição das saídas ── */}
+          <DrillChart transactions={filteredTx} visMonths={visMonths} year={filterState.year} darkMode={darkMode} plano={plano} />
         </>
       ) : null}
 
@@ -265,14 +258,11 @@ export default function Competencia() {
               </button>
             </div>
           </div>
-          <DreTable
-            dre={dre}
-            showPct={showPct}
+          <DreTable dre={dre} showPct={showPct}
             onDrillItem={() => actions.setPage('lancamentos')}
-            onDrillGroup={() => actions.setPage('lancamentos')}
-          />
+            onDrillGroup={() => actions.setPage('lancamentos')} />
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

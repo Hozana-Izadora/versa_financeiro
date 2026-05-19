@@ -56,7 +56,7 @@ export default function InfoPopover({ title, description }) {
       {title && (
         <div style={{
           fontSize: 11.5, fontWeight: 700, color: '#e2eaf4',
-          marginBottom: 7, fontFamily: 'Outfit, sans-serif',
+          marginBottom: 7, fontFamily: 'ui-sans-serif, system-ui, sans-serif',
           borderBottom: '1px solid rgba(255,255,255,0.08)',
           paddingBottom: 7,
         }}>
@@ -65,7 +65,7 @@ export default function InfoPopover({ title, description }) {
       )}
       <div style={{
         fontSize: 11, color: '#94a3b8', lineHeight: 1.65,
-        fontFamily: 'Outfit, sans-serif', whiteSpace: 'pre-line',
+        fontFamily: 'ui-sans-serif, system-ui, sans-serif', whiteSpace: 'pre-line',
       }}>
         {description}
       </div>
