@@ -33,6 +33,16 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const despNopCats = [...new Set(plano.filter(p => p.nivel === 'Despesa Não Operacional').map(p => p.cat))];
   const entNopCats  = [...new Set(plano.filter(p => p.nivel === 'Entrada Não Operacional').map(p => p.cat))];
 
+  // Dynamic section labels: use the single cat name when there's only one, else fall back to a generic label
+  function sectionLabel(cats, fallback) {
+    return cats.length === 1 ? cats[0] : fallback;
+  }
+  const entradaLabel = sectionLabel(entradaCats, 'RECEITA BRUTA');
+  const custoLabel   = sectionLabel(custoCats,   'CUSTOS DIRETOS');
+  const despOpLabel  = sectionLabel(despOpCats,  'DESPESAS OPERACIONAIS');
+  const entNopLabel  = sectionLabel(entNopCats,  'ENTRADAS NÃO OPERACIONAIS');
+  const despNopLabel = sectionLabel(despNopCats, 'DESPESAS NÃO OPERACIONAIS');
+
   function catTotal(cats, movFilter, m) {
     let s = 0;
     cats.forEach(cat => {
@@ -148,7 +158,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     });
   }
 
-  addSection('ENTRADAS / RECEITA BRUTA');
+  if (entradaCats.length) addSection(entradaLabel);
   buildSection(entradaCats, 'Entrada');
   // ── FIX 1a: show unclassified entries so detail rows sum to the total ──────
   if (totEntNaoClass > 0) {
@@ -158,27 +168,27 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
       refValues: mRec,
     });
   }
-  rows.push({ type: 'total', label: '= TOTAL RECEITA BRUTA', monthValues: mRec, total: totRec, isPos: true });
+  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRec, total: totRec, isPos: true });
 
-  addSection('CUSTOS DIRETOS');
+  if (custoCats.length) addSection(custoLabel);
   buildSection(custoCats, 'Saída');
-  rows.push({ type: 'subtotal', label: '( − ) Total Custos Diretos', monthValues: mCost, total: totCost, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false });
   rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRec, totRef: totRec });
 
-  addSection('DESPESAS OPERACIONAIS');
+  if (despOpCats.length) addSection(despOpLabel);
   buildSection(despOpCats, 'Saída');
-  rows.push({ type: 'subtotal', label: '( − ) Total Despesas Operacionais', monthValues: mDespOp, total: totDespOp, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false });
   rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRec, totRef: totRec });
 
-  addSection('ENTRADAS NÃO OPERACIONAIS');
+  if (entNopCats.length) addSection(entNopLabel);
   buildSection(entNopCats, 'Entrada');
   if (totEntNop > 0) {
-    rows.push({ type: 'subtotal', label: '( + ) Total Entradas Não Operacionais', monthValues: mEntNop, total: totEntNop, isPos: true });
+    rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true });
   }
 
-  addSection('DESPESAS NÃO OPERACIONAIS');
+  if (despNopCats.length) addSection(despNopLabel);
   buildSection(despNopCats, 'Saída');
-  rows.push({ type: 'subtotal', label: '( − ) Total Não Operacional', monthValues: mDespNop, total: totDespNop, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false });
 
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
   if (totSaidaNaoClass > 0) {
