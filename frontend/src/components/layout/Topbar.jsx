@@ -52,7 +52,7 @@ export default function Topbar({ onMenuClick }) {
 
           <div className="min-w-0">
             <div
-              style={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 14.5, letterSpacing: '-0.3px', lineHeight: 1 }}
+              style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 700, fontSize: 14.5, letterSpacing: '-0.3px', lineHeight: 1 }}
               className="text-text-base dark:text-[#e6edf3] truncate"
             >
               {info.title}

@@ -23,13 +23,18 @@
 @layer base {
   html, body {
     @apply h-full;
-    font-family: 'Outfit', 'Inter', sans-serif;
+    font-family: ui-sans-serif, system-ui, sans-serif;
     background: #f6f8fa;
     color: #0d1117;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
   * { box-sizing: border-box; }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Roboto', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+  }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -44,7 +49,7 @@
   input[type="password"] {
     @apply bg-white rounded-sm text-text-base px-3 py-2 text-xs outline-none;
     border: 1px solid var(--border-med);
-    font-family: 'Outfit', sans-serif;
+    font-family: ui-sans-serif, system-ui, sans-serif;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   select:focus,
@@ -75,7 +80,7 @@
   }
   .dre-tbl td:first-child {
     @apply text-left;
-    font-family: 'Outfit', sans-serif;
+    font-family: ui-sans-serif, system-ui, sans-serif;
     position: sticky; left: 0; background: #ffffff; z-index: 1;
   }
   .dre-tbl tr:hover td { background: rgba(16,185,129,0.03); }
@@ -111,7 +116,7 @@
   .dr-saldo { background: rgba(16,185,129,0.05) !important; }
   .dr-saldo td {
     font-family: 'Inter', sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     font-size: 13px !important;
     border-top: 2px solid rgba(16,185,129,0.22) !important;
   }
@@ -119,7 +124,7 @@
   .dr-saldo-acum { background: rgba(16,185,129,0.07) !important; }
   .dr-saldo-acum td {
     font-family: 'Inter', sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     font-size: 13px !important;
     border-top: 2px solid rgba(16,185,129,0.22) !important;
   }
@@ -127,7 +132,7 @@
   .dr-ll { background: rgba(139,92,246,0.05) !important; }
   .dr-ll td {
     font-family: 'Inter', sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     font-size: 13px !important;
     border-top: 2px solid rgba(139,92,246,0.22) !important;
   }
@@ -166,7 +171,7 @@
   /* ── Buttons ─────────────────────────────────────────── */
   .btn {
     @apply px-3.5 py-2 rounded-sm cursor-pointer text-[12.5px] font-semibold transition-all inline-flex items-center gap-1.5 whitespace-nowrap select-none;
-    font-family: 'Outfit', sans-serif;
+    font-family: ui-sans-serif, system-ui, sans-serif;
     border: none;
   }
   .btn-primary {
@@ -222,19 +227,9 @@
     box-shadow: var(--shadow-hover);
     border-color: var(--border-med);
   }
-  .kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    border-radius: 14px 14px 0 0;
-  }
-  .kc-g::before { background: linear-gradient(90deg, #10b981, #34d399); }
-  .kc-r::before { background: linear-gradient(90deg, #ef4444, #f87171); }
-  .kc-b::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-  .kc-p::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
-  .kc-c::before { background: linear-gradient(90deg, #06b6d4, #38bdf8); }
-  .kc-y::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .kpi-card::before { display: none; }
+  .kc-g::before, .kc-r::before, .kc-b::before,
+  .kc-p::before, .kc-c::before, .kc-y::before { display: none; }
 
   /* KPI Cascade */
   .kpi-cascade { display: flex; align-items: stretch; }
@@ -244,7 +239,7 @@
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     min-width: 30px; flex-shrink: 0;
-    font-weight: 800; font-size: 1rem;
+    font-weight: 700; font-size: 1rem;
     color: #9ca3af;
     font-family: 'Inter', sans-serif;
   }
@@ -252,7 +247,7 @@
     border-color: rgba(16,185,129,0.22) !important;
     background: rgba(16,185,129,0.04) !important;
   }
-  .kpi-result::before { background: linear-gradient(90deg, #10b981, #34d399) !important; }
+  .kpi-result::before { display: none !important; }
 
   /* ── Upload Zone ─────────────────────────────────────── */
   .upload-zone {
@@ -283,7 +278,7 @@
   /* ── Tabs ────────────────────────────────────────────── */
   .tab-btn {
     @apply py-2.5 px-4 bg-transparent border-0 border-b-2 border-transparent cursor-pointer text-[12.5px] font-medium text-text-2 -mb-px;
-    font-family: 'Outfit', sans-serif;
+    font-family: ui-sans-serif, system-ui, sans-serif;
     transition: all 0.15s;
   }
   .tab-btn:hover { @apply text-text-base; }
@@ -323,7 +318,7 @@
   .orc-tbl td:first-child { @apply text-left; background: #fff; }
   .orc-tbl tr:hover td { background: rgba(16,185,129,0.03); }
   .orc-tbl .r-sec td { background: #0d1117 !important; color: #fff !important; font-weight: 700; font-size: 9.5px; text-transform: uppercase; }
-  .orc-tbl .r-res td { font-weight: 800; background: rgba(16,185,129,0.07) !important; border-top: 2px solid rgba(16,185,129,0.2) !important; }
+  .orc-tbl .r-res td { font-weight: 700; background: rgba(16,185,129,0.07) !important; border-top: 2px solid rgba(16,185,129,0.2) !important; }
 
   /* Scenario buttons */
   .scenario-btn {

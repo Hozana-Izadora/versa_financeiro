@@ -133,7 +133,7 @@ export default function Login() {
               <Icon name="bar_chart" size="text-[20px]" style={{ color: '#fff' }} />
             </div>
             <div>
-              <div style={{ color: '#fff', fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 18, letterSpacing: '-0.3px' }}>
+              <div style={{ color: '#fff', fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, fontSize: 18, letterSpacing: '-0.3px' }}>
                 Versa Finanças
               </div>
               <div style={{ color: 'rgba(255,255,255,0.40)', fontSize: 9, letterSpacing: '2px', textTransform: 'uppercase', marginTop: 1 }}>
@@ -149,7 +149,7 @@ export default function Login() {
           >
             <div style={{
               color: 'rgba(255,255,255,0.92)',
-              fontFamily: 'Inter, sans-serif',
+              fontFamily: 'ui-sans-serif, system-ui, sans-serif',
               fontWeight: 700, fontSize: 28,
               lineHeight: 1.28, letterSpacing: '-0.5px',
               maxWidth: 310, marginBottom: 16,
@@ -218,7 +218,7 @@ export default function Login() {
             }}>
               <Icon name="bar_chart" size="text-[17px]" style={{ color: '#fff' }} />
             </div>
-            <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 18, color: '#0d1117', letterSpacing: '-0.3px' }}>
+            <span style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, fontSize: 18, color: '#0d1117', letterSpacing: '-0.3px' }}>
               Versa Finanças
             </span>
           </div>
@@ -236,7 +236,7 @@ export default function Login() {
                 variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
               >
                 <motion.div custom={0} variants={fadeSlide} style={{ marginBottom: 32 }}>
-                  <div style={{ fontSize: 24, fontFamily: 'Inter, sans-serif', fontWeight: 800, color: '#0d1117', letterSpacing: '-0.5px', marginBottom: 6 }}>
+                  <div style={{ fontSize: 24, fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, color: '#0d1117', letterSpacing: '-0.5px', marginBottom: 6 }}>
                     Bem-vindo de volta
                   </div>
                   <div style={{ fontSize: 13.5, color: '#6b7280' }}>
@@ -306,7 +306,7 @@ export default function Login() {
                         background: loading ? '#6ee7b7' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                         color: '#fff', border: 'none', borderRadius: 9,
                         fontSize: 14, fontWeight: 700,
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
                         cursor: loading ? 'not-allowed' : 'pointer',
                         letterSpacing: '0.1px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -331,7 +331,7 @@ export default function Login() {
                 transition={{ duration: 0.28 }}
               >
                 <div style={{ marginBottom: 28 }}>
-                  <div style={{ fontSize: 22, fontFamily: 'Inter, sans-serif', fontWeight: 800, color: '#0d1117', letterSpacing: '-0.3px', marginBottom: 6 }}>
+                  <div style={{ fontSize: 22, fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, color: '#0d1117', letterSpacing: '-0.3px', marginBottom: 6 }}>
                     Selecionar empresa
                   </div>
                   <div style={{ fontSize: 13.5, color: '#6b7280' }}>
@@ -403,7 +403,7 @@ export default function Login() {
                         flex: 1, padding: '12px 0',
                         background: loading ? '#6ee7b7' : 'linear-gradient(135deg, #10b981, #059669)',
                         color: '#fff', border: 'none', borderRadius: 9,
-                        fontSize: 13.5, fontWeight: 700, fontFamily: 'Inter, sans-serif',
+                        fontSize: 13.5, fontWeight: 700, fontFamily: 'ui-sans-serif, system-ui, sans-serif',
                         cursor: loading ? 'not-allowed' : 'pointer',
                         boxShadow: '0 4px 14px rgba(16,185,129,0.28)',
                       }}

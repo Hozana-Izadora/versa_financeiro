@@ -53,13 +53,13 @@ export default {
         },
       },
       fontFamily: {
-        inter: ['Inter', 'sans-serif'],
+        inter: ['ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['Geist Mono', 'monospace'],
-        outfit: ['Outfit', 'sans-serif'],
-        sans: ['Outfit', 'Inter', 'sans-serif'],
+        outfit: ['ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        card: '14px',
+        card: '18px',
         card2: '10px',
         sm: '7px',
         xs: '5px',

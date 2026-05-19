@@ -1,13 +1,10 @@
 import React, { useMemo } from 'react';
-import { Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { PieChart, Pie, Cell, Tooltip as RcTooltip, ResponsiveContainer } from 'recharts';
 import { useDrillDown } from '../../hooks/useDrillDown';
 import { buildDrillTree, DRILL_TREE, sumNode } from '../../utils/drillHierarchy';
 import { fmt, fmtK } from '../../utils/formatters';
 import Icon from './Icon';
 import InfoPopover from './InfoPopover';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 const COLORS = [
   '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4',
@@ -40,39 +37,23 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
   // Chave única por nível: força re-animação do gráfico ao navegar
   const chartKey = breadcrumb.map(b => b.label).join('>');
 
-  const donutData = {
-    labels: items.map(i => i.node.label),
-    datasets: [{
-      data: items.map(i => i.value),
-      backgroundColor: items.map(i => i.color),
-      borderWidth: 2,
-      borderColor: darkMode ? '#152030' : '#ffffff',
-      hoverOffset: 8,
-    }],
-  };
+  const pieData = items.map(item => ({
+    name: item.node.label,
+    value: item.value,
+    color: item.color,
+  }));
 
-  const donutOpts = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '58%',
-    animation: { duration: 380 },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: '#1C1C1C', titleColor: '#fff', bodyColor: '#aaa',
-        padding: 9, cornerRadius: 5,
-        callbacks: {
-          label: ctx => {
-            const pct = total > 0 ? (ctx.raw / total * 100).toFixed(1) : '0.0';
-            return ` ${ctx.label}: ${fmt(ctx.raw)} (${pct}%)`;
-          },
-        },
-      },
-    },
-    onClick: (_, elements) => {
-      if (elements.length) handleDrillDown(items[elements[0].index].node);
-    },
-  };
+  function DonutTooltip({ active, payload }) {
+    if (!active || !payload?.length) return null;
+    const d = payload[0];
+    const pct = total > 0 ? (d.value / total * 100).toFixed(1) : '0.0';
+    return (
+      <div style={{ background: '#1C1C1C', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
+        <div style={{ color: '#fff', fontWeight: 600 }}>{d.name}</div>
+        <div style={{ color: '#aaa', marginTop: 2 }}>{fmt(d.value)} ({pct}%)</div>
+      </div>
+    );
+  }
 
   const atMaxDepth = depth > 0 && currentChildren.every(c => !c.children?.length);
   const prevCrumb  = breadcrumb[breadcrumb.length - 2]; // item anterior no breadcrumb
@@ -147,7 +128,29 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
         <div style={{ padding: '12px 8px 12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {items.length > 0 ? (
             <div style={{ height: 200, width: '100%', cursor: atMaxDepth ? 'default' : 'pointer' }}>
-              <Doughnut key={chartKey} data={donutData} options={donutOpts} />
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart key={chartKey}>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="52%"
+                    outerRadius="78%"
+                    paddingAngle={2}
+                    dataKey="value"
+                    animationBegin={0}
+                    animationDuration={380}
+                    onClick={(_, index) => {
+                      if (!atMaxDepth && items[index]) handleDrillDown(items[index].node);
+                    }}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} stroke={darkMode ? '#152030' : '#ffffff'} strokeWidth={2} />
+                    ))}
+                  </Pie>
+                  <RcTooltip content={<DonutTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           ) : (
             <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center' }}>

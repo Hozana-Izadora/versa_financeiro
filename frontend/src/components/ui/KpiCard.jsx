@@ -59,7 +59,7 @@ export default function KpiCard({ label, value, sub, icon, colorClass, delta, de
 
       {/* Value */}
       <div
-        style={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px', marginBottom: 4, color }}
+        style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, fontSize: 22, letterSpacing: '-0.5px', marginBottom: 4, color }}
       >
         {value}
       </div>

@@ -59,7 +59,7 @@ export function CardTitle({ children, className, ...props }) {
   return (
     <h3
       className={cn('text-[13px] font-bold text-text-base dark:text-[#e6edf3]', className)}
-      style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '-0.2px' }}
+      style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', letterSpacing: '-0.2px' }}
       {...props}
     >
       {children}

@@ -101,7 +101,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                   exit={{ opacity: 0, x: -6 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <div style={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, fontSize: 15, letterSpacing: '-0.3px', color: darkMode ? '#fff' : '#0f172a', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.3px', color: darkMode ? '#fff' : '#0f172a', whiteSpace: 'nowrap' }}>
                     Versa Finanças
                   </div>
                   <div style={{ fontSize: 8.5, letterSpacing: '1.8px', textTransform: 'uppercase', color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.38)', marginTop: 1, whiteSpace: 'nowrap' }}>
