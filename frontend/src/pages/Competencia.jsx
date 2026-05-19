@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { staggerContainer } from '../lib/utils.js';
 import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement,
@@ -89,17 +91,6 @@ export default function Competencia() {
     };
   }
 
-  const margins = [
-    { pctVal: fmtPct(pct(dre.totMgB, dre.totRec)), label: 'Margem Bruta', val: fmtK(dre.totMgB), color: '#10b981', w: Math.min(100, Math.max(0, pct(dre.totMgB, dre.totRec))),
-      info: 'Receita Bruta menos Custos Diretos.\nFórmula: (Receita − Custos) ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totMgOp, dre.totRec)), label: 'Margem Operacional', val: fmtK(dre.totMgOp), color: '#06b6d4', w: Math.min(100, Math.max(0, pct(dre.totMgOp, dre.totRec))),
-      info: 'Margem Bruta menos Despesas Operacionais (fixas + variáveis).\nFórmula: (Mg.Bruta − Desp.Op.) ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totLL, dre.totRec)), label: 'Margem Líquida', val: fmtK(dre.totLL), color: '#8b5cf6', w: Math.min(100, Math.max(0, pct(dre.totLL, dre.totRec))),
-      info: 'Resultado após todas as despesas, incluindo não operacionais.\nFórmula: Lucro Líquido ÷ Receita' },
-    { pctVal: fmtPct(pct(dre.totCost, dre.totRec)), label: '% Custo s/ Receita', val: fmtK(dre.totCost), color: '#ef4444', w: Math.min(100, Math.max(0, pct(dre.totCost, dre.totRec))),
-      info: 'Peso dos Custos Diretos sobre a Receita Bruta.\nFórmula: Custos Diretos ÷ Receita' },
-  ];
-
   const dreChartData = {
     labels,
     datasets: [
@@ -140,7 +131,7 @@ export default function Competencia() {
   }
 
   return (
-    <div className="ani">
+    <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
 
       <SubtabBar active={subTab} onChange={setSubTab} />
@@ -177,63 +168,47 @@ export default function Competencia() {
           </div>
           
           {/* ── Painel de Margens ── */}
-          <MarginsPanel dre={dre} />
+          {/* <MarginsPanel dre={dre} /> */}
 
-          {/* ── Margin cards ── */}
-          <div className="grid grid-cols-4 gap-2.5 mb-3.5">
-            {margins.map((m, i) => (
-              <div key={i} className="bg-card border border-slate-100 rounded-card px-4 py-3.5 text-center">
-                <div className="font-inter font-black text-[28px] mb-0.5" style={{ color: m.color }}>{m.pctVal}</div>
-                <div className="text-[9.5px] uppercase tracking-widest text-text-3 flex items-center justify-center gap-1">
-                  {m.label}
-                  {m.info && <InfoPopover title={m.label} description={m.info} />}
+          {/* ── Chart: resultado mensal ── */}
+          <div className="panel mb-3.5">
+            <div className="panel-hdr">
+              <div>
+                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                  Resultado Operacional — mês a mês
+                  <InfoPopover
+                    title="Resultado Operacional — mês a mês"
+                    description={'Barras com Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nLucro Líquido = Receita − Custos Diretos − Desp. Operacionais − Desp. Não Op.\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador, independente do pagamento.'}
+                  />
                 </div>
-                <div className="text-xs text-text-2 mt-0.5 font-mono">{m.val}</div>
-                <div className="h-[3px] bg-slate-100 rounded-full mt-2 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${m.w}%`, background: m.color }} />
-                </div>
+                <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
               </div>
-            ))}
+              <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
+            </div>
+            <div className="p-4 cursor-zoom-in" style={{ height: 280 }}
+              onClick={() => openModal('bar', dreChartData, chartOpts('R$'), 'Resultado Operacional — Competência')}>
+              <Bar data={dreChartData} options={chartOpts('R$')} />
+            </div>
           </div>
 
-          {/* ── Charts: resultado mensal + evolução das margens ── */}
-          <div className="grid grid-cols-[3fr_2fr] gap-3 mb-3.5">
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                    Resultado Operacional — mês a mês
-                    <InfoPopover
-                      title="Resultado Operacional — mês a mês"
-                      description={'Barras com Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nLucro Líquido = Receita − Custos Diretos − Desp. Operacionais − Desp. Não Op.\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador, independente do pagamento.'}
-                    />
-                  </div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
+          {/* ── Chart: evolução das margens ── */}
+          <div className="panel mb-3.5">
+            <div className="panel-hdr">
+              <div>
+                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                  Evolução das Margens
+                  <InfoPopover
+                    title="Evolução das Margens (%)"
+                    description={'Três linhas mostrando a evolução percentual das margens ao longo dos meses:\n\nMargem Bruta % = (Receita − Custos Diretos) ÷ Receita\nMargem Op. % = (Margem Bruta − Desp. Op.) ÷ Receita\nMargem Líq. % = Lucro Líquido ÷ Receita\n\nMeses com receita zero são ignorados (ponto omitido).'}
+                  />
                 </div>
-                <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
+                <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
               </div>
-              <div className="p-4 cursor-zoom-in" style={{ height: 252 }}
-                onClick={() => openModal('bar', dreChartData, chartOpts('R$'), 'Resultado Operacional — Competência')}>
-                <Bar data={dreChartData} options={chartOpts('R$')} />
-              </div>
+              <span className="text-[9.5px] text-text-3">⤢ clique para ampliar</span>
             </div>
-            <div className="panel">
-              <div className="panel-hdr">
-                <div>
-                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                    Evolução das Margens
-                    <InfoPopover
-                      title="Evolução das Margens (%)"
-                      description={'Três linhas mostrando a evolução percentual das margens ao longo dos meses:\n\nMargem Bruta % = (Receita − Custos Diretos) ÷ Receita\nMargem Op. % = (Margem Bruta − Desp. Op.) ÷ Receita\nMargem Líq. % = Lucro Líquido ÷ Receita\n\nMeses com receita zero são ignorados (ponto omitido).'}
-                    />
-                  </div>
-                  <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
-                </div>
-              </div>
-              <div className="p-4 cursor-zoom-in" style={{ height: 252 }}
-                onClick={() => openModal('line', mgData, chartOpts('%'), 'Evolução das Margens')}>
-                <Line data={mgData} options={chartOpts('%')} />
-              </div>
+            <div className="p-4 cursor-zoom-in" style={{ height: 280 }}
+              onClick={() => openModal('line', mgData, chartOpts('%'), 'Evolução das Margens')}>
+              <Line data={mgData} options={chartOpts('%')} />
             </div>
           </div>
 
@@ -273,6 +248,6 @@ export default function Competencia() {
           />
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
