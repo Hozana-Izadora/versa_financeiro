@@ -158,13 +158,10 @@ export default function Competencia() {
             <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" />
             <CSep symbol="=" />
             <CNode last result label="EBIT" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
-          </div>
-
-          {/* ── Painel de Margens ── */}
-          <MarginsPanel dre={dre} />
+          </div>          
 
           {/* ── KPI cards ── */}
-          <div className="grid grid-cols-3 gap-3 mb-3.5">
+          <div className="grid grid-cols-2 gap-3 mb-3.5">
             <KpiCard label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} icon="money_off" colorClass="kc-p"
               info={{ title: 'Despesas Não Operacionais', description: 'Soma das saídas classificadas como "Despesa Não Operacional" no Plano de Contas (ex.: despesas financeiras, impostos sobre o resultado, distribuição de lucros).\n\nSão subtraídas após a apuração do EBIT para chegar ao Lucro Líquido.' }}
             />
@@ -178,6 +175,9 @@ export default function Competencia() {
               deltaDir={moPct.length > 1 && moPct[moPct.length - 1] >= moPct[moPct.length - 2] ? 'up' : 'down'}
             /> */}
           </div>
+          
+          {/* ── Painel de Margens ── */}
+          <MarginsPanel dre={dre} />
 
           {/* ── Margin cards ── */}
           <div className="grid grid-cols-4 gap-2.5 mb-3.5">

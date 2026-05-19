@@ -16,29 +16,21 @@ export const DRILL_TREE = {
           level: 1,
           filter: { cat: 'CUSTOS DIRETOS' },
           children: [
-            { id: 'fornecedor',  label: 'Fornecedor',  level: 2, filter: { grp: 'Custo de Mercadorias' } },
-            { id: 'operacional', label: 'Operacional', level: 2, filter: { grp: 'Custo de Serviços'    } },
-            { id: 'producao',    label: 'Produção',    level: 2, filter: { grp: 'Custo de Produção'    } },
+            { id: 'custo-merc', label: 'Custo de Mercadorias', level: 2, filter: { cat: 'CUSTOS DIRETOS', grp: 'Custo de Mercadorias' } },
+            { id: 'custo-serv', label: 'Custo de Serviços',    level: 2, filter: { cat: 'CUSTOS DIRETOS', grp: 'Custo de Serviços'    } },
+            { id: 'custo-prod', label: 'Custo de Produção',    level: 2, filter: { cat: 'CUSTOS DIRETOS', grp: 'Custo de Produção'    } },
           ],
         },
         {
-          id: 'desp-fixas',
-          label: 'Despesas Fixas',
+          id: 'desp-op',
+          label: 'Despesas Operacionais',
           level: 1,
-          filter: { cat: 'DESPESAS FIXAS' },
+          filter: { cat: 'DESPESAS OPERACIONAIS' },
           children: [
-            { id: 'pessoal',    label: 'Pessoal',    level: 2, filter: { grp: 'Pessoal'    } },
-            { id: 'estrutura',  label: 'Estrutura',  level: 2, filter: { grp: 'Estrutura'  } },
-            { id: 'tecnologia', label: 'Tecnologia', level: 2, filter: { grp: 'Tecnologia' } },
-          ],
-        },
-        {
-          id: 'desp-variaveis',
-          label: 'Despesas Variáveis',
-          level: 1,
-          filter: { cat: 'DESPESAS VARIÁVEIS' },
-          children: [
-            { id: 'comercial', label: 'Comercial', level: 2, filter: { grp: 'Comercial' } },
+            { id: 'pessoal',    label: 'Pessoal',        level: 2, filter: { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal'    } },
+            { id: 'admin',      label: 'Administrativo', level: 2, filter: { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Administrativas' } },
+            { id: 'comercial',  label: 'Comercial',      level: 2, filter: { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Comerciais'      } },
+            { id: 'tecnologia', label: 'Tecnologia',     level: 2, filter: { cat: 'DESPESAS OPERACIONAIS', grp: 'Tecnologia'               } },
           ],
         },
       ],
@@ -49,9 +41,9 @@ export const DRILL_TREE = {
       level: 0,
       filter: { nivel: ['Despesa Não Operacional'] },
       children: [
-        { id: 'passivos',       label: 'Passivos',                level: 1, filter: { grp: 'Despesas Financeiras'    } },
-        { id: 'distrib-lucros', label: 'Distribuição de Lucros',  level: 1, filter: { grp: 'Impostos e Tributos'     } },
-        { id: 'investimentos',  label: 'Outros / Investimentos',  level: 1, filter: { grp: 'Outras Não Operacionais' } },
+        { id: 'desp-fin',   label: 'Despesas Financeiras',    level: 1, filter: { nivel: ['Despesa Não Operacional'], cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Despesas Financeiras'    } },
+        { id: 'impostos',   label: 'Impostos e Tributos',     level: 1, filter: { nivel: ['Despesa Não Operacional'], cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos'     } },
+        { id: 'outras-nop', label: 'Outras Não Operacionais', level: 1, filter: { nivel: ['Despesa Não Operacional'], cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Outras Não Operacionais' } },
       ],
     },
   ],
@@ -62,7 +54,7 @@ export const DRILL_TREE = {
  * leaf group nodes with tipo-level children sourced from the plano.
  *
  * This enables 4-level drill-down:
- *   Root → Macro → Sub-tipo → Grupo → Categoria (tipo)
+ *   Root → Macro → Sub-tipo → Grupo → Tipo
  *
  * @param {Array} plano – array of { tipo, grp, cat, nivel } plano items
  * @returns {object} – deep clone of DRILL_TREE with tipo children added to leaves
@@ -80,11 +72,15 @@ export function buildDrillTree(plano) {
         const matchingTipos = plano.filter(p => txMatchesPlano(p, child.filter));
         // Only expand when there are multiple tipos (single item = no gain drilling)
         if (matchingTipos.length > 1) {
+          // Inherit nivel and cat from parent filter so tipo-level nodes stay correctly scoped
+          const inherited = {};
+          if (child.filter.nivel) inherited.nivel = child.filter.nivel;
+          if (child.filter.cat)   inherited.cat   = child.filter.cat;
           child.children = matchingTipos.map(p => ({
             id:     `tipo-${p.tipo.replace(/[\s/]+/g, '-').toLowerCase()}`,
             label:  p.tipo,
             level:  (child.level ?? 0) + 1,
-            filter: { tipo: p.tipo },
+            filter: { ...inherited, tipo: p.tipo },
           }));
         }
       }

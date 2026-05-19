@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 
 export default function InfoPopover({ title, description }) {
   const [open, setOpen] = useState(false);
@@ -34,6 +35,43 @@ export default function InfoPopover({ title, description }) {
     }
   }, [open]);
 
+  const popover = open && (
+    <div
+      ref={popRef}
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        zIndex: 9999,
+        width: 280,
+        background: '#1a2332',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 9,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+        padding: '12px 14px',
+        pointerEvents: 'auto',
+      }}
+    >
+      {title && (
+        <div style={{
+          fontSize: 11.5, fontWeight: 700, color: '#e2eaf4',
+          marginBottom: 7, fontFamily: 'Outfit, sans-serif',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          paddingBottom: 7,
+        }}>
+          {title}
+        </div>
+      )}
+      <div style={{
+        fontSize: 11, color: '#94a3b8', lineHeight: 1.65,
+        fontFamily: 'Outfit, sans-serif', whiteSpace: 'pre-line',
+      }}>
+        {description}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <button
@@ -65,42 +103,7 @@ export default function InfoPopover({ title, description }) {
         <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'serif', userSelect: 'none' }}>i</span>
       </button>
 
-      {open && (
-        <div
-          ref={popRef}
-          onClick={e => e.stopPropagation()}
-          style={{
-            position: 'fixed',
-            top: pos.top,
-            left: pos.left,
-            zIndex: 9999,
-            width: 280,
-            background: '#1a2332',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 9,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-            padding: '12px 14px',
-            pointerEvents: 'auto',
-          }}
-        >
-          {title && (
-            <div style={{
-              fontSize: 11.5, fontWeight: 700, color: '#e2eaf4',
-              marginBottom: 7, fontFamily: 'Outfit, sans-serif',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              paddingBottom: 7,
-            }}>
-              {title}
-            </div>
-          )}
-          <div style={{
-            fontSize: 11, color: '#94a3b8', lineHeight: 1.65,
-            fontFamily: 'Outfit, sans-serif', whiteSpace: 'pre-line',
-          }}>
-            {description}
-          </div>
-        </div>
-      )}
+      {ReactDOM.createPortal(popover, document.body)}
     </>
   );
 }

@@ -227,13 +227,10 @@ export default function Caixa() {
             <CNode label="Despesas Operacionais" value={fmtK(dre.totDespOp)} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" />
             <CSep symbol="=" />
             <CNode last result label="Caixa Operacional" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
-          </div>
-
-          {/* ── Painel de Margens ── */}
-          <MarginsPanel dre={dre} />
+          </div>        
 
           {/* ── KPI cards ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3.5">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-3.5">
             <KpiCard label="Entradas Não Operacionais" value={fmtK(dre.totEntNop)} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} icon="add_circle" colorClass="kc-g"
               info={{ title: 'Entradas Não Operacionais', description: 'Soma de todas as entradas classificadas como "Entrada Não Operacional" no Plano de Contas (ex.: rendimentos financeiros, venda de ativo, receitas eventuais).\n\nSão adicionadas ao Resultado Líquido após a apuração do resultado operacional.' }}
             />
@@ -245,11 +242,14 @@ export default function Caixa() {
               deltaDir={dre.mSaldo.length > 1 && dre.mSaldo[dre.mSaldo.length - 1] >= dre.mSaldo[dre.mSaldo.length - 2] ? 'up' : 'down'}
               info={{ title: 'Saldo do Período', description: 'Diferença entre todas as Entradas e Saídas no período filtrado (regime Caixa).\n\nFórmula: Σ Entradas − Σ Saídas (meses selecionados)\n\nO delta indica a variação entre os dois últimos meses visíveis.' }}
             />
-            <KpiCard label="Saldo Acumulado" value={fmtK(lastAcum)} sub={`Acumulado ${filterState.year}`} icon="trending_up" colorClass="kc-b"
+            {/* <KpiCard label="Saldo Acumulado" value={fmtK(lastAcum)} sub={`Acumulado ${filterState.year}`} icon="trending_up" colorClass="kc-b"
               delta={lastAcum >= 0 ? 'Saldo positivo' : 'Saldo negativo'} deltaDir={lastAcum >= 0 ? 'up' : 'down'}
               info={{ title: 'Saldo Acumulado', description: 'Saldo do período adicionado ao saldo inicial (abertura de caixa) definido em Configurações.\n\nÉ a soma progressiva mês a mês: cada mês acumula o saldo do mês anterior mais o resultado corrente.\n\nReflete a posição de caixa total desde o início do ano.' }}
-            />
+            /> */}
           </div>
+
+          {/* ── Painel de Margens ── */}
+          <MarginsPanel dre={dre} />
 
           {/* ── Charts: fluxo mensal + acumulado ── */}
           <div className="grid grid-cols-[3fr_2fr] gap-3 mb-3.5">
