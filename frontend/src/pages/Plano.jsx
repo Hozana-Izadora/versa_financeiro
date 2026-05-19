@@ -4,13 +4,41 @@ import { api } from '../api/index.js';
 import { COLOR_VAR } from '../utils/formatters.js';
 import Icon from '../components/ui/Icon.jsx';
 
-const NIVEIS = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional', 'Entrada Não Operacional'];
+const NIVEL_CONFIG = {
+  'Receita':                 { group: 'Entradas',             color: '#10b981', bg: 'rgba(16,185,129,0.13)',  desc: 'Valores recebidos pela atividade principal da empresa' },
+  'Entrada Não Operacional': { group: 'Entradas',             color: '#06b6d4', bg: 'rgba(6,182,212,0.13)',   desc: 'Receitas financeiras ou não relacionadas à operação' },
+  'Custo':                   { group: 'Gasto Operacional',    color: '#f97316', bg: 'rgba(249,115,22,0.13)',  desc: 'Custo direto do produto ou serviço vendido (CMV, CSP)' },
+  'Despesa Operacional':     { group: 'Gasto Operacional',    color: '#f59e0b', bg: 'rgba(245,158,11,0.13)',  desc: 'Gastos de estrutura e funcionamento da empresa' },
+  'Despesa Não Operacional': { group: 'Gasto Não Operacional',color: '#8b5cf6', bg: 'rgba(139,92,246,0.13)', desc: 'Financeiro, tributário ou eventual (IR, juros, multas)' },
+};
+
+const NIVEL_GROUPS = [
+  {
+    label: 'Gasto Operacional',
+    icon: 'trending_up',
+    hint: 'Gastos do dia a dia que fazem a empresa funcionar',
+    niveis: ['Custo', 'Despesa Operacional'],
+  },
+  {
+    label: 'Gasto Não Operacional',
+    icon: 'account_balance',
+    hint: 'Gastos financeiros, tributários e eventuais',
+    niveis: ['Despesa Não Operacional'],
+  },
+  {
+    label: 'Entradas',
+    icon: 'payments',
+    hint: 'Receitas operacionais e não operacionais',
+    niveis: ['Receita', 'Entrada Não Operacional'],
+  },
+];
+
 const COR_OPTS = [
-  { value: 'green', label: 'Verde' },
-  { value: 'red', label: 'Vermelho' },
+  { value: 'green',  label: 'Verde' },
+  { value: 'red',    label: 'Vermelho' },
   { value: 'yellow', label: 'Amarelo' },
   { value: 'purple', label: 'Roxo' },
-  { value: 'blue', label: 'Azul' },
+  { value: 'blue',   label: 'Azul' },
 ];
 
 function Field({ label, children }) {
@@ -22,11 +50,117 @@ function Field({ label, children }) {
   );
 }
 
+function NivelBadge({ nivel }) {
+  const cfg = NIVEL_CONFIG[nivel];
+  if (!cfg) return <span className="t-cat">{nivel}</span>;
+  return (
+    <span style={{
+      display: 'inline-block',
+      fontSize: 10, fontWeight: 600,
+      padding: '2px 8px', borderRadius: 99,
+      color: cfg.color, background: cfg.bg,
+      whiteSpace: 'nowrap',
+    }}>
+      {nivel}
+    </span>
+  );
+}
+
+function NivelSelector({ value, onChange }) {
+  const [sel, setSel] = useState(value);
+
+  function select(n) {
+    setSel(n);
+    onChange(n);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {NIVEL_GROUPS.map(group => (
+        <div key={group.label}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+            <Icon name={group.icon} size="text-[12px]" style={{ color: '#64748b' }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              {group.label}
+            </span>
+            <span style={{ fontSize: 10, color: '#475569' }}>— {group.hint}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {group.niveis.map(n => {
+              const cfg = NIVEL_CONFIG[n];
+              const active = sel === n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => select(n)}
+                  style={{
+                    flex: 1, minWidth: 140, textAlign: 'left',
+                    padding: '8px 11px', borderRadius: 8,
+                    border: `1.5px solid ${active ? cfg.color : 'rgba(255,255,255,0.08)'}`,
+                    background: active ? cfg.bg : 'rgba(255,255,255,0.02)',
+                    cursor: 'pointer', transition: 'all .13s',
+                    outline: 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <div style={{
+                      width: 7, height: 7, borderRadius: '50%',
+                      background: active ? cfg.color : '#475569',
+                      flexShrink: 0, transition: 'background .13s',
+                    }} />
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: active ? cfg.color : '#94a3b8' }}>
+                      {n}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b', lineHeight: 1.45, paddingLeft: 13 }}>
+                    {cfg.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CatClassificacao({ items }) {
+  const groups = [...new Set(items.map(i => NIVEL_CONFIG[i.nivel]?.group).filter(Boolean))];
+  if (!groups.length) return null;
+  return (
+    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {groups.map(g => {
+        const cfg = Object.values(NIVEL_CONFIG).find(c => c.group === g);
+        return (
+          <span key={g} style={{
+            fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 99,
+            color: cfg?.color || '#94a3b8',
+            background: cfg?.bg || 'rgba(148,163,184,0.1)',
+          }}>
+            {g}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Plano() {
   const { state, actions } = useApp();
   const { plano, planoCores } = state;
 
-  // Group plano by cat > grp
+  const [collapsed, setCollapsed] = useState(new Set());
+
+  function toggleCat(cat) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }
+
   const grouped = {};
   plano.forEach(p => {
     if (!grouped[p.cat]) grouped[p.cat] = {};
@@ -34,7 +168,7 @@ export default function Plano() {
     grouped[p.cat][p.grp].push(p);
   });
 
-  async function refresh(data) {
+  function refresh(data) {
     actions.dispatch({ type: 'SET_PLANO', payload: data });
   }
 
@@ -58,7 +192,7 @@ export default function Plano() {
           <button className="btn btn-primary flex-1" onClick={async () => {
             if (!nome) return actions.notify('Informe o nome.', 'ne');
             try {
-              const res = await api.createPlanoItem({ cat: nome, grp: 'Geral', tipo: '(Novo tipo)', nivel: 'Receita' });
+              await api.createPlanoItem({ cat: nome, grp: 'Geral', tipo: '(Novo tipo)', nivel: 'Receita' });
               await api.updateCategoria(nome, { newName: nome, cor });
               const planoData = await api.getPlano();
               refresh(planoData);
@@ -133,10 +267,8 @@ export default function Plano() {
         <Field label="Nome do Tipo">
           <input type="text" placeholder="Ex: Receita de Assinatura" onChange={e => { tipo = e.target.value; }} />
         </Field>
-        <Field label="Nível Financeiro">
-          <select onChange={e => { nivel = e.target.value; }}>
-            {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+        <Field label="Classificação Financeira">
+          <NivelSelector value={nivel} onChange={n => { nivel = n; }} />
         </Field>
         <div className="flex gap-2 mt-4">
           <button className="btn btn-primary flex-1" onClick={async () => {
@@ -172,10 +304,8 @@ export default function Plano() {
         <Field label="Nome do Tipo">
           <input type="text" defaultValue={tipo} onChange={e => { tipo = e.target.value; }} />
         </Field>
-        <Field label="Nível">
-          <select defaultValue={nivel} onChange={e => { nivel = e.target.value; }}>
-            {NIVEIS.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
+        <Field label="Classificação Financeira">
+          <NivelSelector value={nivel} onChange={n => { nivel = n; }} />
         </Field>
         <div className="flex gap-2 mt-4">
           <button className="btn btn-primary flex-1" onClick={async () => {
@@ -219,27 +349,39 @@ export default function Plano() {
       {Object.entries(grouped).map(([cat, grupos]) => {
         const cor = planoCores[cat] || 'blue';
         const color = COLOR_VAR[cor] || COLOR_VAR.blue;
+        const allItems = Object.values(grupos).flat();
+        const isCollapsed = collapsed.has(cat);
         return (
           <div key={cat} className="panel mb-3">
-            <div className="panel-hdr" style={{ borderLeft: `3px solid ${color}` }}>
-              <div className="flex items-center gap-2.5 flex-1">
+            <div
+              className="panel-hdr"
+              style={{ borderLeft: `3px solid ${color}`, cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => toggleCat(cat)}
+            >
+              <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                <Icon
+                  name={isCollapsed ? 'chevron_right' : 'expand_more'}
+                  size="text-[16px]"
+                  style={{ color: '#64748b', flexShrink: 0, transition: 'transform .15s' }}
+                />
                 <Icon name="folder" size="text-[16px]" style={{ color }} />
                 <div className="font-inter font-semibold text-[13px]" style={{ color }}>{cat}</div>
-                <span className="t-cat">{Object.values(grupos).flat().length} tipos</span>
+                <span className="t-cat">{allItems.length} tipos</span>
+                <CatClassificacao items={allItems} />
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                 <button className="btn btn-ghost btn-sm" onClick={() => openNewTipo(cat)}>+ Tipo</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}><Icon name="edit" size="text-[14px]" /></button>
                 <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444' }} onClick={() => deleteCat(cat)}><Icon name="delete" size="text-[14px]" /></button>
               </div>
             </div>
-            <div className="overflow-x-auto">
+            {!isCollapsed && <div className="overflow-x-auto">
               <table className="dre-tbl" style={{ minWidth: 400 }}>
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Grupo</th>
                     <th style={{ textAlign: 'left' }}>Tipo</th>
-                    <th style={{ textAlign: 'left' }}>Nível</th>
+                    <th style={{ textAlign: 'left' }}>Classificação</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
@@ -258,7 +400,14 @@ export default function Plano() {
                         <tr key={item.tipo} className="dr-item">
                           <td style={{ paddingLeft: 28, color: '#94a3b8', fontSize: 11 }}>{grp}</td>
                           <td style={{ textAlign: 'left' }}>{item.tipo}</td>
-                          <td style={{ textAlign: 'left' }}><span className="t-cat">{item.nivel}</span></td>
+                          <td style={{ textAlign: 'left' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <NivelBadge nivel={item.nivel} />
+                              <span style={{ fontSize: 9.5, color: '#475569' }}>
+                                {NIVEL_CONFIG[item.nivel]?.group}
+                              </span>
+                            </div>
+                          </td>
                           <td style={{ textAlign: 'right' }}>
                             <div className="flex gap-1 justify-end">
                               <button className="btn btn-ghost btn-sm" onClick={() => openEditTipo(item)}><Icon name="edit" size="text-[14px]" /></button>
@@ -271,7 +420,7 @@ export default function Plano() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         );
       })}
