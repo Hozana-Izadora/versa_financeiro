@@ -20,7 +20,7 @@ const COL_ALIASES = {
 };
 
 // Fallback plano items for orphan categories
-const FALLBACK_SAIDA   = { tipo: 'Material de Escritório',       grp: 'Estrutura',          cat: 'DESPESAS FIXAS',  nivel: 'Despesa Operacional' };
+const FALLBACK_SAIDA   = { tipo: 'Material de Escritório',       grp: 'Despesas Administrativas', cat: 'DESPESAS OPERACIONAIS', nivel: 'Despesa Operacional' };
 const FALLBACK_ENTRADA = { tipo: 'Outras Receitas Operacionais', grp: 'Receita Operacional', cat: 'RECEITA BRUTA',   nivel: 'Receita'             };
 
 // Plano item for inter-account transfers (system-managed, not in user plano)
@@ -43,32 +43,32 @@ const PLANO_RULES = [
   [/(simples\s*nacional|icms|iss\s*[\-–]|imposto\s*sob|pis\b|cofins|irpj|csll)/i,
    { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos', nivel: 'Despesa Não Operacional' }],
   [/(inss\s*[\-–]\s*empresa|fgts[\s\-]*empresa)/i,
-   { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Impostos e Tributos', nivel: 'Despesa Não Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal', nivel: 'Despesa Operacional' }],
   [/(contribui[cç][aã]o\s*sindical)/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal', nivel: 'Despesa Operacional' }],
   [/(taxa[s]?\s*banc[aá]|tarifa[s]?\/taxa|tarifas?\/taxas?|emprest|cons[oó]rcio|pagamento\s*de\s*emprest)/i,
    { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Despesas Financeiras', nivel: 'Despesa Não Operacional' }],
   [/investimento[s]?\s*[\-–]/i,
    { cat: 'DESPESAS NÃO OPERACIONAIS', grp: 'Investimentos', nivel: 'Despesa Não Operacional' }],
   [/(sal[aá]rio[s]?|hora\s*extra|pró[\s\-]*labore|pro[\s\-]*labore|f[eé]rias|rescis[aã]|indeniza|uniform|adiantamento\s*sal|exame[s]?\s*admiss)/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal', nivel: 'Despesa Operacional' }],
   [/(benef[íi]cio|plano\s*de\s*sa[úu]de|vale\s*trans|prêmio[s]?|b[oô]nus|distribui[cç][aã]o\s*de\s*lucro)/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal', nivel: 'Despesa Operacional' }],
   [/(inss\b|fgts\b|tempor[aá]rio[s]?|di[aá]ria[s]?|alimenta[cç])/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Pessoal', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas com Pessoal', nivel: 'Despesa Operacional' }],
   [/(software|programa\s*de\s*computador|inform[aá]tica\s*(manut|infra)?)/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Tecnologia', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Tecnologia', nivel: 'Despesa Operacional' }],
   [/(aluguel|energia\s*el[eé]trica|[aá]gua\s*e\s*esgoto|internet|telefone|m[oó]vel\s*linha[s]?|limpeza|conserva[cç]|manutenção\s*e\s*reparo[s]?|copa\s*e\s*cozinha|vigil[aâ]nci|material\s*de\s*escrit)/i,
-   { cat: 'DESPESAS FIXAS', grp: 'Estrutura', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Administrativas', nivel: 'Despesa Operacional' }],
   [/(ve[íi]culo|combust[íi]vel|estacionamento|ipva|licenciamento|manutenção\s*ve[íi]cul|seguros?\s*[\-–]\s*ve[íi])/i,
-   { cat: 'DESPESAS VARIÁVEIS', grp: 'Veículos', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Administrativas', nivel: 'Despesa Operacional' }],
   [/(marketing|publicidade|propaganda\s*\/|evento[s]?|confratern|doa[cç][oõ]e?s?\/brindes?|comiss[aã]o\s*(vend|produ))/i,
-   { cat: 'DESPESAS VARIÁVEIS', grp: 'Comercial', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Comerciais', nivel: 'Despesa Operacional' }],
   [/(contabilidade|audit|consultor|honor[aá]rio|advocat|jur[íi]dico|viage[nm]|hosped|servi[cç]o[s]?\s*de\s*terceiro)/i,
-   { cat: 'DESPESAS VARIÁVEIS', grp: 'Administrativo', nivel: 'Despesa Operacional' }],
+   { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Administrativas', nivel: 'Despesa Operacional' }],
 ];
 
-const DEFAULT_SAIDA_PLANO   = { cat: 'DESPESAS FIXAS',  grp: 'Estrutura',           nivel: 'Despesa Operacional' };
+const DEFAULT_SAIDA_PLANO   = { cat: 'DESPESAS OPERACIONAIS', grp: 'Despesas Administrativas', nivel: 'Despesa Operacional' };
 const DEFAULT_ENTRADA_PLANO = { cat: 'RECEITA BRUTA',   grp: 'Receita Operacional', nivel: 'Receita'             };
 
 function classifyCategory(tipo, primaryMov) {
