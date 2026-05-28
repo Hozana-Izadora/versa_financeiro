@@ -116,7 +116,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
 
           {/* Mobile close */}
           <button className="lg:hidden" onClick={() => setMobileOpen(false)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', padding: 4, display: 'flex' }}>
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', padding: 4 }}>
             <Icon name="close" size="text-[18px]" />
           </button>
         </div>

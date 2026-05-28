@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
-  ComposedChart, LineChart, Bar, Line,
+  ComposedChart, LineChart, Bar, Line, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
   Legend, ResponsiveContainer,
 } from 'recharts';
@@ -15,6 +15,7 @@ import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
 import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
+import ValuesBtn from '../components/ui/ValuesBtn.jsx';
 import { useChartFilter } from '../hooks/useChartFilter.js';
 
 function ChartTip({ active, payload, label, formatter }) {
@@ -69,6 +70,8 @@ export default function Competencia() {
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
   const [modalChart, setModalChart] = useState(null);
+  const [showVDre, setShowVDre] = useState(false);
+  const [showVMg,  setShowVMg]  = useState(false);
 
   const tx = transactions.competencia;
 
@@ -149,34 +152,48 @@ export default function Competencia() {
 
   // ── Chart renders ─────────────────────────────────────────────────
   function renderDreChart(h) {
+    const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={dreChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={dreChartData} margin={{ top: showVDre ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
-          <Bar dataKey="Receita"      fill="rgba(16,185,129,.7)"  radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)"   radius={[4, 4, 0, 0]} />
-          <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }} />
+          <Bar dataKey="Receita" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
+            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+          </Bar>
+          <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)" radius={[4, 4, 0, 0]}>
+            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#ef4444' }} />}
+          </Bar>
+          <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
+            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,.9)' }} />}
+          </Line>
         </ComposedChart>
       </ResponsiveContainer>
     );
   }
 
   function renderMgChart(h) {
+    const lbl = v => v !== 0 ? v + '%' : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <LineChart data={mgChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <LineChart data={mgChartData} margin={{ top: showVMg ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={v => v + '%'} {...axisProps} width={40} />
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
-          <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }}  activeDot={{ r: 5 }} />
-          <Line dataKey="Mg. Op. %"   type="monotone" stroke="rgba(6,182,212,1)"   strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }}   activeDot={{ r: 5 }} />
-          <Line dataKey="Mg. Líq. %"  type="monotone" stroke="rgba(139,92,246,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }}  activeDot={{ r: 5 }} />
+          <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(16,185,129,1)' }} />}
+          </Line>
+          <Line dataKey="Mg. Op. %" type="monotone" stroke="rgba(6,182,212,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(6,182,212,1)' }} />}
+          </Line>
+          <Line dataKey="Mg. Líq. %" type="monotone" stroke="rgba(139,92,246,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,1)' }} />}
+          </Line>
         </LineChart>
       </ResponsiveContainer>
     );
@@ -251,6 +268,7 @@ export default function Competencia() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={dreChartCF.override} setOverride={dreChartCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVDre} onToggle={() => setShowVDre(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
               </div>
             </div>
@@ -269,6 +287,7 @@ export default function Competencia() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={mgChartCF.override} setOverride={mgChartCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVMg} onToggle={() => setShowVMg(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
               </div>
             </div>

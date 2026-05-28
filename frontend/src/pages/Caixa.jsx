@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
-  ComposedChart, LineChart, Bar, Line, Area,
+  ComposedChart, LineChart, Bar, Line, Area, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
   Legend, ResponsiveContainer,
 } from 'recharts';
@@ -15,6 +15,7 @@ import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
 import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
+import ValuesBtn from '../components/ui/ValuesBtn.jsx';
 import { calcCicloSeries } from '../utils/cicloCalc.js';
 import { useChartFilter } from '../hooks/useChartFilter.js';
 
@@ -84,6 +85,10 @@ export default function Caixa() {
   const [subTab, setSubTab] = useState(0);
   const [filterCat, setFilterCat] = useState('');
   const [modalChart, setModalChart] = useState(null);
+  const [showVFlow,  setShowVFlow]  = useState(false);
+  const [showVAcum,  setShowVAcum]  = useState(false);
+  const [showVCiclo, setShowVCiclo] = useState(false);
+  const [showVMarg,  setShowVMarg]  = useState(false);
 
   const tx     = transactions.caixa;
   const txComp = transactions.competencia;
@@ -221,32 +226,42 @@ export default function Caixa() {
 
   // ── Chart renders ─────────────────────────────────────────────────
   function renderFlow(h) {
+    const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={flowChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={flowChartData} margin={{ top: showVFlow ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
-          <Bar dataKey="Entradas" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Saídas"   fill="rgba(239,68,68,.7)"  radius={[4, 4, 0, 0]} />
-          <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }} />
+          <Bar dataKey="Entradas" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
+            {showVFlow && <LabelList dataKey="Entradas" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+          </Bar>
+          <Bar dataKey="Saídas" fill="rgba(239,68,68,.7)" radius={[4, 4, 0, 0]}>
+            {showVFlow && <LabelList dataKey="Saídas" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#ef4444' }} />}
+          </Bar>
+          <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }}>
+            {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(59,130,246,.9)' }} />}
+          </Line>
         </ComposedChart>
       </ResponsiveContainer>
     );
   }
 
   function renderAcum(h) {
+    const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={acumChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={acumChartData} margin={{ top: showVAcum ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
-          <Area dataKey="Acumulado" type="monotone" stroke="rgba(16,185,129,1)" fill="rgba(16,185,129,.12)" strokeWidth={2} dot={{ r: 5, fill: 'rgba(16,185,129,1)' }} />
+          <Area dataKey="Acumulado" type="monotone" stroke="rgba(16,185,129,1)" fill="rgba(16,185,129,.12)" strokeWidth={2} dot={{ r: 5, fill: 'rgba(16,185,129,1)' }}>
+            {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+          </Area>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -254,33 +269,45 @@ export default function Caixa() {
   }
 
   function renderCiclo(h) {
+    const lbl = v => v > 0 ? `${Math.round(v)}d` : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={cicloChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={cicloChartData} margin={{ top: showVCiclo ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis {...axisProps} width={36} />
           <RcTooltip content={<ChartTip formatter={v => `dia ${v ?? 'N/A'}`} />} />
           <Legend {...legendStyle} />
-          <Bar dataKey="PMR — Recebimento" fill="rgba(109,191,69,.7)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="PMP — Pagamento"   fill="rgba(43,108,176,.7)"  radius={[4, 4, 0, 0]} />
-          <Line dataKey="Ciclo de Caixa" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }} />
+          <Bar dataKey="PMR — Recebimento" fill="rgba(109,191,69,.7)" radius={[4, 4, 0, 0]}>
+            {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(109,191,69,1)' }} />}
+          </Bar>
+          <Bar dataKey="PMP — Pagamento" fill="rgba(43,108,176,.7)" radius={[4, 4, 0, 0]}>
+            {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(43,108,176,1)' }} />}
+          </Bar>
+          <Line dataKey="Ciclo de Caixa" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
+            {showVCiclo && <LabelList dataKey="Ciclo de Caixa" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#E53E3E' }} />}
+          </Line>
         </ComposedChart>
       </ResponsiveContainer>
     );
   }
 
   function renderMargComp(h) {
+    const lbl = v => v !== 0 ? v + '%' : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <LineChart data={margCompChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <LineChart data={margCompChartData} margin={{ top: showVMarg ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={v => v + '%'} {...axisProps} width={40} />
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
-          <Line dataKey="Mg. Op. Caixa"       type="monotone" stroke="#6DBF45" strokeWidth={2.5} dot={{ r: 4, fill: '#6DBF45' }} activeDot={{ r: 5 }} />
-          <Line dataKey="Mg. Op. Competência" type="monotone" stroke="#2B6CB0" strokeWidth={2.5} dot={{ r: 4, fill: '#2B6CB0' }} activeDot={{ r: 5 }} />
+          <Line dataKey="Mg. Op. Caixa" type="monotone" stroke="#6DBF45" strokeWidth={2.5} dot={{ r: 4, fill: '#6DBF45' }} activeDot={{ r: 5 }}>
+            {showVMarg && <LabelList dataKey="Mg. Op. Caixa" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#6DBF45' }} />}
+          </Line>
+          <Line dataKey="Mg. Op. Competência" type="monotone" stroke="#2B6CB0" strokeWidth={2.5} dot={{ r: 4, fill: '#2B6CB0' }} activeDot={{ r: 5 }}>
+            {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#2B6CB0' }} />}
+          </Line>
         </LineChart>
       </ResponsiveContainer>
     );
@@ -343,6 +370,7 @@ export default function Caixa() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={flowCF.override} setOverride={flowCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVFlow} onToggle={() => setShowVFlow(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
               </div>
             </div>
@@ -361,6 +389,7 @@ export default function Caixa() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={acumCF.override} setOverride={acumCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVAcum} onToggle={() => setShowVAcum(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
               </div>
             </div>
@@ -379,6 +408,7 @@ export default function Caixa() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={cicloCF.override} setOverride={cicloCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVCiclo} onToggle={() => setShowVCiclo(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
               </div>
             </div>
@@ -397,6 +427,7 @@ export default function Caixa() {
               </div>
               <div className="flex items-center gap-2">
                 <ChartFilterPicker tx={tx} override={margCF.override} setOverride={margCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVMarg} onToggle={() => setShowVMarg(v => !v)} />
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
               </div>
             </div>
