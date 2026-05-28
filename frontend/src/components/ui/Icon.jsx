@@ -7,7 +7,7 @@ import {
   ArrowLeftRight, AlertCircle, FolderOpen, CheckCircle2, Dices, ListX,
   Trash, RefreshCw, Check, History, SlidersHorizontal, XCircle, ArrowLeft,
   Eye, EyeOff, Mail, Lock, LogIn, Building2, ShieldCheck, UserPlus, Users,
-  MinusCircle, Target,
+  MinusCircle, Target, Search,
 } from 'lucide-react';
 
 const MAP = {
@@ -75,6 +75,7 @@ const MAP = {
   casino: Dices,
   history: History,
   tune: SlidersHorizontal,
+  search: Search,
   inbox: Inbox,
   remove_circle_outline: MinusCircle,
   gps_not_fixed: Target,
