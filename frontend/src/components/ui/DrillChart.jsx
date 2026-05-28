@@ -5,6 +5,7 @@ import { buildDrillTree, DRILL_TREE, sumNode } from '../../utils/drillHierarchy'
 import { fmt, fmtK } from '../../utils/formatters';
 import Icon from './Icon';
 import InfoPopover from './InfoPopover';
+import ChartFilterPicker from './ChartFilterPicker';
 
 const COLORS = [
   '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4',
@@ -12,7 +13,7 @@ const COLORS = [
   '#14b8a6', '#a78bfa',
 ];
 
-export default function DrillChart({ transactions, visMonths, year, darkMode, plano }) {
+export default function DrillChart({ transactions, visMonths, year, darkMode, plano, filterOverride, onFilterOverride, globalFilterState, tx }) {
   const tree = useMemo(
     () => plano?.length ? buildDrillTree(plano) : DRILL_TREE,
     [plano]
@@ -107,6 +108,14 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
             <span style={{ fontSize: 9.5, color: '#94a3b8', whiteSpace: 'nowrap' }}>
               clique para detalhar ⤵
             </span>
+          )}
+          {tx && onFilterOverride && globalFilterState && (
+            <ChartFilterPicker
+              tx={tx}
+              override={filterOverride ?? null}
+              setOverride={onFilterOverride}
+              globalFilterState={globalFilterState}
+            />
           )}
           {depth > 0 && (
             <button

@@ -14,7 +14,9 @@ import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
+import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
 import { calcCicloSeries } from '../utils/cicloCalc.js';
+import { useChartFilter } from '../hooks/useChartFilter.js';
 
 function ChartTip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -83,9 +85,10 @@ export default function Caixa() {
   const [filterCat, setFilterCat] = useState('');
   const [modalChart, setModalChart] = useState(null);
 
-  const tx = transactions.caixa;
+  const tx     = transactions.caixa;
   const txComp = transactions.competencia;
 
+  // ── Global filter (used by KPI cascade, DRE table) ───────────────
   const filteredTx = useMemo(() => tx.filter(r => {
     const d = new Date(r.data + 'T12:00');
     return d.getFullYear() === filterState.year &&
@@ -99,7 +102,8 @@ export default function Caixa() {
     return avail.length ? avail : [new Date().getMonth()];
   }, [tx, filterState]);
 
-  const dre = useMemo(() => buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais),
+  const dre = useMemo(() =>
+    buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais),
     [filteredTx, plano, visMonths, filterState, saldosIniciais]);
 
   const filteredTxComp = useMemo(() => txComp.filter(r => {
@@ -109,57 +113,113 @@ export default function Caixa() {
       (filterState.group === 'all' || r.grp === filterState.group);
   }), [txComp, filterState]);
 
-  const dreComp = useMemo(() => buildDRE(filteredTxComp, plano, visMonths, 'competencia', filterState, saldosIniciais),
+  const dreComp = useMemo(() =>
+    buildDRE(filteredTxComp, plano, visMonths, 'competencia', filterState, saldosIniciais),
     [filteredTxComp, plano, visMonths, filterState, saldosIniciais]);
 
   const catOptions = useMemo(() => [...new Set(plano.map(p => p.cat))].sort(), [plano]);
-
-  const labels = visMonths.map(m => MONTHS[m]);
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
 
+  // ── Per-chart filter hooks ────────────────────────────────────────
+  const flowCF  = useChartFilter(tx, filterState);
+  const acumCF  = useChartFilter(tx, filterState);
+  const cicloCF = useChartFilter(tx, filterState);
+  const margCF  = useChartFilter(tx, filterState);
+  const drillCF = useChartFilter(tx, filterState);
+
+  const flowDre = useMemo(() =>
+    flowCF.isOverriding
+      ? buildDRE(flowCF.effectiveTx, plano, flowCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      : dre,
+    [flowCF.isOverriding, flowCF.effectiveTx, flowCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+
+  const acumDre = useMemo(() =>
+    acumCF.isOverriding
+      ? buildDRE(acumCF.effectiveTx, plano, acumCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      : dre,
+    [acumCF.isOverriding, acumCF.effectiveTx, acumCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+
+  const margDreCaixa = useMemo(() =>
+    margCF.isOverriding
+      ? buildDRE(margCF.effectiveTx, plano, margCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      : dre,
+    [margCF.isOverriding, margCF.effectiveTx, margCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+
+  const margEffTxComp = useMemo(() => {
+    if (!margCF.isOverriding) return filteredTxComp;
+    const y  = margCF.effectiveYear;
+    const ms = margCF.override.months;
+    return txComp.filter(r => {
+      const d = new Date(r.data + 'T12:00');
+      return d.getFullYear() === y &&
+        (ms.size === 0 || ms.has(d.getMonth())) &&
+        (filterState.group === 'all' || r.grp === filterState.group);
+    });
+  }, [margCF.isOverriding, margCF.effectiveYear, margCF.override, txComp, filteredTxComp, filterState.group]);
+
+  const margDreComp = useMemo(() =>
+    margCF.isOverriding
+      ? buildDRE(margEffTxComp, plano, margCF.effectiveVisMonths, 'competencia', filterState, saldosIniciais)
+      : dreComp,
+    [margCF.isOverriding, margEffTxComp, margCF.effectiveVisMonths, plano, filterState, saldosIniciais, dreComp]);
+
+  // ── Shared chart style props ──────────────────────────────────────
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
-  const axisProps = { tick: { fill: tc, fontSize: 11 }, axisLine: false, tickLine: false };
-  const gridProps = { strokeDasharray: '3 3', stroke: gc, vertical: false };
+  const axisProps  = { tick: { fill: tc, fontSize: 11 }, axisLine: false, tickLine: false };
+  const gridProps  = { strokeDasharray: '3 3', stroke: gc, vertical: false };
   const legendStyle = { wrapperStyle: { fontSize: 11, color: tc } };
 
-  // ── Chart data ───────────────────────────────────────────────────
-  const flowChartData = useMemo(() => labels.map((month, i) => ({
-    month,
-    Entradas: dre.mRec[i],
-    'Saídas': dre.mCost[i] + dre.mDespOp[i] + dre.mDespNop[i],
-    Saldo: dre.mSaldo[i],
-  })), [labels, dre]);
+  // ── Chart data ────────────────────────────────────────────────────
+  const flowChartData = useMemo(() => {
+    const vm = flowCF.isOverriding ? flowCF.effectiveVisMonths : visMonths;
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      Entradas: flowDre.mRec[i],
+      'Saídas': flowDre.mCost[i] + flowDre.mDespOp[i] + flowDre.mDespNop[i],
+      Saldo: flowDre.mSaldo[i],
+    }));
+  }, [flowCF.isOverriding, flowCF.effectiveVisMonths, visMonths, flowDre]);
 
-  const acumTend = useMemo(() => {
-    const a = dre.mAcum[0] || 0, b = dre.mAcum[dre.mAcum.length - 1] || 0, n = dre.mAcum.length;
-    return dre.mAcum.map((_, i) => n > 1 ? +(a + (b - a) / (n - 1) * i).toFixed(0) : a);
-  }, [dre.mAcum]);
-
-  const acumChartData = useMemo(() => labels.map((month, i) => ({
-    month, Acumulado: dre.mAcum[i], 'Tendência': acumTend[i],
-  })), [labels, dre.mAcum, acumTend]);
+  const acumChartData = useMemo(() => {
+    const vm  = acumCF.isOverriding ? acumCF.effectiveVisMonths : visMonths;
+    const arr = acumDre.mAcum;
+    const a = arr[0] || 0, b = arr[arr.length - 1] || 0, n = arr.length;
+    const tend = arr.map((_, i) => n > 1 ? +(a + (b - a) / (n - 1) * i).toFixed(0) : a);
+    return vm.map((m, i) => ({ month: MONTHS[m], Acumulado: arr[i], Tendência: tend[i] }));
+  }, [acumCF.isOverriding, acumCF.effectiveVisMonths, visMonths, acumDre]);
 
   const cicloSeries = useMemo(
-    () => calcCicloSeries(tx, filterState.year, visMonths),
-    [tx, filterState.year, visMonths]
-  );
+    () => calcCicloSeries(tx, cicloCF.effectiveYear, cicloCF.effectiveVisMonths),
+    [tx, cicloCF.effectiveYear, cicloCF.effectiveVisMonths]);
 
-  const cicloChartData = useMemo(() => labels.map((month, i) => ({
-    month,
-    'PMR — Recebimento': cicloSeries[i]?.pmr ?? 0,
-    'PMP — Pagamento':   cicloSeries[i]?.pmp ?? 0,
-    'Ciclo de Caixa':    cicloSeries[i]?.ciclo ?? 0,
-  })), [labels, cicloSeries]);
+  const cicloChartData = useMemo(() =>
+    cicloCF.effectiveVisMonths.map((m, i) => ({
+      month: MONTHS[m],
+      'PMR — Recebimento': cicloSeries[i]?.pmr  ?? 0,
+      'PMP — Pagamento':   cicloSeries[i]?.pmp  ?? 0,
+      'Ciclo de Caixa':    cicloSeries[i]?.ciclo ?? 0,
+    })),
+    [cicloCF.effectiveVisMonths, cicloSeries]);
 
-  const moCaixaPct = useMemo(() => dre.mMgOp.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
-  const moCompPct  = useMemo(() => dreComp.mMgOp.map((v, i) => dreComp.mRec[i] > 0 ? +(v / dreComp.mRec[i] * 100).toFixed(1) : 0), [dreComp]);
+  const moCaixaPct = useMemo(() =>
+    margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRec[i] > 0 ? +(v / margDreCaixa.mRec[i] * 100).toFixed(1) : 0),
+    [margDreCaixa]);
 
-  const margCompChartData = useMemo(() => labels.map((month, i) => ({
-    month, 'Mg. Op. Caixa': moCaixaPct[i], 'Mg. Op. Competência': moCompPct[i],
-  })), [labels, moCaixaPct, moCompPct]);
+  const moCompPct = useMemo(() =>
+    margDreComp.mMgOp.map((v, i) => margDreComp.mRec[i] > 0 ? +(v / margDreComp.mRec[i] * 100).toFixed(1) : 0),
+    [margDreComp]);
 
-  // ── Chart renders ────────────────────────────────────────────────
+  const margCompChartData = useMemo(() => {
+    const vm = margCF.isOverriding ? margCF.effectiveVisMonths : visMonths;
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      'Mg. Op. Caixa':       moCaixaPct[i],
+      'Mg. Op. Competência': moCompPct[i],
+    }));
+  }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct]);
+
+  // ── Chart renders ─────────────────────────────────────────────────
   function renderFlow(h) {
     return (
       <ResponsiveContainer width="100%" height={h}>
@@ -170,7 +230,7 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="Entradas" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Saídas" fill="rgba(239,68,68,.7)" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Saídas"   fill="rgba(239,68,68,.7)"  radius={[4, 4, 0, 0]} />
           <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -251,7 +311,7 @@ export default function Caixa() {
 
       {subTab === 0 ? (
         <>
-          {/* ── Cascade: fluxo completo numa única linha ── */}
+          {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
             <CNode first label="Entradas / Receita" value={fmtK(dre.totRec)} sub={`${visMonths.length} mês(es)`} color="#10b981" />
             <CSep symbol="−" />
@@ -281,7 +341,10 @@ export default function Caixa() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={flowCF.override} setOverride={flowCF.setOverride} globalFilterState={filterState} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderFlow(280)}</div>
           </div>
@@ -296,7 +359,10 @@ export default function Caixa() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Evolução com linha de tendência</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={acumCF.override} setOverride={acumCF.setOverride} globalFilterState={filterState} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderAcum(280)}</div>
           </div>
@@ -311,7 +377,10 @@ export default function Caixa() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Prazos médios de recebimento e pagamento</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={cicloCF.override} setOverride={cicloCF.setOverride} globalFilterState={filterState} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderCiclo(280)}</div>
           </div>
@@ -326,13 +395,26 @@ export default function Caixa() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Comparativo dos dois regimes</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={margCF.override} setOverride={margCF.setOverride} globalFilterState={filterState} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderMargComp(280)}</div>
           </div>
 
           {/* ── Composição das saídas ── */}
-          <DrillChart transactions={filteredTx} visMonths={visMonths} year={filterState.year} darkMode={darkMode} plano={plano} />
+          <DrillChart
+            transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
+            visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
+            year={drillCF.effectiveYear}
+            darkMode={darkMode}
+            plano={plano}
+            filterOverride={drillCF.override}
+            onFilterOverride={drillCF.setOverride}
+            globalFilterState={filterState}
+            tx={tx}
+          />
         </>
       ) : null}
 
