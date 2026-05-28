@@ -103,4 +103,14 @@ export const api = {
   // Seed / Reset
   seed:  () => req('/api/seed',  { method: 'POST' }),
   reset: () => req('/api/reset', { method: 'DELETE' }),
+
+  // Admin panel (superadmin only)
+  adminListClients:  ()              => req('/api/admin/clients'),
+  adminCreateClient: (data)          => req('/api/admin/clients',                          { method: 'POST',   ...json(data) }),
+  adminUpdateClient: (id, data)      => req(`/api/admin/clients/${id}`,                    { method: 'PUT',    ...json(data) }),
+  adminListUsers:    ()              => req('/api/admin/users'),
+  adminCreateUser:   (data)          => req('/api/admin/users',                            { method: 'POST',   ...json(data) }),
+  adminUpdateUser:   (id, data)      => req(`/api/admin/users/${id}`,                      { method: 'PUT',    ...json(data) }),
+  adminAddUserClient:    (id, clientId)          => req(`/api/admin/users/${id}/clients`,                      { method: 'POST',   ...json({ clientId }) }),
+  adminRemoveUserClient: (id, clientId)          => req(`/api/admin/users/${id}/clients/${clientId}`,          { method: 'DELETE' }),
 };

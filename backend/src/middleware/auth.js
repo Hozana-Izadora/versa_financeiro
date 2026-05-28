@@ -2,11 +2,13 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 
 /**
- * Verifies the Bearer token, resolves the tenant schema, and attaches
- * req.userId, req.tenantId, and req.tenantSchema to the request.
+ * Verifies the Bearer token and attaches req.userId, req.tenantId,
+ * req.tenantSchema, and req.isSuperAdmin to the request.
  *
- * Returns 401 if the token is missing, invalid, or expired.
- * Returns 401 if the client encoded in the token is inactive or deleted.
+ * Two valid token shapes:
+ *  1. Client-scoped   — payload has clientId; resolves tenant schema.
+ *  2. Admin-only      — payload has isSuperAdmin=true, no clientId;
+ *                       sets tenantSchema=null (admin routes only).
  */
 export async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -27,8 +29,18 @@ export async function authMiddleware(req, res, next) {
     return res.status(401).json({ error: message });
   }
 
-  // Validate the client encoded in the token is still active.
-  // This also resolves the schema name, so we don't need a separate tenant lookup.
+  // Admin-only session (superadmin without a client context)
+  if (payload.isSuperAdmin && !payload.clientId) {
+    req.userId       = payload.sub;
+    req.userEmail    = payload.email;
+    req.displayName  = payload.displayName;
+    req.isSuperAdmin = true;
+    req.tenantId     = null;
+    req.tenantSchema = null;
+    return next();
+  }
+
+  // Client-scoped session (regular user or superadmin viewing a client)
   try {
     const result = await pool.query(
       `SELECT slug FROM admin.clients WHERE id = $1 AND active = true`,
@@ -44,6 +56,7 @@ export async function authMiddleware(req, res, next) {
     req.displayName  = payload.displayName;
     req.tenantId     = payload.clientId;
     req.tenantSchema = `tenant_${result.rows[0].slug}`;
+    req.isSuperAdmin = payload.isSuperAdmin === true;
     next();
   } catch (err) {
     next(err);

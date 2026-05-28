@@ -6,17 +6,24 @@
  *     --email user@example.com \
  *     --password "StrongPass123!" \
  *     --name "João Silva" \
- *     --client minha_empresa
+ *     --client minha_empresa \
+ *     [--superadmin]
  *
  * The --client flag accepts the tenant SLUG (not the UUID).
  * If --client is omitted, the user is created without any client association.
+ * Use --superadmin to grant administrative access to the admin panel.
  *
  * Requires DATABASE_URL in backend/.env
  */
 
 import pg from 'pg';
 import bcrypt from 'bcrypt';
-import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenvConfig({ path: join(__dirname, '../.env') });
 
 const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -25,8 +32,14 @@ function parseArgs(argv) {
   const args = {};
   for (let i = 2; i < argv.length; i++) {
     if (argv[i].startsWith('--')) {
-      args[argv[i].slice(2)] = argv[i + 1];
-      i++;
+      const key = argv[i].slice(2);
+      // Boolean flags have no following value
+      if (argv[i + 1] === undefined || argv[i + 1].startsWith('--')) {
+        args[key] = true;
+      } else {
+        args[key] = argv[i + 1];
+        i++;
+      }
     }
   }
   return args;
@@ -35,13 +48,14 @@ function parseArgs(argv) {
 async function run() {
   const args = parseArgs(process.argv);
 
-  const email    = args.email?.toLowerCase().trim();
-  const password = args.password;
-  const name     = args.name || null;
-  const slug     = args.client || null;
+  const email       = args.email?.toLowerCase().trim();
+  const password    = args.password;
+  const name        = args.name || null;
+  const slug        = args.client || null;
+  const isSuperAdmin = Boolean(args.superadmin);
 
   if (!email || !password) {
-    console.error('Usage: node createUser.js --email <email> --password <pass> [--name <name>] [--client <slug>]');
+    console.error('Usage: node createUser.js --email <email> --password <pass> [--name <name>] [--client <slug>] [--superadmin]');
     process.exit(1);
   }
 
@@ -68,10 +82,10 @@ async function run() {
 
     // Insert user
     const userResult = await client.query(
-      `INSERT INTO admin.users (email, password_hash, display_name)
-       VALUES ($1, $2, $3)
+      `INSERT INTO admin.users (email, password_hash, display_name, is_superadmin)
+       VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [email, hash, name]
+      [email, hash, name, isSuperAdmin]
     );
     const userId = userResult.rows[0].id;
 
@@ -97,15 +111,16 @@ async function run() {
 
       console.log(`\n✓ User created and associated with client "${clientResult.rows[0].name}"`);
     } else {
-      console.log('\n✓ User created (no client association — use the DB to assign one)');
+      console.log('\n✓ User created (no client association)');
     }
 
     await client.query('COMMIT');
 
-    console.log(`  ID    : ${userId}`);
-    console.log(`  Email : ${email}`);
-    if (name) console.log(`  Name  : ${name}`);
-    if (slug)  console.log(`  Client: ${slug}`);
+    console.log(`  ID         : ${userId}`);
+    console.log(`  Email      : ${email}`);
+    if (name)        console.log(`  Name       : ${name}`);
+    if (slug)        console.log(`  Client     : ${slug}`);
+    if (isSuperAdmin) console.log(`  Superadmin : yes`);
     console.log('\nUser can now log in at /api/auth/login');
   } catch (err) {
     await client.query('ROLLBACK');

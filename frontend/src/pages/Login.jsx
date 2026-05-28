@@ -424,6 +424,15 @@ export default function Login() {
           >
             Acesso restrito a usuários autorizados
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.75 }}
+            style={{ textAlign: 'center', marginTop: 10, color: '#d1d5db', fontSize: 10.5, letterSpacing: '0.04em' }}
+          >
+            v{__APP_VERSION__}
+          </motion.div>
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
-  ComposedChart, LineChart, Bar, Line, Area,
+  ComposedChart, LineChart, Bar, Line, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
   Legend, ResponsiveContainer,
 } from 'recharts';
@@ -14,6 +14,9 @@ import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
+import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
+import ValuesBtn from '../components/ui/ValuesBtn.jsx';
+import { useChartFilter } from '../hooks/useChartFilter.js';
 
 function ChartTip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -67,9 +70,12 @@ export default function Competencia() {
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
   const [modalChart, setModalChart] = useState(null);
+  const [showVDre, setShowVDre] = useState(false);
+  const [showVMg,  setShowVMg]  = useState(false);
 
   const tx = transactions.competencia;
 
+  // ── Global filter (used by KPI cascade, DRE table) ───────────────
   const filteredTx = useMemo(() => tx.filter(r => {
     const d = new Date(r.data + 'T12:00');
     return d.getFullYear() === filterState.year &&
@@ -83,67 +89,111 @@ export default function Competencia() {
     return avail.length ? avail : [new Date().getMonth()];
   }, [tx, filterState]);
 
-  const dre = useMemo(() => buildDRE(filteredTx, plano, visMonths, 'competencia', filterState, saldosIniciais),
+  const dre = useMemo(() =>
+    buildDRE(filteredTx, plano, visMonths, 'competencia', filterState, saldosIniciais),
     [filteredTx, plano, visMonths, filterState, saldosIniciais]);
 
-  const labels = visMonths.map(m => MONTHS[m]);
+  // ── Per-chart filter hooks ────────────────────────────────────────
+  const dreChartCF = useChartFilter(tx, filterState);
+  const mgChartCF  = useChartFilter(tx, filterState);
+  const drillCF    = useChartFilter(tx, filterState);
 
+  const dreChartDre = useMemo(() =>
+    dreChartCF.isOverriding
+      ? buildDRE(dreChartCF.effectiveTx, plano, dreChartCF.effectiveVisMonths, 'competencia', filterState, saldosIniciais)
+      : dre,
+    [dreChartCF.isOverriding, dreChartCF.effectiveTx, dreChartCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+
+  const mgChartDre = useMemo(() =>
+    mgChartCF.isOverriding
+      ? buildDRE(mgChartCF.effectiveTx, plano, mgChartCF.effectiveVisMonths, 'competencia', filterState, saldosIniciais)
+      : dre,
+    [mgChartCF.isOverriding, mgChartCF.effectiveTx, mgChartCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+
+  // ── Shared chart style props ──────────────────────────────────────
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
-  const axisProps = { tick: { fill: tc, fontSize: 11 }, axisLine: false, tickLine: false };
-  const gridProps = { strokeDasharray: '3 3', stroke: gc, vertical: false };
+  const axisProps  = { tick: { fill: tc, fontSize: 11 }, axisLine: false, tickLine: false };
+  const gridProps  = { strokeDasharray: '3 3', stroke: gc, vertical: false };
   const legendStyle = { wrapperStyle: { fontSize: 11, color: tc } };
 
-  // ── KPI helpers ──────────────────────────────────────────────────
-  const mbPct = useMemo(() => dre.mMgB.map((v, i)  => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
-  const moPct = useMemo(() => dre.mMgOp.map((v, i) => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
-  const llPct = useMemo(() => dre.mLL.map((v, i)   => dre.mRec[i] > 0 ? +(v / dre.mRec[i] * 100).toFixed(1) : 0), [dre]);
+  // ── Chart data ────────────────────────────────────────────────────
+  const dreChartData = useMemo(() => {
+    const vm = dreChartCF.isOverriding ? dreChartCF.effectiveVisMonths : visMonths;
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      Receita:       dreChartDre.mRec[i],
+      'Custos+Desp': dreChartDre.mCost[i] + dreChartDre.mDespOp[i] + dreChartDre.mDespNop[i],
+      'Lucro Líq.':  dreChartDre.mLL[i],
+    }));
+  }, [dreChartCF.isOverriding, dreChartCF.effectiveVisMonths, visMonths, dreChartDre]);
 
-  // ── Chart data ───────────────────────────────────────────────────
-  const dreChartData = useMemo(() => labels.map((month, i) => ({
-    month,
-    Receita:      dre.mRec[i],
-    'Custos+Desp': dre.mCost[i] + dre.mDespOp[i] + dre.mDespNop[i],
-    'Lucro Líq.': dre.mLL[i],
-  })), [labels, dre]);
+  const mbPct = useMemo(() =>
+    mgChartDre.mMgB.map((v, i)  => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    [mgChartDre]);
 
-  const mgChartData = useMemo(() => labels.map((month, i) => ({
-    month,
-    'Mg. Bruta %': mbPct[i],
-    'Mg. Op. %':   moPct[i],
-    'Mg. Líq. %':  llPct[i],
-  })), [labels, mbPct, moPct, llPct]);
+  const moPct = useMemo(() =>
+    mgChartDre.mMgOp.map((v, i) => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    [mgChartDre]);
 
-  // ── Chart renders ────────────────────────────────────────────────
+  const llPct = useMemo(() =>
+    mgChartDre.mLL.map((v, i)   => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    [mgChartDre]);
+
+  const mgChartData = useMemo(() => {
+    const vm = mgChartCF.isOverriding ? mgChartCF.effectiveVisMonths : visMonths;
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      'Mg. Bruta %': mbPct[i],
+      'Mg. Op. %':   moPct[i],
+      'Mg. Líq. %':  llPct[i],
+    }));
+  }, [mgChartCF.isOverriding, mgChartCF.effectiveVisMonths, visMonths, mbPct, moPct, llPct]);
+
+  // ── Chart renders ─────────────────────────────────────────────────
   function renderDreChart(h) {
+    const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <ComposedChart data={dreChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={dreChartData} margin={{ top: showVDre ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
-          <Bar dataKey="Receita"      fill="rgba(16,185,129,.7)"  radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)"   radius={[4, 4, 0, 0]} />
-          <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }} />
+          <Bar dataKey="Receita" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
+            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+          </Bar>
+          <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)" radius={[4, 4, 0, 0]}>
+            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#ef4444' }} />}
+          </Bar>
+          <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
+            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,.9)' }} />}
+          </Line>
         </ComposedChart>
       </ResponsiveContainer>
     );
   }
 
   function renderMgChart(h) {
+    const lbl = v => v !== 0 ? v + '%' : '';
     return (
       <ResponsiveContainer width="100%" height={h}>
-        <LineChart data={mgChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+        <LineChart data={mgChartData} margin={{ top: showVMg ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis tickFormatter={v => v + '%'} {...axisProps} width={40} />
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
-          <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }}  activeDot={{ r: 5 }} />
-          <Line dataKey="Mg. Op. %"   type="monotone" stroke="rgba(6,182,212,1)"   strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }}   activeDot={{ r: 5 }} />
-          <Line dataKey="Mg. Líq. %"  type="monotone" stroke="rgba(139,92,246,1)"  strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }}  activeDot={{ r: 5 }} />
+          <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(16,185,129,1)' }} />}
+          </Line>
+          <Line dataKey="Mg. Op. %" type="monotone" stroke="rgba(6,182,212,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(6,182,212,1)' }} />}
+          </Line>
+          <Line dataKey="Mg. Líq. %" type="monotone" stroke="rgba(139,92,246,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
+            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,1)' }} />}
+          </Line>
         </LineChart>
       </ResponsiveContainer>
     );
@@ -216,7 +266,11 @@ export default function Competencia() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={dreChartCF.override} setOverride={dreChartCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVDre} onToggle={() => setShowVDre(v => !v)} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderDreChart(280)}</div>
           </div>
@@ -231,13 +285,27 @@ export default function Competencia() {
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
               </div>
-              <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
+              <div className="flex items-center gap-2">
+                <ChartFilterPicker tx={tx} override={mgChartCF.override} setOverride={mgChartCF.setOverride} globalFilterState={filterState} />
+                <ValuesBtn show={showVMg} onToggle={() => setShowVMg(v => !v)} />
+                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
+              </div>
             </div>
             <div className="p-4" style={{ height: 280 }}>{renderMgChart(280)}</div>
           </div>
 
           {/* ── Composição das saídas ── */}
-          <DrillChart transactions={filteredTx} visMonths={visMonths} year={filterState.year} darkMode={darkMode} plano={plano} />
+          <DrillChart
+            transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
+            visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
+            year={drillCF.effectiveYear}
+            darkMode={darkMode}
+            plano={plano}
+            filterOverride={drillCF.override}
+            onFilterOverride={drillCF.setOverride}
+            globalFilterState={filterState}
+            tx={tx}
+          />
         </>
       ) : null}
 

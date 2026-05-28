@@ -1074,12 +1074,12 @@ export default function Importar() {
                 </div>
               </div>
 
-              <div className="mt-5 flex gap-2.5 items-center">
+              {/* <div className="mt-5 flex gap-2.5 items-center">
                 <button className="btn btn-green" onClick={loadSample}>
                   <Icon name="casino" size="text-[15px]" /> Carregar Dados de Exemplo
                 </button>
                 <span className="text-[11px] text-text-3">Carrega dados fictícios nas duas bases para explorar o dashboard</span>
-              </div>
+              </div> */}
             </>
           )}
 

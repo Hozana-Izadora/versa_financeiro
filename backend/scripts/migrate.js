@@ -17,10 +17,13 @@ import { readFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
-import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Load .env relative to this script so it works from any working directory
+dotenvConfig({ path: join(__dirname, '../.env') });
 
 const { Client } = pg;
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, '../migrations');
 
 const SUPERUSER_TAG = 'REQUIRES: run as postgres superuser';
