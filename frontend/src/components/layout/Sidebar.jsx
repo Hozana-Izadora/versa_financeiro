@@ -274,7 +274,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               </span>
             </div>
             <div style={{ marginTop: 8, fontSize: 9.5, color: darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)', letterSpacing: '0.04em' }}>
-              v{__APP_VERSION__}
+              v{__APP_VERSION__} · Desenvolvido por Systemiza
             </div>
           </div>
         )}
