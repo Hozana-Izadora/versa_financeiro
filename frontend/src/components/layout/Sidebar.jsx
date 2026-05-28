@@ -243,7 +243,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           ))}
         </div>
 
-        {/* Base indicator */}
+        {/* Base indicator + version */}
         {!collapsed && (
           <div style={{
             padding: '10px 16px 12px',
@@ -272,6 +272,9 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
                 Comp. ({transactions.competencia.length})
               </span>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 9.5, color: darkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.25)', letterSpacing: '0.04em' }}>
+              v{__APP_VERSION__}
             </div>
           </div>
         )}
