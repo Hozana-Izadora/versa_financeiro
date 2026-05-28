@@ -35,9 +35,11 @@ import Plano from './pages/Plano.jsx';
 import Importar from './pages/Importar.jsx';
 import Orcamento from './pages/Orcamento.jsx';
 import Login from './pages/Login.jsx';
+import Admin from './pages/Admin.jsx';
 
 function Router() {
   const { state } = useApp();
+  const { user }  = useAuth();
   switch (state.currentPage) {
     case 'caixa':        return <Caixa />;
     case 'competencia':  return <Competencia />;
@@ -45,6 +47,7 @@ function Router() {
     case 'lancamentos':  return <Lancamentos />;
     case 'plano':        return <Plano />;
     case 'importar':     return <Importar />;
+    case 'admin':        return user?.isSuperAdmin ? <Admin /> : <Caixa />;
     default:             return <Caixa />;
   }
 }
@@ -69,7 +72,6 @@ function AuthGate() {
   const { user, bootstrapping } = useAuth();
 
   if (bootstrapping) {
-    // Avoid flash of login screen while we check for an existing session
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-text-3 text-sm">Carregando…</div>
@@ -78,6 +80,11 @@ function AuthGate() {
   }
 
   if (!user) return <Login />;
+
+  // Superadmin with no client context → standalone admin panel (no AppProvider needed)
+  if (user.isSuperAdmin && !user.clientId) {
+    return <Admin standalone />;
+  }
 
   return (
     <AppProvider>

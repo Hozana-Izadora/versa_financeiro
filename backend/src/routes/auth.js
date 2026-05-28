@@ -6,10 +6,10 @@ import { pool } from '../db/pool.js';
 
 const router = Router();
 
-const ACCESS_TOKEN_EXPIRES  = process.env.JWT_EXPIRES_IN         || '15m';
+const ACCESS_TOKEN_EXPIRES  = process.env.JWT_EXPIRES_IN              || '15m';
 const REFRESH_TOKEN_DAYS    = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '7', 10);
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function generateAccessToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES });
@@ -30,7 +30,7 @@ function setRefreshCookie(res, token) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: expiresMs,
-    path: '/api/auth',   // cookie is only sent to auth endpoints
+    path: '/api/auth',
   });
 }
 
@@ -38,10 +38,11 @@ function clearRefreshCookie(res) {
   res.clearCookie('refresh_token', { path: '/api/auth' });
 }
 
-// Reads user + client info for building a token/response
+// Reads user + client info for building a regular (client-scoped) token
 async function resolveUserClient(client, userId, clientId) {
   const result = await client.query(
-    `SELECT u.id, u.email, u.display_name, c.id AS client_id, c.name AS client_name, c.slug
+    `SELECT u.id, u.email, u.display_name, u.is_superadmin,
+            c.id AS client_id, c.name AS client_name, c.slug
        FROM admin.users   u
        JOIN admin.client_users cu ON cu.user_id   = u.id
        JOIN admin.clients c       ON c.id          = cu.client_id
@@ -51,7 +52,46 @@ async function resolveUserClient(client, userId, clientId) {
   return result.rows[0] || null;
 }
 
-// ── POST /api/auth/login ─────────────────────────────────────────────────────
+// Issues an admin-only JWT + refresh token (no client context).
+// Used when a superadmin has no client associations or explicitly picks
+// "Painel Administrativo" during login.
+async function issueAdminTokens(dbClient, res, user) {
+  const tokenPayload = {
+    sub:         user.id,
+    email:       user.email,
+    displayName: user.display_name,
+    isSuperAdmin: true,
+  };
+  const accessToken = generateAccessToken(tokenPayload);
+  const rawRefresh  = generateRefreshToken();
+  const refreshHash = hashRefreshToken(rawRefresh);
+  const refreshExp  = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+  // Revoke existing admin-mode refresh tokens for this user
+  await dbClient.query(
+    `UPDATE admin.refresh_tokens SET revoked = true
+      WHERE user_id = $1 AND client_id IS NULL AND revoked = false`,
+    [user.id]
+  );
+  await dbClient.query(
+    `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
+     VALUES ($1, NULL, $2, $3)`,
+    [user.id, refreshHash, refreshExp]
+  );
+
+  setRefreshCookie(res, rawRefresh);
+  return {
+    accessToken,
+    user: {
+      id:          user.id,
+      email:       user.email,
+      displayName: user.display_name,
+      isSuperAdmin: true,
+    },
+  };
+}
+
+// ── POST /api/auth/login ──────────────────────────────────────────────────────
 router.post('/login', async (req, res, next) => {
   const { email, password, clientId } = req.body;
 
@@ -59,18 +99,18 @@ router.post('/login', async (req, res, next) => {
     return res.status(400).json({ error: 'Email e senha são obrigatórios' });
   }
 
-  let client;
+  let dbClient;
   try {
-    client = await pool.connect();
+    dbClient = await pool.connect();
+
     // 1. Find user
-    const userResult = await client.query(
-      `SELECT id, email, password_hash, display_name, active
+    const userResult = await dbClient.query(
+      `SELECT id, email, password_hash, display_name, active, is_superadmin
          FROM admin.users WHERE email = $1`,
       [email.toLowerCase().trim()]
     );
 
     const user = userResult.rows[0];
-    // Always run bcrypt compare even on not-found to prevent timing attacks
     const hashToCheck = user?.password_hash || '$2b$12$invalidhashpadding000000000000000000000000000000000000000';
     const passwordMatch = await bcrypt.compare(password, hashToCheck);
 
@@ -78,8 +118,17 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
-    // 2. Resolve client (tenant)
-    const clientsResult = await client.query(
+    // 2. Superadmin requested admin-only mode explicitly
+    if (clientId === '__admin__') {
+      if (!user.is_superadmin) {
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
+      const result = await issueAdminTokens(dbClient, res, user);
+      return res.json(result);
+    }
+
+    // 3. Resolve available clients
+    const clientsResult = await dbClient.query(
       `SELECT c.id, c.name, c.slug
          FROM admin.clients c
          JOIN admin.client_users cu ON cu.client_id = c.id
@@ -88,46 +137,62 @@ router.post('/login', async (req, res, next) => {
     );
     const clients = clientsResult.rows;
 
+    // No clients: superadmin falls back to admin-only mode; others get 403
     if (!clients.length) {
+      if (user.is_superadmin) {
+        const result = await issueAdminTokens(dbClient, res, user);
+        return res.json(result);
+      }
       return res.status(403).json({ error: 'Usuário não associado a nenhum cliente' });
     }
 
+    // 4. Client selection
     let selectedClient;
     if (clientId) {
       selectedClient = clients.find(c => c.id === clientId);
       if (!selectedClient) {
         return res.status(403).json({ error: 'Acesso negado a este cliente' });
       }
-    } else if (clients.length === 1) {
-      selectedClient = clients[0];
     } else {
-      // Multiple clients — frontend must ask which one
-      return res.status(200).json({
-        requireClientSelection: true,
-        clients: clients.map(c => ({ id: c.id, name: c.name })),
-      });
+      // Superadmins always see the client picker with the admin panel option
+      if (user.is_superadmin) {
+        return res.status(200).json({
+          requireClientSelection: true,
+          clients: [
+            { id: '__admin__', name: 'Painel Administrativo' },
+            ...clients.map(c => ({ id: c.id, name: c.name })),
+          ],
+        });
+      }
+      if (clients.length === 1) {
+        selectedClient = clients[0];
+      } else {
+        return res.status(200).json({
+          requireClientSelection: true,
+          clients: clients.map(c => ({ id: c.id, name: c.name })),
+        });
+      }
     }
 
-    // 3. Issue tokens
+    // 5. Issue client-scoped tokens (include isSuperAdmin when applicable)
     const tokenPayload = {
       sub:         user.id,
       clientId:    selectedClient.id,
       email:       user.email,
       displayName: user.display_name,
+      ...(user.is_superadmin ? { isSuperAdmin: true } : {}),
     };
-    const accessToken  = generateAccessToken(tokenPayload);
-    const rawRefresh   = generateRefreshToken();
-    const refreshHash  = hashRefreshToken(rawRefresh);
-    const refreshExp   = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    const accessToken = generateAccessToken(tokenPayload);
+    const rawRefresh  = generateRefreshToken();
+    const refreshHash = hashRefreshToken(rawRefresh);
+    const refreshExp  = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
-    // Revoke any existing refresh tokens for this user+client before issuing new one
-    await client.query(
+    await dbClient.query(
       `UPDATE admin.refresh_tokens SET revoked = true
         WHERE user_id = $1 AND client_id = $2 AND revoked = false`,
       [user.id, selectedClient.id]
     );
-
-    await client.query(
+    await dbClient.query(
       `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
        VALUES ($1, $2, $3, $4)`,
       [user.id, selectedClient.id, refreshHash, refreshExp]
@@ -143,16 +208,17 @@ router.post('/login', async (req, res, next) => {
         displayName: user.display_name,
         clientId:    selectedClient.id,
         clientName:  selectedClient.name,
+        ...(user.is_superadmin ? { isSuperAdmin: true } : {}),
       },
     });
   } catch (err) {
     next(err);
   } finally {
-    client?.release();
+    dbClient?.release();
   }
 });
 
-// ── POST /api/auth/refresh ───────────────────────────────────────────────────
+// ── POST /api/auth/refresh ────────────────────────────────────────────────────
 router.post('/refresh', async (req, res, next) => {
   const rawToken = req.cookies?.refresh_token;
 
@@ -164,7 +230,7 @@ router.post('/refresh', async (req, res, next) => {
   let dbClient;
   try {
     dbClient = await pool.connect();
-    // Find and validate the stored token
+
     const result = await dbClient.query(
       `SELECT rt.id, rt.user_id, rt.client_id, rt.expires_at
          FROM admin.refresh_tokens rt
@@ -181,47 +247,81 @@ router.post('/refresh', async (req, res, next) => {
 
     const { id: tokenId, user_id: userId, client_id: clientId } = result.rows[0];
 
-    // Validate user + client are still active
-    const row = await resolveUserClient(dbClient, userId, clientId);
-    if (!row) {
-      clearRefreshCookie(res);
-      return res.status(401).json({ error: 'Usuário ou cliente inativo' });
-    }
-
-    // Rotate: revoke old token, issue new one
-    const newRaw      = generateRefreshToken();
-    const newHash     = hashRefreshToken(newRaw);
-    const newExpires  = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    // Rotate refresh token
+    const newRaw     = generateRefreshToken();
+    const newHash    = hashRefreshToken(newRaw);
+    const newExpires = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
     await dbClient.query(
-      `UPDATE admin.refresh_tokens SET revoked = true WHERE id = $1`,
-      [tokenId]
-    );
-    await dbClient.query(
-      `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [userId, clientId, newHash, newExpires]
+      `UPDATE admin.refresh_tokens SET revoked = true WHERE id = $1`, [tokenId]
     );
 
-    const accessToken = generateAccessToken({
-      sub:         row.id,
-      clientId:    row.client_id,
-      email:       row.email,
-      displayName: row.display_name,
-    });
+    let accessToken, userResp;
 
-    setRefreshCookie(res, newRaw);
+    if (clientId === null) {
+      // Admin-only session — verify user is still active and superadmin
+      const userResult = await dbClient.query(
+        `SELECT id, email, display_name, is_superadmin, active
+           FROM admin.users WHERE id = $1`,
+        [userId]
+      );
+      const user = userResult.rows[0];
+      if (!user || !user.active || !user.is_superadmin) {
+        clearRefreshCookie(res);
+        return res.status(401).json({ error: 'Usuário inativo ou sem acesso administrativo' });
+      }
 
-    res.json({
-      accessToken,
-      user: {
+      await dbClient.query(
+        `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
+         VALUES ($1, NULL, $2, $3)`,
+        [userId, newHash, newExpires]
+      );
+
+      accessToken = generateAccessToken({
+        sub:         user.id,
+        email:       user.email,
+        displayName: user.display_name,
+        isSuperAdmin: true,
+      });
+      userResp = {
+        id:          user.id,
+        email:       user.email,
+        displayName: user.display_name,
+        isSuperAdmin: true,
+      };
+    } else {
+      // Regular (or superadmin + client) session
+      const row = await resolveUserClient(dbClient, userId, clientId);
+      if (!row) {
+        clearRefreshCookie(res);
+        return res.status(401).json({ error: 'Usuário ou cliente inativo' });
+      }
+
+      await dbClient.query(
+        `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, clientId, newHash, newExpires]
+      );
+
+      accessToken = generateAccessToken({
+        sub:         row.id,
+        clientId:    row.client_id,
+        email:       row.email,
+        displayName: row.display_name,
+        ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
+      });
+      userResp = {
         id:          row.id,
         email:       row.email,
         displayName: row.display_name,
         clientId:    row.client_id,
         clientName:  row.client_name,
-      },
-    });
+        ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
+      };
+    }
+
+    setRefreshCookie(res, newRaw);
+    res.json({ accessToken, user: userResp });
   } catch (err) {
     next(err);
   } finally {
@@ -229,7 +329,7 @@ router.post('/refresh', async (req, res, next) => {
   }
 });
 
-// ── POST /api/auth/logout ────────────────────────────────────────────────────
+// ── POST /api/auth/logout ─────────────────────────────────────────────────────
 router.post('/logout', async (req, res, next) => {
   const rawToken = req.cookies?.refresh_token;
 

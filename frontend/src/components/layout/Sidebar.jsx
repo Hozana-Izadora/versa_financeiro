@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { id: 'lancamentos', icon: 'receipt_long',             label: 'Lançamentos',     section: 'Dados', badge: true },
   { id: 'plano',       icon: 'account_tree',             label: 'Plano de Contas', section: 'Dados' },
   { id: 'importar',    icon: 'upload_file',              label: 'Importar Dados',  section: 'Dados' },
+  { id: 'admin',       icon: 'admin_panel_settings',     label: 'Administração',   section: 'Admin', adminOnly: true },
 ];
 
 const sidebarVariants = {
@@ -31,7 +32,8 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const { user, logout } = useAuth();
   const { currentPage, transactions, darkMode } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
-  const sections = [...new Set(NAV_ITEMS.map(i => i.section))];
+  const visibleItems = NAV_ITEMS.filter(i => !i.adminOnly || user?.isSuperAdmin);
+  const sections = [...new Set(visibleItems.map(i => i.section))];
 
   const initials = user?.displayName
     ? user.displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -149,8 +151,10 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                   {section}
                 </div>
               )}
-              {NAV_ITEMS.filter(i => i.section === section).map(item => {
-                const isActive = item.isDashboard ? currentPage === 'caixa' : currentPage === item.id;
+              {visibleItems.filter(i => i.section === section).map(item => {
+                const isActive = item.isDashboard
+                  ? currentPage === 'caixa'
+                  : currentPage === item.id;
                 const index = navIndex++;
                 return (
                   <motion.button
@@ -298,7 +302,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
                 {user?.displayName || user?.email}
               </div>
               <div style={{ fontSize: 10, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.42)', marginTop: 1 }}>
-                {user?.role === 'admin' ? 'Administrador' : user?.role === 'viewer' ? 'Visualizador' : 'Usuário'}
+                {user?.isSuperAdmin ? 'Administrador' : 'Usuário'}
               </div>
             </div>
           )}
