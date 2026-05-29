@@ -272,7 +272,7 @@ export default function Competencia() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderDreChart(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderDreChart('100%')}</div>
           </div>
 
           {/* ── Chart: evolução das margens ── */}
@@ -291,7 +291,7 @@ export default function Competencia() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderMgChart(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMgChart('100%')}</div>
           </div>
 
           {/* ── Composição das saídas ── */}

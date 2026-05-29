@@ -212,13 +212,13 @@
     box-shadow: var(--shadow-card);
   }
   .panel-hdr {
-    @apply px-5 py-3.5 flex items-center justify-between;
+    @apply px-4 py-3 sm:px-5 sm:py-3.5 flex flex-wrap items-center justify-between gap-y-2;
     border-bottom: 1px solid var(--border);
   }
 
   /* ── KPI Cards ───────────────────────────────────────── */
   .kpi-card {
-    @apply bg-card rounded-card p-5 relative overflow-hidden cursor-default;
+    @apply bg-card rounded-card p-4 sm:p-5 relative overflow-hidden cursor-default;
     border: 1px solid var(--border);
     box-shadow: var(--shadow-card);
     transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
@@ -232,13 +232,19 @@
   .kc-p::before, .kc-c::before, .kc-y::before { display: none; }
 
   /* KPI Cascade */
-  .kpi-cascade { display: flex; align-items: stretch; }
+  .kpi-cascade {
+    display: flex; align-items: stretch;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .kpi-cascade::-webkit-scrollbar { display: none; }
+  .kpi-cascade .kpi-card { min-width: 110px; }
   .cascade-sep {
     display: flex; align-items: center; justify-content: center;
     background: #f8fafc;
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
-    min-width: 30px; flex-shrink: 0;
+    min-width: 26px; flex-shrink: 0;
     font-weight: 700; font-size: 1rem;
     color: #9ca3af;
     font-family: 'Inter', sans-serif;

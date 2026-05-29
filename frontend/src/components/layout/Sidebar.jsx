@@ -15,8 +15,8 @@ const NAV_ITEMS = [
 ];
 
 const sidebarVariants = {
-  hidden:  { x: -16, opacity: 0 },
-  visible: { x: 0,   opacity: 1, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden:  { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
 };
 
 const navItemVariants = {

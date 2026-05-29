@@ -374,7 +374,7 @@ export default function Caixa() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderFlow(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderFlow('100%')}</div>
           </div>
 
           {/* ── Chart: saldo acumulado ── */}
@@ -393,7 +393,7 @@ export default function Caixa() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderAcum(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderAcum('100%')}</div>
           </div>
 
           {/* ── Chart: ciclo financeiro ── */}
@@ -412,7 +412,7 @@ export default function Caixa() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderCiclo(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderCiclo('100%')}</div>
           </div>
 
           {/* ── Chart: margem comparação ── */}
@@ -431,7 +431,7 @@ export default function Caixa() {
                 <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
               </div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderMargComp(280)}</div>
+            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMargComp('100%')}</div>
           </div>
 
           {/* ── Composição das saídas ── */}
