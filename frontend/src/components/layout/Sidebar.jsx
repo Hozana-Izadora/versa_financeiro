@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AppContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { usePermissions } from '../../hooks/usePermissions.js';
 import Icon from '../ui/Icon.jsx';
 
 const NAV_ITEMS = [
@@ -15,8 +16,8 @@ const NAV_ITEMS = [
 ];
 
 const sidebarVariants = {
-  hidden:  { x: -16, opacity: 0 },
-  visible: { x: 0,   opacity: 1, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
+  hidden:  { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1] } },
 };
 
 const navItemVariants = {
@@ -30,9 +31,13 @@ const navItemVariants = {
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { state, actions } = useApp();
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const { currentPage, transactions, darkMode } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
-  const visibleItems = NAV_ITEMS.filter(i => !i.adminOnly || user?.isSuperAdmin);
+  const visibleItems = NAV_ITEMS.filter(i => {
+    if (i.adminOnly) return Boolean(user?.isSuperAdmin);
+    return can(i.id);
+  });
   const sections = [...new Set(visibleItems.map(i => i.section))];
 
   const initials = user?.displayName

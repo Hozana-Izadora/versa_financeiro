@@ -38,14 +38,16 @@ function clearRefreshCookie(res) {
   res.clearCookie('refresh_token', { path: '/api/auth' });
 }
 
-// Reads user + client info for building a regular (client-scoped) token
+// Reads user + client info (including role permissions) for building a regular token
 async function resolveUserClient(client, userId, clientId) {
   const result = await client.query(
     `SELECT u.id, u.email, u.display_name, u.is_superadmin,
-            c.id AS client_id, c.name AS client_name, c.slug
+            c.id AS client_id, c.name AS client_name, c.slug,
+            r.permissions
        FROM admin.users   u
-       JOIN admin.client_users cu ON cu.user_id   = u.id
-       JOIN admin.clients c       ON c.id          = cu.client_id
+       JOIN admin.client_users cu ON cu.user_id = u.id
+       JOIN admin.clients c       ON c.id = cu.client_id
+       LEFT JOIN admin.roles r    ON r.id = cu.role_id
       WHERE u.id = $1 AND c.id = $2 AND u.active = true AND c.active = true`,
     [userId, clientId]
   );
@@ -175,6 +177,17 @@ router.post('/login', async (req, res, next) => {
     }
 
     // 5. Issue client-scoped tokens (include isSuperAdmin when applicable)
+
+    // Fetch role permissions for this user-client pair
+    const roleRow = await dbClient.query(
+      `SELECT r.permissions
+         FROM admin.client_users cu
+         LEFT JOIN admin.roles r ON r.id = cu.role_id
+        WHERE cu.user_id = $1 AND cu.client_id = $2`,
+      [user.id, selectedClient.id]
+    );
+    const permissions = roleRow.rows[0]?.permissions ?? null;
+
     const tokenPayload = {
       sub:         user.id,
       clientId:    selectedClient.id,
@@ -208,6 +221,7 @@ router.post('/login', async (req, res, next) => {
         displayName: user.display_name,
         clientId:    selectedClient.id,
         clientName:  selectedClient.name,
+        permissions,
         ...(user.is_superadmin ? { isSuperAdmin: true } : {}),
       },
     });
@@ -316,6 +330,7 @@ router.post('/refresh', async (req, res, next) => {
         displayName: row.display_name,
         clientId:    row.client_id,
         clientName:  row.client_name,
+        permissions: row.permissions ?? null,
         ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
       };
     }

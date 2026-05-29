@@ -2,11 +2,15 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import { pool } from '../db/pool.js';
 import { requireSuperAdmin } from '../middleware/superAdmin.js';
+import rolesRouter from './roles.js';
 
 const router = Router();
 
 // All admin routes require superadmin
 router.use(requireSuperAdmin);
+
+// Roles sub-router (inherits requireSuperAdmin from above)
+router.use('/roles', rolesRouter);
 
 // ── Clients (tenants) ─────────────────────────────────────────────────────────
 
@@ -83,7 +87,8 @@ router.get('/users', async (_req, res, next) => {
       `SELECT u.id, u.email, u.display_name, u.active, u.is_superadmin, u.created_at,
               COALESCE(
                 json_agg(
-                  json_build_object('id', c.id, 'name', c.name, 'slug', c.slug)
+                  json_build_object('id', c.id, 'name', c.name, 'slug', c.slug,
+                                    'role_id', cu.role_id, 'role_name', r.name)
                   ORDER BY c.name
                 ) FILTER (WHERE c.id IS NOT NULL),
                 '[]'
@@ -91,6 +96,7 @@ router.get('/users', async (_req, res, next) => {
          FROM admin.users u
          LEFT JOIN admin.client_users cu ON cu.user_id = u.id
          LEFT JOIN admin.clients       c  ON c.id = cu.client_id
+         LEFT JOIN admin.roles         r  ON r.id  = cu.role_id
         GROUP BY u.id
         ORDER BY u.created_at DESC`
     );
@@ -203,6 +209,19 @@ router.delete('/users/:id/clients/:clientId', async (req, res, next) => {
       `DELETE FROM admin.client_users
         WHERE user_id = $1 AND client_id = $2`,
       [req.params.id, req.params.clientId]
+    );
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/admin/users/:id/clients/:clientId/role — assign/clear role for a user-client pair
+router.put('/users/:id/clients/:clientId/role', async (req, res, next) => {
+  const { roleId } = req.body; // null/undefined = clear role
+  try {
+    await pool.query(
+      `UPDATE admin.client_users SET role_id = $1
+        WHERE user_id = $2 AND client_id = $3`,
+      [roleId || null, req.params.id, req.params.clientId]
     );
     res.json({ success: true });
   } catch (err) { next(err); }

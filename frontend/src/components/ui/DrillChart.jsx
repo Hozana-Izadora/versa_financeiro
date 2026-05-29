@@ -131,7 +131,7 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
       </div>
 
       {/* ── Corpo: donut à esquerda, lista à direita ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr' }}>
+      <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr]">
 
         {/* Donut */}
         <div style={{ padding: '12px 8px 12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

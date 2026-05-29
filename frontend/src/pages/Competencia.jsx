@@ -17,6 +17,7 @@ import InfoPopover from '../components/ui/InfoPopover.jsx';
 import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
 import ValuesBtn from '../components/ui/ValuesBtn.jsx';
 import { useChartFilter } from '../hooks/useChartFilter.js';
+import { usePermissions } from '../hooks/usePermissions.js';
 
 function ChartTip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -51,12 +52,13 @@ function CSep({ symbol }) {
   return <div className="cascade-sep">{symbol}</div>;
 }
 
-function SubtabBar({ active, onChange }) {
+function SubtabBar({ active, onChange, tabs }) {
+  if (!tabs?.length) return null;
   return (
     <div className="subtab-bar flex bg-bg-2 border-b border-slate-100 px-4 lg:px-7 mb-4 -mx-4 lg:-mx-7 -mt-6">
-      {['Visão Geral', 'Demonstrativo'].map((label, i) => (
-        <button key={label} onClick={() => onChange(i)}
-          className={`subtab-btn py-2.5 px-4 text-[11.5px] font-semibold cursor-pointer border-0 border-b-2 transition-all bg-transparent -mb-px ${active === i ? 'act text-accent border-accent' : 'text-text-3 border-transparent hover:text-text-base'}`}>
+      {tabs.map(({ idx, label }) => (
+        <button key={idx} onClick={() => onChange(idx)}
+          className={`subtab-btn py-2.5 px-4 text-[11.5px] font-semibold cursor-pointer border-0 border-b-2 transition-all bg-transparent -mb-px ${active === idx ? 'act text-accent border-accent' : 'text-text-3 border-transparent hover:text-text-base'}`}>
           {label}
         </button>
       ))}
@@ -67,6 +69,7 @@ function SubtabBar({ active, onChange }) {
 export default function Competencia() {
   const { state, actions } = useApp();
   const { transactions, plano, saldosIniciais, filterState, darkMode } = state;
+  const { canChart, canSubtab } = usePermissions();
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
   const [modalChart, setModalChart] = useState(null);
@@ -74,6 +77,11 @@ export default function Competencia() {
   const [showVMg,  setShowVMg]  = useState(false);
 
   const tx = transactions.competencia;
+
+  const subtabs = [
+    canSubtab('competencia', 'subtab_overview') && { idx: 0, label: 'Visão Geral' },
+    canSubtab('competencia', 'subtab_dre')      && { idx: 1, label: 'Demonstrativo' },
+  ].filter(Boolean);
 
   // ── Global filter (used by KPI cascade, DRE table) ───────────────
   const filteredTx = useMemo(() => tx.filter(r => {
@@ -220,9 +228,9 @@ export default function Competencia() {
     <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
 
-      <SubtabBar active={subTab} onChange={setSubTab} />
+      <SubtabBar active={subTab} onChange={setSubTab} tabs={subtabs} />
 
-      {subTab === 0 ? (
+      {subTab === 0 && subtabs.some(t => t.idx === 0) ? (
         <>
           {/* ── Cascade: DRE waterfall ── */}
           <div className="kpi-cascade mb-3.5">
@@ -257,59 +265,65 @@ export default function Competencia() {
           </div>
 
           {/* ── Chart: resultado mensal ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Resultado Operacional — mês a mês
-                  <InfoPopover title="Resultado Operacional — mês a mês" description={'Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador.'} />
+          {canChart('competencia', 'dre_chart') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Resultado Operacional — mês a mês
+                    <InfoPopover title="Resultado Operacional — mês a mês" description={'Receita (verde) e Custos+Despesas totais (vermelho) por mês, mais linha de Lucro Líquido (roxo).\n\nRegime Competência: reconhece receitas e despesas na data do fato gerador.'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Evolução mensal do resultado econômico</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={dreChartCF.override} setOverride={dreChartCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVDre} onToggle={() => setShowVDre(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={dreChartCF.override} setOverride={dreChartCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVDre} onToggle={() => setShowVDre(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderDreChart('100%')}</div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderDreChart(280)}</div>
-          </div>
+          )}
 
           {/* ── Chart: evolução das margens ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Evolução das Margens
-                  <InfoPopover title="Evolução das Margens (%)" description={'Mg. Bruta % = (Receita − Custos) ÷ Receita\nMg. Op. % = (Mg. Bruta − Desp. Op.) ÷ Receita\nMg. Líq. % = Lucro Líquido ÷ Receita'} />
+          {canChart('competencia', 'mg_chart') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Evolução das Margens
+                    <InfoPopover title="Evolução das Margens (%)" description={'Mg. Bruta % = (Receita − Custos) ÷ Receita\nMg. Op. % = (Mg. Bruta − Desp. Op.) ÷ Receita\nMg. Líq. % = Lucro Líquido ÷ Receita'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Margem bruta, operacional e líquida %</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={mgChartCF.override} setOverride={mgChartCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVMg} onToggle={() => setShowVMg(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={mgChartCF.override} setOverride={mgChartCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVMg} onToggle={() => setShowVMg(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMgChart('100%')}</div>
             </div>
-            <div className="p-4" style={{ height: 280 }}>{renderMgChart(280)}</div>
-          </div>
+          )}
 
           {/* ── Composição das saídas ── */}
-          <DrillChart
-            transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
-            visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
-            year={drillCF.effectiveYear}
-            darkMode={darkMode}
-            plano={plano}
-            filterOverride={drillCF.override}
-            onFilterOverride={drillCF.setOverride}
-            globalFilterState={filterState}
-            tx={tx}
-          />
+          {canChart('competencia', 'drill') && (
+            <DrillChart
+              transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
+              visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
+              year={drillCF.effectiveYear}
+              darkMode={darkMode}
+              plano={plano}
+              filterOverride={drillCF.override}
+              onFilterOverride={drillCF.setOverride}
+              globalFilterState={filterState}
+              tx={tx}
+            />
+          )}
         </>
       ) : null}
 
-      {subTab === 1 && (
+      {subTab === 1 && subtabs.some(t => t.idx === 1) && (
         <div className="panel">
           <div className="panel-hdr">
             <div>

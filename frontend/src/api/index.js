@@ -111,6 +111,13 @@ export const api = {
   adminListUsers:    ()              => req('/api/admin/users'),
   adminCreateUser:   (data)          => req('/api/admin/users',                            { method: 'POST',   ...json(data) }),
   adminUpdateUser:   (id, data)      => req(`/api/admin/users/${id}`,                      { method: 'PUT',    ...json(data) }),
-  adminAddUserClient:    (id, clientId)          => req(`/api/admin/users/${id}/clients`,                      { method: 'POST',   ...json({ clientId }) }),
-  adminRemoveUserClient: (id, clientId)          => req(`/api/admin/users/${id}/clients/${clientId}`,          { method: 'DELETE' }),
+  adminAddUserClient:       (id, clientId)          => req(`/api/admin/users/${id}/clients`,                           { method: 'POST',   ...json({ clientId }) }),
+  adminRemoveUserClient:    (id, clientId)          => req(`/api/admin/users/${id}/clients/${clientId}`,               { method: 'DELETE' }),
+  adminSetUserClientRole:   (id, clientId, roleId)  => req(`/api/admin/users/${id}/clients/${clientId}/role`,          { method: 'PUT',    ...json({ roleId }) }),
+
+  // Roles (funções de acesso)
+  adminListRoles:   (clientId)       => req(clientId ? `/api/admin/roles?clientId=${clientId}` : '/api/admin/roles'),
+  adminCreateRole:  (data)           => req('/api/admin/roles',                            { method: 'POST',   ...json(data) }),
+  adminUpdateRole:  (id, data)       => req(`/api/admin/roles/${id}`,                      { method: 'PUT',    ...json(data) }),
+  adminDeleteRole:  (id)             => req(`/api/admin/roles/${id}`,                      { method: 'DELETE' }),
 };
