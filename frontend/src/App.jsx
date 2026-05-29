@@ -1,4 +1,4 @@
-import React, { useEffect, Component } from 'react';
+import React, { useEffect, Component, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { AppProvider, useApp } from './context/AppContext.jsx';
 
@@ -36,11 +36,32 @@ import Importar from './pages/Importar.jsx';
 import Orcamento from './pages/Orcamento.jsx';
 import Login from './pages/Login.jsx';
 import Admin from './pages/Admin.jsx';
+import { usePermissions } from './hooks/usePermissions.js';
+
+const NAV_PAGE_IDS = ['caixa', 'competencia', 'orcamento', 'lancamentos', 'plano', 'importar'];
 
 function Router() {
-  const { state } = useApp();
+  const { state, actions } = useApp();
   const { user }  = useAuth();
-  switch (state.currentPage) {
+  const { can }   = usePermissions();
+
+  const firstAccessible = useMemo(
+    () => NAV_PAGE_IDS.find(id => can(id)) ?? 'caixa',
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user]
+  );
+
+  const page = state.currentPage;
+
+  useEffect(() => {
+    if (page !== 'admin' && !can(page)) {
+      actions.setPage(firstAccessible);
+    }
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (page !== 'admin' && !can(page)) return null;
+
+  switch (page) {
     case 'caixa':        return <Caixa />;
     case 'competencia':  return <Competencia />;
     case 'orcamento':    return <Orcamento />;

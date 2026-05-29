@@ -78,7 +78,7 @@ const btnDanger = {
 
 // ── Modal wrapper ─────────────────────────────────────────────────────────────
 
-function Modal({ title, onClose, children, dark }) {
+function Modal({ title, onClose, children, dark, maxWidth = 480 }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
@@ -99,7 +99,7 @@ function Modal({ title, onClose, children, dark }) {
         background: dark ? '#161b22' : '#fff',
         borderRadius: 12,
         width: '100%',
-        maxWidth: 480,
+        maxWidth,
         boxShadow: '0 20px 60px rgba(0,0,0,0.30)',
         border: dark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
       }}>
@@ -398,12 +398,13 @@ function UsersTab({ dark }) {
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    try {
-      const [u, c] = await Promise.all([api.adminListUsers(), api.adminListClients()]);
-      setUsers(u);
-      setCompanies(c);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    const [u, c] = await Promise.all([
+      api.adminListUsers().catch(e => { console.error('listUsers:', e); return []; }),
+      api.adminListClients().catch(e => { console.error('listClients:', e); return []; }),
+    ]);
+    setUsers(u);
+    setCompanies(c);
+    setLoading(false);
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
@@ -691,9 +692,13 @@ function EditUserModal({ dark, user, onClose, onSaved }) {
 }
 
 function ManageUserClientsModal({ dark, user, companies, onClose, onSaved }) {
-  const [assigned, setAssigned] = useState(new Set(user.clients.map(c => c.id)));
-  const [saving, setSaving]     = useState(null); // clientId being toggled
-  const [error, setError]       = useState('');
+  // Map: clientId -> { roleId, roleName }
+  const [assigned, setAssigned] = useState(
+    () => new Map(user.clients.map(c => [c.id, { roleId: c.role_id ?? null, roleName: c.role_name ?? null }]))
+  );
+  const [saving, setSaving]   = useState(null);
+  const [error, setError]     = useState('');
+  const [roleModal, setRoleModal] = useState(null); // { clientId, clientName, roleId }
 
   const activeCompanies = companies.filter(c => c.active);
 
@@ -703,10 +708,10 @@ function ManageUserClientsModal({ dark, user, companies, onClose, onSaved }) {
     try {
       if (assigned.has(clientId)) {
         await api.adminRemoveUserClient(user.id, clientId);
-        setAssigned(prev => { const s = new Set(prev); s.delete(clientId); return s; });
+        setAssigned(prev => { const m = new Map(prev); m.delete(clientId); return m; });
       } else {
         await api.adminAddUserClient(user.id, clientId);
-        setAssigned(prev => new Set([...prev, clientId]));
+        setAssigned(prev => new Map([...prev, [clientId, { roleId: null, roleName: null }]]));
       }
       onSaved();
     } catch (err) { setError(err.message); }
@@ -722,9 +727,10 @@ function ManageUserClientsModal({ dark, user, companies, onClose, onSaved }) {
           Nenhuma empresa cadastrada.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
           {activeCompanies.map(c => {
-            const isAssigned = assigned.has(c.id);
+            const assignment = assigned.get(c.id);
+            const isAssigned = !!assignment;
             const isSaving   = saving === c.id;
             return (
               <div key={c.id} style={{
@@ -733,22 +739,39 @@ function ManageUserClientsModal({ dark, user, companies, onClose, onSaved }) {
                 background: dark ? 'rgba(255,255,255,0.03)' : '#f9fafb',
                 border: dark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.07)',
               }}>
-                <div>
+                <div style={{ minWidth: 0, flex: 1, marginRight: 10 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: dark ? '#f0f6fc' : '#0f172a' }}>{c.name}</div>
-                  <div style={{ fontSize: 11, color: dark ? 'rgba(255,255,255,0.38)' : '#9ca3af', marginTop: 1 }}>{c.slug}</div>
+                  {isAssigned && (
+                    <div style={{ fontSize: 10.5, marginTop: 3 }}>
+                      {assignment.roleName
+                        ? <span style={{ color: '#2563eb', fontWeight: 500 }}>● {assignment.roleName}</span>
+                        : <span style={{ color: dark ? 'rgba(255,255,255,0.3)' : '#9ca3af' }}>Acesso total</span>
+                      }
+                    </div>
+                  )}
                 </div>
-                <button
-                  disabled={isSaving}
-                  onClick={() => toggle(c.id)}
-                  style={isAssigned ? btnDanger : btnPrimary}
-                >
-                  {isSaving
-                    ? '…'
-                    : isAssigned
-                    ? <><Icon name="remove_circle_outline" size="text-[13px]" /> Remover</>
-                    : <><Icon name="add_circle_outline" size="text-[13px]" /> Adicionar</>
-                  }
-                </button>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {isAssigned && (
+                    <button
+                      style={btnGhost(dark)}
+                      onClick={() => setRoleModal({ clientId: c.id, clientName: c.name, roleId: assignment.roleId })}
+                    >
+                      <Icon name="manage_accounts" size="text-[13px]" /> Função
+                    </button>
+                  )}
+                  <button
+                    disabled={isSaving}
+                    onClick={() => toggle(c.id)}
+                    style={isAssigned ? btnDanger : btnPrimary}
+                  >
+                    {isSaving
+                      ? '…'
+                      : isAssigned
+                      ? <><Icon name="remove_circle_outline" size="text-[13px]" /> Remover</>
+                      : <><Icon name="add_circle_outline" size="text-[13px]" /> Adicionar</>
+                    }
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -757,7 +780,330 @@ function ManageUserClientsModal({ dark, user, companies, onClose, onSaved }) {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
         <button style={btnGhost(dark)} onClick={onClose}>Fechar</button>
       </div>
+
+      {roleModal && (
+        <ChangeRoleModal
+          dark={dark}
+          userId={user.id}
+          clientId={roleModal.clientId}
+          clientName={roleModal.clientName}
+          currentRoleId={roleModal.roleId}
+          onClose={() => setRoleModal(null)}
+          onSaved={(roleId, roleName) => {
+            setAssigned(prev => new Map([...prev, [roleModal.clientId, { roleId, roleName }]]));
+            setRoleModal(null);
+            onSaved();
+          }}
+        />
+      )}
     </Modal>
+  );
+}
+
+// ── Change Role Modal ─────────────────────────────────────────────────────────
+
+function ChangeRoleModal({ dark, userId, clientId, clientName, currentRoleId, onClose, onSaved }) {
+  const [roles, setRoles]           = useState([]);
+  const [selectedRoleId, setSelectedRoleId] = useState(currentRoleId ?? '');
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+
+  useEffect(() => {
+    api.adminListRoles().then(setRoles).catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true); setError('');
+    try {
+      const roleId = selectedRoleId || null;
+      await api.adminSetUserClientRole(userId, clientId, roleId);
+      const roleName = roles.find(r => r.id === roleId)?.name ?? null;
+      onSaved(roleId, roleName);
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const selectedRole = roles.find(r => r.id === selectedRoleId);
+
+  return (
+    <Modal title={`Função — ${clientName}`} onClose={onClose} dark={dark}>
+      <Alert msg={error} />
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle}>Função de acesso</label>
+        <select
+          style={inputStyle(dark)}
+          value={selectedRoleId ?? ''}
+          onChange={e => setSelectedRoleId(e.target.value || '')}
+        >
+          <option value="">Sem restrições (acesso total)</option>
+          {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        {selectedRole?.description && (
+          <div style={{ fontSize: 11, color: dark ? 'rgba(255,255,255,0.4)' : '#9ca3af', marginTop: 5 }}>
+            {selectedRole.description}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <button style={btnGhost(dark)} onClick={onClose}>Cancelar</button>
+        <button style={btnPrimary} onClick={handleSave} disabled={saving}>
+          {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Permissions tab ───────────────────────────────────────────────────────────
+
+const PERM_SCHEMA = [
+  {
+    id: 'caixa', label: 'Caixa',
+    items: [
+      { key: 'subtab_overview', label: 'Subtab: Visão Geral' },
+      { key: 'subtab_dre',      label: 'Subtab: Demonstrativo' },
+      { key: 'charts.flow',     label: 'Gráfico: Resultado Líquido' },
+      { key: 'charts.acum',     label: 'Gráfico: Saldo Acumulado' },
+      { key: 'charts.ciclo',    label: 'Gráfico: Ciclo Financeiro' },
+      { key: 'charts.marg',     label: 'Gráfico: Margem Operacional' },
+      { key: 'charts.drill',    label: 'Gráfico: Composição das Saídas' },
+    ],
+  },
+  {
+    id: 'competencia', label: 'Competência',
+    items: [
+      { key: 'subtab_overview',   label: 'Subtab: Visão Geral' },
+      { key: 'subtab_dre',        label: 'Subtab: Demonstrativo' },
+      { key: 'charts.dre_chart',  label: 'Gráfico: Resultado Operacional' },
+      { key: 'charts.mg_chart',   label: 'Gráfico: Evolução das Margens' },
+      { key: 'charts.drill',      label: 'Gráfico: Composição das Saídas' },
+    ],
+  },
+  { id: 'orcamento',   label: 'Orçamento',      items: [] },
+  { id: 'lancamentos', label: 'Lançamentos',     items: [] },
+  { id: 'plano',       label: 'Plano de Contas', items: [] },
+  { id: 'importar',    label: 'Importar Dados',  items: [] },
+];
+
+const DEFAULT_PERMISSIONS = {
+  caixa:       { visible: true, subtab_overview: true, subtab_dre: true, charts: { flow: true, acum: true, ciclo: true, marg: true, drill: true } },
+  competencia: { visible: true, subtab_overview: true, subtab_dre: true, charts: { dre_chart: true, mg_chart: true, drill: true } },
+  orcamento:   { visible: true },
+  lancamentos: { visible: true },
+  plano:       { visible: true },
+  importar:    { visible: true },
+};
+
+function getP(perms, screenId, itemKey = null) {
+  if (itemKey === null) return perms?.[screenId]?.visible ?? true;
+  if (itemKey.startsWith('charts.')) return perms?.[screenId]?.charts?.[itemKey.slice(7)] ?? true;
+  return perms?.[screenId]?.[itemKey] ?? true;
+}
+
+function setP(perms, screenId, itemKey, value) {
+  const s = { ...(perms?.[screenId] ?? {}) };
+  if (itemKey === null)                { s.visible = value; }
+  else if (itemKey.startsWith('charts.')) { s.charts = { ...(s.charts ?? {}), [itemKey.slice(7)]: value }; }
+  else                                    { s[itemKey] = value; }
+  return { ...(perms ?? {}), [screenId]: s };
+}
+
+function RoleEditorModal({ dark, role, onClose, onSaved }) {
+  const [name, setName]   = useState(role?.name ?? '');
+  const [desc, setDesc]   = useState(role?.description ?? '');
+  const [perms, setPerms] = useState(() =>
+    role?.permissions && Object.keys(role.permissions).length > 0
+      ? role.permissions
+      : DEFAULT_PERMISSIONS
+  );
+  const [error, setError]   = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const toggle = (screenId, itemKey = null) => {
+    setPerms(p => setP(p, screenId, itemKey, !getP(p, screenId, itemKey)));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); setSaving(true);
+    try {
+      if (role) {
+        await api.adminUpdateRole(role.id, { name: name.trim(), description: desc.trim() || null, permissions: perms });
+      } else {
+        await api.adminCreateRole({ name: name.trim(), description: desc.trim() || null, permissions: perms });
+      }
+      onSaved(); onClose();
+    } catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title={role ? 'Editar Função' : 'Nova Função'} onClose={onClose} dark={dark} maxWidth={700}>
+      <form onSubmit={handleSubmit}>
+        <Alert msg={error} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
+          <div>
+            <label style={labelStyle}>Nome *</label>
+            <input style={inputStyle(dark)} value={name} required autoFocus onChange={e => setName(e.target.value)} placeholder="Ex: Visualizador" />
+          </div>
+          <div>
+            <label style={labelStyle}>Descrição</label>
+            <input style={inputStyle(dark)} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Ex: Acesso somente leitura" />
+          </div>
+        </div>
+
+        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#9ca3af', marginBottom: 8 }}>
+          Permissões por Tela
+        </div>
+        <div style={{ border: '1px solid rgba(0,0,0,0.09)', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto', marginBottom: 20 }}>
+          {PERM_SCHEMA.map((screen, si) => {
+            const visible = getP(perms, screen.id, null);
+            return (
+              <div key={screen.id} style={{ borderBottom: si < PERM_SCHEMA.length - 1 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '11px 16px', background: '#f9fafb', cursor: 'pointer', userSelect: 'none',
+                }}>
+                  <input
+                    type="checkbox" checked={visible}
+                    onChange={() => toggle(screen.id, null)}
+                    style={{ width: 15, height: 15, cursor: 'pointer', accentColor: ACCENT }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: visible ? '#0f172a' : '#9ca3af', flex: 1 }}>
+                    {screen.label}
+                  </span>
+                  {!visible && <span style={{ fontSize: 10.5, color: '#ef4444', fontWeight: 600 }}>Oculto</span>}
+                </label>
+                {screen.items.length > 0 && visible && (
+                  <div style={{ padding: '8px 16px 12px 46px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
+                    {screen.items.map(item => (
+                      <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={getP(perms, screen.id, item.key)}
+                          onChange={() => toggle(screen.id, item.key)}
+                          style={{ width: 13, height: 13, accentColor: ACCENT }}
+                        />
+                        <span style={{ fontSize: 12, color: '#374151' }}>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" style={btnGhost(dark)} onClick={onClose}>Cancelar</button>
+          <button type="submit" style={btnPrimary} disabled={saving}>
+            {saving ? 'Salvando…' : role ? 'Salvar Função' : 'Criar Função'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function PermissionsTab({ dark }) {
+  const [roles, setRoles]   = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modal, setModal]   = useState(null);
+
+  const loadRoles = useCallback(() => {
+    setLoading(true);
+    api.adminListRoles().then(setRoles).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadRoles(); }, [loadRoles]);
+
+  const handleDelete = async (roleId) => {
+    if (!window.confirm('Deseja excluir esta função? Usuários com ela voltarão a ter acesso total.')) return;
+    try { await api.adminDeleteRole(roleId); loadRoles(); }
+    catch (err) { window.alert(err.message); }
+  };
+
+  const thStyle = {
+    padding: '10px 14px', fontSize: 10.5, fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.07em',
+    color: dark ? 'rgba(255,255,255,0.38)' : '#9ca3af',
+    textAlign: 'left', whiteSpace: 'nowrap',
+    borderBottom: dark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.07)',
+    background: dark ? 'rgba(255,255,255,0.02)' : '#f9fafb',
+  };
+  const tdStyle = {
+    padding: '11px 14px', fontSize: 12.5,
+    color: dark ? '#d1d5db' : '#374151',
+    borderBottom: dark ? '1px solid rgba(255,255,255,0.04)' : '1px solid rgba(0,0,0,0.05)',
+    verticalAlign: 'middle',
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: dark ? '#f0f6fc' : '#0f172a' }}>Funções de Acesso</div>
+          <div style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.4)' : '#9ca3af', marginTop: 2 }}>
+            Configure o que cada grupo de usuários pode visualizar
+          </div>
+        </div>
+        <button style={btnPrimary} onClick={() => setModal('create')}>
+          <Icon name="add" size="text-[15px]" /> Nova Função
+        </button>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Carregando…</div>
+        ) : roles.length === 0 ? (
+          <div style={{ padding: 48, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+            Nenhuma função cadastrada.<br />
+            <span style={{ fontSize: 11 }}>Sem funções, todos os usuários têm acesso total.</span>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Nome</th>
+                <th style={thStyle}>Descrição</th>
+                <th style={thStyle}>Criado em</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roles.map(role => (
+                <tr key={role.id}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.015)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  style={{ transition: 'background .1s' }}
+                >
+                  <td style={{ ...tdStyle, fontWeight: 600, color: '#0f172a' }}>{role.name}</td>
+                  <td style={{ ...tdStyle, color: '#9ca3af' }}>{role.description || '—'}</td>
+                  <td style={{ ...tdStyle, color: '#9ca3af' }}>{role.created_at ? new Date(role.created_at).toLocaleDateString('pt-BR') : '—'}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button style={btnGhost(dark)} onClick={() => setModal({ type: 'edit', role })}>
+                        <Icon name="edit" size="text-[13px]" /> Editar
+                      </button>
+                      <button style={btnDanger} onClick={() => handleDelete(role.id)}>
+                        <Icon name="delete" size="text-[13px]" /> Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {modal === 'create' && (
+        <RoleEditorModal dark={dark} role={null} onClose={() => setModal(null)} onSaved={loadRoles} />
+      )}
+      {modal?.type === 'edit' && (
+        <RoleEditorModal dark={dark} role={modal.role} onClose={() => setModal(null)} onSaved={loadRoles} />
+      )}
+    </>
   );
 }
 
@@ -769,8 +1115,9 @@ export default function Admin({ standalone = false }) {
   const dark              = false; // Admin panel always uses light mode for clarity
 
   const tabs = [
-    { id: 'companies', icon: 'business',  label: 'Empresas' },
-    { id: 'users',     icon: 'group',     label: 'Usuários' },
+    { id: 'companies',   icon: 'business',          label: 'Empresas' },
+    { id: 'users',       icon: 'group',             label: 'Usuários' },
+    { id: 'permissions', icon: 'admin_panel_settings', label: 'Permissões' },
   ];
 
   const content = (
@@ -805,10 +1152,9 @@ export default function Admin({ standalone = false }) {
       {/* Page content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          {tab === 'companies'
-            ? <CompaniesTab dark={dark} />
-            : <UsersTab dark={dark} />
-          }
+          {tab === 'companies'   && <CompaniesTab dark={dark} />}
+          {tab === 'users'       && <UsersTab dark={dark} />}
+          {tab === 'permissions' && <PermissionsTab dark={dark} />}
         </div>
       </div>
     </>

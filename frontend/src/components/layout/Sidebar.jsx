@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AppContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { usePermissions } from '../../hooks/usePermissions.js';
 import Icon from '../ui/Icon.jsx';
 
 const NAV_ITEMS = [
@@ -30,9 +31,13 @@ const navItemVariants = {
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { state, actions } = useApp();
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const { currentPage, transactions, darkMode } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
-  const visibleItems = NAV_ITEMS.filter(i => !i.adminOnly || user?.isSuperAdmin);
+  const visibleItems = NAV_ITEMS.filter(i => {
+    if (i.adminOnly) return Boolean(user?.isSuperAdmin);
+    return can(i.id);
+  });
   const sections = [...new Set(visibleItems.map(i => i.section))];
 
   const initials = user?.displayName

@@ -18,6 +18,7 @@ import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
 import ValuesBtn from '../components/ui/ValuesBtn.jsx';
 import { calcCicloSeries } from '../utils/cicloCalc.js';
 import { useChartFilter } from '../hooks/useChartFilter.js';
+import { usePermissions } from '../hooks/usePermissions.js';
 
 function ChartTip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null;
@@ -60,15 +61,16 @@ function CSep({ symbol }) {
   return <div className="cascade-sep">{symbol}</div>;
 }
 
-function SubtabBar({ active, onChange }) {
+function SubtabBar({ active, onChange, tabs }) {
+  if (!tabs?.length) return null;
   return (
     <div className="subtab-bar flex bg-bg-2 border-b border-slate-100 px-4 lg:px-7 mb-4 -mx-4 lg:-mx-7 -mt-6">
-      {['Visão Geral', 'Demonstrativo'].map((label, i) => (
+      {tabs.map(({ idx, label }) => (
         <button
-          key={label}
-          onClick={() => onChange(i)}
+          key={idx}
+          onClick={() => onChange(idx)}
           className={`subtab-btn py-2.5 px-4 text-[11.5px] font-semibold cursor-pointer border-0 border-b-2 transition-all bg-transparent -mb-px ${
-            active === i ? 'act text-accent border-accent' : 'text-text-3 border-transparent hover:text-text-base'
+            active === idx ? 'act text-accent border-accent' : 'text-text-3 border-transparent hover:text-text-base'
           }`}
         >
           {label}
@@ -81,8 +83,14 @@ function SubtabBar({ active, onChange }) {
 export default function Caixa() {
   const { state, actions } = useApp();
   const { transactions, plano, saldosIniciais, filterState, darkMode } = state;
+  const { canChart, canSubtab } = usePermissions();
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
+
+  const subtabs = [
+    canSubtab('caixa', 'subtab_overview') && { idx: 0, label: 'Visão Geral' },
+    canSubtab('caixa', 'subtab_dre')      && { idx: 1, label: 'Demonstrativo' },
+  ].filter(Boolean);
   const [filterCat, setFilterCat] = useState('');
   const [modalChart, setModalChart] = useState(null);
   const [showVFlow,  setShowVFlow]  = useState(false);
@@ -334,9 +342,9 @@ export default function Caixa() {
     <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
 
-      <SubtabBar active={subTab} onChange={setSubTab} />
+      <SubtabBar active={subTab} onChange={setSubTab} tabs={subtabs} />
 
-      {subTab === 0 ? (
+      {subTab === 0 && subtabs.some(t => t.idx === 0) ? (
         <>
           {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
@@ -359,93 +367,103 @@ export default function Caixa() {
           </div>
 
           {/* ── Chart: resultado líquido ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Resultado Líquido — mês a mês
-                  <InfoPopover title="Resultado Líquido — mês a mês" description={'Barras com Entradas (verde) e Saídas totais (vermelho) por mês, mais linha de Saldo Líquido (azul).\n\nRegime Caixa: considera a data efetiva do movimento financeiro.'} />
+          {canChart('caixa', 'flow') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Resultado Líquido — mês a mês
+                    <InfoPopover title="Resultado Líquido — mês a mês" description={'Barras com Entradas (verde) e Saídas totais (vermelho) por mês, mais linha de Saldo Líquido (azul).\n\nRegime Caixa: considera a data efetiva do movimento financeiro.'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Entradas, saídas e saldo líquido</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={flowCF.override} setOverride={flowCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVFlow} onToggle={() => setShowVFlow(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={flowCF.override} setOverride={flowCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVFlow} onToggle={() => setShowVFlow(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderFlow('100%')}</div>
             </div>
-            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderFlow('100%')}</div>
-          </div>
+          )}
 
           {/* ── Chart: saldo acumulado ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Saldo Acumulado
-                  <InfoPopover title="Saldo Acumulado" description={'Linha verde: posição de caixa acumulada mês a mês.\nLinha tracejada azul: tendência linear entre o primeiro e o último ponto visível.'} />
+          {canChart('caixa', 'acum') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Saldo Acumulado
+                    <InfoPopover title="Saldo Acumulado" description={'Linha verde: posição de caixa acumulada mês a mês.\nLinha tracejada azul: tendência linear entre o primeiro e o último ponto visível.'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Evolução com linha de tendência</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Evolução com linha de tendência</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={acumCF.override} setOverride={acumCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVAcum} onToggle={() => setShowVAcum(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={acumCF.override} setOverride={acumCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVAcum} onToggle={() => setShowVAcum(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderAcum('100%')}</div>
             </div>
-            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderAcum('100%')}</div>
-          </div>
+          )}
 
           {/* ── Chart: ciclo financeiro ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Ciclo Financeiro — PMR, PMP e Ciclo de Caixa
-                  <InfoPopover title="Ciclo Financeiro" description={'PMR: dia médio de recebimento · PMP: dia médio de pagamento\nCiclo = PMP − PMR (positivo → recebe antes de pagar)'} />
+          {canChart('caixa', 'ciclo') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Ciclo Financeiro — PMR, PMP e Ciclo de Caixa
+                    <InfoPopover title="Ciclo Financeiro" description={'PMR: dia médio de recebimento · PMP: dia médio de pagamento\nCiclo = PMP − PMR (positivo → recebe antes de pagar)'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Prazos médios de recebimento e pagamento</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Prazos médios de recebimento e pagamento</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={cicloCF.override} setOverride={cicloCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVCiclo} onToggle={() => setShowVCiclo(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={cicloCF.override} setOverride={cicloCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVCiclo} onToggle={() => setShowVCiclo(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderCiclo('100%')}</div>
             </div>
-            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderCiclo('100%')}</div>
-          </div>
+          )}
 
           {/* ── Chart: margem comparação ── */}
-          <div className="panel mb-3.5">
-            <div className="panel-hdr">
-              <div>
-                <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                  Margem Operacional — Caixa vs Competência
-                  <InfoPopover title="Margem Operacional — Caixa vs Competência" description={'Compara a Margem Operacional (%) nos dois regimes.\nDivergências indicam diferenças de timing entre o econômico e o financeiro.'} />
+          {canChart('caixa', 'marg') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Margem Operacional — Caixa vs Competência
+                    <InfoPopover title="Margem Operacional — Caixa vs Competência" description={'Compara a Margem Operacional (%) nos dois regimes.\nDivergências indicam diferenças de timing entre o econômico e o financeiro.'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Comparativo dos dois regimes</div>
                 </div>
-                <div className="text-[10px] text-text-3 mt-0.5">Comparativo dos dois regimes</div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={margCF.override} setOverride={margCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVMarg} onToggle={() => setShowVMarg(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <ChartFilterPicker tx={tx} override={margCF.override} setOverride={margCF.setOverride} globalFilterState={filterState} />
-                <ValuesBtn show={showVMarg} onToggle={() => setShowVMarg(v => !v)} />
-                <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
-              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMargComp('100%')}</div>
             </div>
-            <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMargComp('100%')}</div>
-          </div>
+          )}
 
           {/* ── Composição das saídas ── */}
-          <DrillChart
-            transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
-            visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
-            year={drillCF.effectiveYear}
-            darkMode={darkMode}
-            plano={plano}
-            filterOverride={drillCF.override}
-            onFilterOverride={drillCF.setOverride}
-            globalFilterState={filterState}
-            tx={tx}
-          />
+          {canChart('caixa', 'drill') && (
+            <DrillChart
+              transactions={drillCF.isOverriding ? drillCF.effectiveTx : filteredTx}
+              visMonths={drillCF.isOverriding ? drillCF.effectiveVisMonths : visMonths}
+              year={drillCF.effectiveYear}
+              darkMode={darkMode}
+              plano={plano}
+              filterOverride={drillCF.override}
+              onFilterOverride={drillCF.setOverride}
+              globalFilterState={filterState}
+              tx={tx}
+            />
+          )}
         </>
       ) : null}
 
