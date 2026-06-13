@@ -35,7 +35,7 @@ function ChartTip({ active, payload, label, formatter }) {
   );
 }
 
-function CNode({ label, value, sub, color, result, first, last }) {
+function CNode({ label, value, sub, color, result, first, last, delta, deltaDir }) {
   return (
     <div
       className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''}`}
@@ -44,6 +44,11 @@ function CNode({ label, value, sub, color, result, first, last }) {
       <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
+      {delta && (
+        <div className={`text-[10px] font-semibold mt-0.5 ${deltaDir === 'up' ? 'text-emerald-500' : 'text-red-500'}`}>
+          {deltaDir === 'up' ? '▲' : '▼'} {delta}
+        </div>
+      )}
     </div>
   );
 }
@@ -242,26 +247,14 @@ export default function Competencia() {
             <CSep symbol="−" />
             <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" />
             <CSep symbol="=" />
-            <CNode last result label="EBIT" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
-          </div>
-
-          {/* ── KPI cards ── */}
-          <div className="grid grid-cols-2 gap-3 mb-3.5">
-            <div className="kpi-card kc-p">
-              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">Desp. Não Operacionais</div>
-              <div className="font-inter font-bold text-[22px] tracking-tight text-[#8b5cf6]">{fmtK(dre.totDespNop)}</div>
-              <div className="text-[11px] text-text-3 mt-0.5">{fmtPct(pct(dre.totDespNop, dre.totRec))} da receita</div>
-            </div>
-            <div className={`kpi-card ${dre.totLL >= 0 ? 'kc-g' : 'kc-r'}`}>
-              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">Lucro Líquido</div>
-              <div className="font-inter font-bold text-[22px] tracking-tight" style={{ color: dre.totLL >= 0 ? '#10b981' : '#ef4444' }}>{fmtK(dre.totLL)}</div>
-              <div className="text-[11px] text-text-3 mt-0.5">{fmtPct(pct(dre.totLL, dre.totRec))} de margem líquida</div>
-              {dre.mLL.length > 1 && (
-                <div className={`text-[10px] font-semibold mt-0.5 ${dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'text-emerald-500' : 'text-red-500'}`}>
-                  {dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? '▲' : '▼'} {fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1)))} vs mês ant.
-                </div>
-              )}
-            </div>
+            <CNode result label="EBIT" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
+            <CSep symbol="−" />
+            <CNode label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} color="#8b5cf6" />
+            <CSep symbol="=" />
+            <CNode last result label="Lucro Líquido" value={fmtK(dre.totLL)} sub={fmtPct(pct(dre.totLL, dre.totRec)) + ' de margem líquida'} color={dre.totLL >= 0 ? '#10b981' : '#ef4444'}
+              delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
+              deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
+            />
           </div>
 
           {/* ── Chart: resultado mensal ── */}
