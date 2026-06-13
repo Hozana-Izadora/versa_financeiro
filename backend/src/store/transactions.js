@@ -105,21 +105,26 @@ export async function deleteTransaction(tenantSchema, id) {
 export async function bulkInsertTransactions(tenantSchema, txList, importId = null) {
   if (!txList.length) return 0;
   return withTenant(tenantSchema, async (client) => {
-    await client.query('BEGIN');
-    try {
-      for (const tx of txList) {
-        await client.query(
-          `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [tx.data, tx.desc, tx.cat, tx.grp, tx.tipo, tx.nivel, tx.valor, tx.mov, tx.regime, importId]
-        );
-      }
-      await client.query('COMMIT');
-      return txList.length;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    }
+    await client.query(
+      `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)
+       SELECT * FROM unnest(
+         $1::date[], $2::text[], $3::text[], $4::text[], $5::text[],
+         $6::text[], $7::numeric[], $8::text[], $9::text[], $10::bigint[]
+       ) AS t(data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)`,
+      [
+        txList.map(t => t.data),
+        txList.map(t => t.desc),
+        txList.map(t => t.cat),
+        txList.map(t => t.grp),
+        txList.map(t => t.tipo),
+        txList.map(t => t.nivel),
+        txList.map(t => t.valor),
+        txList.map(t => t.mov),
+        txList.map(t => t.regime),
+        txList.map(() => importId),
+      ]
+    );
+    return txList.length;
   });
 }
 

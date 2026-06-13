@@ -14,8 +14,23 @@ export function sumMonth(tx, year, month, movFilter, tipoFilter, groupFilter) {
 export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais) {
   const { year, group: groupFilter = 'all' } = filterState;
 
+  // Single pass over tx to build aggregation maps — O(n) instead of O(n × tipos × months)
+  const byTipoMov = new Map(); // `${m}|${mov}|${tipo}` → sum
+  const byMov     = new Map(); // `${m}|${mov}`         → sum
+  for (const r of tx) {
+    const d = new Date(r.data + 'T12:00');
+    if (d.getFullYear() !== year) continue;
+    if (groupFilter !== 'all' && r.grp !== groupFilter) continue;
+    const m = d.getMonth();
+    const kMov = `${m}|${r.mov}`;
+    byMov.set(kMov, (byMov.get(kMov) ?? 0) + r.valor);
+    const kTipo = `${kMov}|${r.tipo}`;
+    byTipoMov.set(kTipo, (byTipoMov.get(kTipo) ?? 0) + r.valor);
+  }
+
   function sm(month, movFilter, tipoFilter) {
-    return sumMonth(tx, year, month, movFilter, tipoFilter, groupFilter);
+    if (tipoFilter) return byTipoMov.get(`${month}|${movFilter}|${tipoFilter}`) ?? 0;
+    return byMov.get(`${month}|${movFilter}`) ?? 0;
   }
 
   // Group plano by cat > grp > tipo
@@ -86,8 +101,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // (pre-period already used all movements; now mSaldo also does → no more break)
   let saldoAcum = Number(saldosIniciais[`${year}-abertura`]) || 0;
   for (let m = 0; m < (visMonths[0] ?? 0); m++) {
-    saldoAcum += sumMonth(tx, year, m, 'Entrada', null, groupFilter)
-               - sumMonth(tx, year, m, 'Saída',   null, groupFilter);
+    saldoAcum += (byMov.get(`${m}|Entrada`) ?? 0) - (byMov.get(`${m}|Saída`) ?? 0);
   }
   const mAcum = visMonths.map((_, i) => { saldoAcum += mSaldo[i]; return saldoAcum; });
 
