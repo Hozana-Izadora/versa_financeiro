@@ -365,7 +365,7 @@ const FIELD_LABELS = {
 };
 
 // ── Import preview panel ──────────────────────────────────────────────────────
-function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap }) {
+function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isImporting }) {
   const [colMap, setColMap]             = useState(preview.colMap ?? {});
   const [forceImbalanced, setForce]     = useState(false);
   const [remapping, setRemapping]       = useState(false);
@@ -417,7 +417,7 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap }) {
             <button
               className="btn btn-primary btn-sm"
               onClick={handleRemap}
-              disabled={remapping}
+              disabled={remapping || isImporting}
             >
               <Icon name="refresh" size="text-[14px]" />
               {remapping ? 'Analisando...' : 'Re-analisar com novo mapeamento'}
@@ -530,28 +530,55 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap }) {
       )}
 
       {/* Summary + actions */}
-      <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-3">
-        <div className="text-[13px]">
-          <span className="font-semibold text-text-base">{summary.total}</span>
-          <span className="text-text-3 ml-1">lançamentos prontos para importação</span>
-          {hasTransfers && (
-            <span className="text-text-3 ml-2">
-              ({transfers.count} transferência{transfers.count !== 1 ? 's' : ''} excluída{transfers.count !== 1 ? 's' : ''} do DRE)
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={onCancel}>
-            <Icon name="close" size="text-[14px]" /> Cancelar
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => onConfirm(colMap, forceImbalanced)}
-            disabled={unbalanced && !forceImbalanced}
-          >
-            <Icon name="check_circle" size="text-[14px]" /> Confirmar Importação
-          </button>
-        </div>
+      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-3">
+        {isImporting ? (
+          <div className="flex items-center gap-4">
+            <div className="shrink-0 w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center">
+              <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-semibold text-text-base">
+                Importando {summary.total} lançamento{summary.total !== 1 ? 's' : ''}…
+              </div>
+              <div className="text-[11px] text-text-3 mt-0.5">
+                Aguarde, não feche esta página
+              </div>
+            </div>
+            <div className="w-32 h-1.5 rounded-full bg-slate-200 dark:bg-slate-600 overflow-hidden shrink-0">
+              <div
+                className="h-full bg-accent rounded-full"
+                style={{
+                  width: '45%',
+                  animation: 'importSlide 1.4s ease-in-out infinite',
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="text-[13px]">
+              <span className="font-semibold text-text-base">{summary.total}</span>
+              <span className="text-text-3 ml-1">lançamentos prontos para importação</span>
+              {hasTransfers && (
+                <span className="text-text-3 ml-2">
+                  ({transfers.count} transferência{transfers.count !== 1 ? 's' : ''} excluída{transfers.count !== 1 ? 's' : ''} do DRE)
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+                <Icon name="close" size="text-[14px]" /> Cancelar
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => onConfirm(colMap, forceImbalanced)}
+                disabled={unbalanced && !forceImbalanced}
+              >
+                <Icon name="check_circle" size="text-[14px]" /> Confirmar Importação
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -875,6 +902,7 @@ export default function Importar() {
   const [previewData, setPreview]       = useState(null);
   const [previewFile, setPreviewFile]   = useState(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isImporting, setIsImporting]   = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // { title, body, onConfirm }
   const fileRef = useRef();
 
@@ -904,6 +932,7 @@ export default function Importar() {
   }
 
   async function handleConfirm(colMap, forceImbalanced) {
+    setIsImporting(true);
     try {
       const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced);
       await actions.refreshAll();
@@ -913,6 +942,8 @@ export default function Importar() {
       actions.notify(`${res.imported} lançamentos importados para a base ${base}!`, 'ns');
     } catch (e) {
       actions.notify('Erro: ' + e.message, 'ne');
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -1100,6 +1131,7 @@ export default function Importar() {
               onConfirm={handleConfirm}
               onCancel={() => { setPreview(null); setPreviewFile(null); }}
               onRemap={handleRemap}
+              isImporting={isImporting}
             />
           )}
         </div>

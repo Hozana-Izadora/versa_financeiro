@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { fmt, fmtK } from '../utils/formatters.js';
@@ -142,6 +142,13 @@ export default function Lancamentos() {
   const [sortCol, setSortCol] = useState('data');
   const [sortDir, setSortDir] = useState('desc');
 
+  // ── Pagination ──────────────────────────────────────────────────
+  const PAGE_SIZE = 100;
+  const [page, setPage] = useState(0);
+
+  // Defer search input so keystrokes stay responsive with large datasets
+  const deferredSearch = useDeferredValue(search);
+
   // ── Base transaction set (all regimes, current year) ────────────
   const allTx = useMemo(() => {
     const arr = [...transactions.caixa, ...transactions.competencia];
@@ -179,12 +186,18 @@ export default function Lancamentos() {
     filterValMax  !== '',
   ].filter(Boolean).length;
 
+  // Reset to page 0 whenever filters or sort change
+  useEffect(() => { setPage(0); }, [
+    deferredSearch, filterDateFrom, filterDateTo, filterCat, filterGrp,
+    filterTipo, filterRegime, filterMov, filterValMin, filterValMax, sortCol, sortDir,
+  ]);
+
   // ── Filtered + sorted rows ───────────────────────────────────────
   const filtered = useMemo(() => {
     let arr = allTx;
 
-    if (search) {
-      const q = search.toLowerCase();
+    if (deferredSearch) {
+      const q = deferredSearch.toLowerCase();
       arr = arr.filter(r =>
         r.desc?.toLowerCase().includes(q) ||
         r.cat?.toLowerCase().includes(q)  ||
@@ -210,8 +223,11 @@ export default function Lancamentos() {
       if (va > vb) return sortDir === 'asc' ?  1 : -1;
       return 0;
     });
-  }, [allTx, search, filterDateFrom, filterDateTo, filterCat, filterGrp, filterTipo,
+  }, [allTx, deferredSearch, filterDateFrom, filterDateTo, filterCat, filterGrp, filterTipo,
       filterRegime, filterMov, filterValMin, filterValMax, sortCol, sortDir]);
+
+  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const pageRows  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const totalRec = useMemo(() => filtered.filter(r => r.mov === 'Entrada').reduce((s, r) => s + r.valor, 0), [filtered]);
   const totalSai = useMemo(() => filtered.filter(r => r.mov === 'Saída')  .reduce((s, r) => s + r.valor, 0), [filtered]);
@@ -225,6 +241,7 @@ export default function Lancamentos() {
     setFilterCat('all'); setFilterGrp('all'); setFilterTipo('all');
     setFilterRegime('all'); setFilterMov('all');
     setFilterValMin(''); setFilterValMax('');
+    setPage(0);
   }
 
   function toggleSort(col) {
@@ -451,7 +468,7 @@ export default function Lancamentos() {
                     </div>
                   </td>
                 </tr>
-              ) : filtered.map(r => (
+              ) : pageRows.map(r => (
                 <tr key={r.id} onClick={() => openEdit(r)}>
                   <td className="text-text-2 whitespace-nowrap">
                     {new Date(r.data + 'T12:00').toLocaleDateString('pt-BR')}
@@ -481,13 +498,30 @@ export default function Lancamentos() {
           </table>
         </div>
 
-        {/* Footer count */}
+        {/* Footer: count + pagination */}
         {filtered.length > 0 && (
-          <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-text-3 flex justify-between items-center">
+          <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-text-3 flex flex-wrap justify-between items-center gap-2">
             <span>
-              {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} de {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
               {activeCount > 0 && ` (filtrado de ${allTx.length})`}
             </span>
+            {pageCount > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  disabled={page === 0}
+                  onClick={() => setPage(p => p - 1)}
+                  className="btn btn-ghost btn-sm disabled:opacity-30"
+                >‹ Anterior</button>
+                <span className="text-[10.5px] text-text-2 px-1">
+                  {page + 1} / {pageCount}
+                </span>
+                <button
+                  disabled={page >= pageCount - 1}
+                  onClick={() => setPage(p => p + 1)}
+                  className="btn btn-ghost btn-sm disabled:opacity-30"
+                >Próximo ›</button>
+              </div>
+            )}
             <span>
               Ordenado por <strong className="text-text-2">{sortCol}</strong> {sortDir === 'asc' ? '↑' : '↓'}
             </span>
