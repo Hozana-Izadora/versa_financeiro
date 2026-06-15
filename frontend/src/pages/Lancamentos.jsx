@@ -143,7 +143,7 @@ export default function Lancamentos() {
   const [sortDir, setSortDir] = useState('desc');
 
   // ── Pagination ──────────────────────────────────────────────────
-  const PAGE_SIZE = 100;
+  const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(0);
 
   // Defer search input so keystrokes stay responsive with large datasets
@@ -226,8 +226,8 @@ export default function Lancamentos() {
   }, [allTx, deferredSearch, filterDateFrom, filterDateTo, filterCat, filterGrp, filterTipo,
       filterRegime, filterMov, filterValMin, filterValMax, sortCol, sortDir]);
 
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
-  const pageRows  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageCount = Math.ceil(filtered.length / pageSize);
+  const pageRows  = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
   const totalRec = useMemo(() => filtered.filter(r => r.mov === 'Entrada').reduce((s, r) => s + r.valor, 0), [filtered]);
   const totalSai = useMemo(() => filtered.filter(r => r.mov === 'Saída')  .reduce((s, r) => s + r.valor, 0), [filtered]);
@@ -502,26 +502,38 @@ export default function Lancamentos() {
         {filtered.length > 0 && (
           <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-text-3 flex flex-wrap justify-between items-center gap-2">
             <span>
-              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} de {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
+              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, filtered.length)} de {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
               {activeCount > 0 && ` (filtrado de ${allTx.length})`}
             </span>
-            {pageCount > 1 && (
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <button
-                  disabled={page === 0}
-                  onClick={() => setPage(p => p - 1)}
-                  className="btn btn-ghost btn-sm disabled:opacity-30"
-                >‹ Anterior</button>
-                <span className="text-[10.5px] text-text-2 px-1">
-                  {page + 1} / {pageCount}
-                </span>
-                <button
-                  disabled={page >= pageCount - 1}
-                  onClick={() => setPage(p => p + 1)}
-                  className="btn btn-ghost btn-sm disabled:opacity-30"
-                >Próximo ›</button>
+                <span className="text-[10px]">Exibir</span>
+                <select
+                  value={pageSize}
+                  onChange={e => { setPageSize(+e.target.value); setPage(0); }}
+                  style={{ fontSize: 11, paddingTop: 3, paddingBottom: 3, paddingLeft: 6, paddingRight: 20 }}
+                >
+                  {[10, 25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
               </div>
-            )}
+              {pageCount > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={page === 0}
+                    onClick={() => setPage(p => p - 1)}
+                    className="btn btn-ghost btn-sm disabled:opacity-30"
+                  >‹ Anterior</button>
+                  <span className="text-[10.5px] text-text-2 px-1">
+                    {page + 1} / {pageCount}
+                  </span>
+                  <button
+                    disabled={page >= pageCount - 1}
+                    onClick={() => setPage(p => p + 1)}
+                    className="btn btn-ghost btn-sm disabled:opacity-30"
+                  >Próximo ›</button>
+                </div>
+              )}
+            </div>
             <span>
               Ordenado por <strong className="text-text-2">{sortCol}</strong> {sortDir === 'asc' ? '↑' : '↓'}
             </span>

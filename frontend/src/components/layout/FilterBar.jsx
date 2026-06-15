@@ -43,12 +43,32 @@ export default function FilterBar() {
         <span className="text-[9.5px] uppercase tracking-[0.12em] text-text-3 font-semibold">Ano</span>
         <select
           value={filterState.year}
-          onChange={e => actions.applyFilter({ year: +e.target.value, months: new Set() })}
+          onChange={e => {
+            const newYear = +e.target.value;
+            const updates = { year: newYear, months: new Set() };
+            if (filterState.compareYear === newYear) updates.compareYear = null;
+            actions.applyFilter(updates);
+          }}
           style={{ fontSize: 12, paddingTop: 5, paddingBottom: 5, minWidth: 70 }}
         >
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
+
+      {/* Compare year selector */}
+      {years.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-[9.5px] uppercase tracking-[0.12em] text-text-3 font-semibold">vs</span>
+          <select
+            value={filterState.compareYear ?? ''}
+            onChange={e => actions.applyFilter({ compareYear: e.target.value ? +e.target.value : null })}
+            style={{ fontSize: 12, paddingTop: 5, paddingBottom: 5, minWidth: 70 }}
+          >
+            <option value="">—</option>
+            {years.filter(y => y !== filterState.year).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Divider */}
       <div style={{ width: 1, height: 20, background: 'rgba(0,0,0,0.08)' }} />
