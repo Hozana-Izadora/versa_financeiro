@@ -36,7 +36,11 @@ function ChartTip({ active, payload, label, formatter }) {
   );
 }
 
-function CNode({ label, value, sub, color, result, first, last, delta, deltaDir }) {
+function CNode({ label, value, sub, color, result, first, last, delta, deltaDir, rawValue, cmp }) {
+  const cmpDelta = cmp != null && rawValue != null && Math.abs(cmp.prev) > 0.01
+    ? ((rawValue - cmp.prev) / Math.abs(cmp.prev) * 100) : null;
+  const cmpUp = cmp != null && rawValue != null ? rawValue >= cmp.prev : null;
+  const cmpGood = cmp != null && cmpUp != null ? (cmp.positiveIsGood !== false ? cmpUp : !cmpUp) : null;
   return (
     <div
       className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''}`}
@@ -51,6 +55,17 @@ function CNode({ label, value, sub, color, result, first, last, delta, deltaDir 
       {delta && (
         <div className={`text-[10px] font-semibold mt-0.5 ${deltaDir === 'up' ? 'text-emerald-500' : 'text-red-500'}`}>
           {deltaDir === 'up' ? '▲' : '▼'} {delta}
+        </div>
+      )}
+      {cmp != null && rawValue != null && (
+        <div className="mt-1 pt-1 border-t border-slate-100 dark:border-slate-700/50 flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] font-mono text-text-3">{fmtK(cmp.prev)}</span>
+          {cmpDelta != null && (
+            <span className={`text-[10px] font-semibold ${cmpGood ? 'text-emerald-500' : 'text-red-500'}`}>
+              {cmpUp ? '▲' : '▼'} {Math.abs(cmpDelta).toFixed(1)}%
+            </span>
+          )}
+          <span className="ml-auto text-[9px] text-text-3 font-medium">{cmp.year}</span>
         </div>
       )}
     </div>
@@ -130,6 +145,45 @@ export default function Caixa() {
     buildDRE(filteredTxComp, plano, visMonths, 'competencia', filterState, saldosIniciais),
     [filteredTxComp, plano, visMonths, filterState, saldosIniciais]);
 
+  // ── Comparison year (YoY) ─────────────────────────────────────────
+  const { compareYear } = filterState;
+
+  const filteredTxPrev = useMemo(() => {
+    if (!compareYear) return null;
+    return tx.filter(r => {
+      const d = new Date(r.data + 'T12:00');
+      return d.getFullYear() === compareYear &&
+        (filterState.months.size === 0 || filterState.months.has(d.getMonth())) &&
+        (filterState.group === 'all' || r.grp === filterState.group);
+    });
+  }, [tx, compareYear, filterState.months, filterState.group]);
+
+  const drePrev = useMemo(() => {
+    if (!filteredTxPrev) return null;
+    return buildDRE(filteredTxPrev, plano, visMonths, 'caixa', { ...filterState, year: compareYear }, saldosIniciais);
+  }, [filteredTxPrev, plano, visMonths, filterState, compareYear, saldosIniciais]);
+
+  const filteredTxPrevComp = useMemo(() => {
+    if (!compareYear) return null;
+    return txComp.filter(r => {
+      const d = new Date(r.data + 'T12:00');
+      return d.getFullYear() === compareYear &&
+        (filterState.months.size === 0 || filterState.months.has(d.getMonth())) &&
+        (filterState.group === 'all' || r.grp === filterState.group);
+    });
+  }, [txComp, compareYear, filterState.months, filterState.group]);
+
+  const drePrevComp = useMemo(() => {
+    if (!filteredTxPrevComp) return null;
+    return buildDRE(filteredTxPrevComp, plano, visMonths, 'competencia', { ...filterState, year: compareYear }, saldosIniciais);
+  }, [filteredTxPrevComp, plano, visMonths, filterState, compareYear, saldosIniciais]);
+
+  const prevSaldo = drePrev ? drePrev.mSaldo.reduce((a, b) => a + b, 0) : null;
+
+  // Helper: build cmp prop for CNode
+  const cmpNode = (prev, positiveIsGood = true) =>
+    compareYear && drePrev && prev != null ? { prev, year: compareYear, positiveIsGood } : null;
+
   const catOptions = useMemo(() => [...new Set(plano.map(p => p.cat))].sort(), [plano]);
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
 
@@ -185,26 +239,43 @@ export default function Caixa() {
 
   // ── Chart data ────────────────────────────────────────────────────
   const flowChartData = useMemo(() => {
-    const vm = flowCF.isOverriding ? flowCF.effectiveVisMonths : visMonths;
+    const isOvr = flowCF.isOverriding;
+    const vm = isOvr ? flowCF.effectiveVisMonths : visMonths;
     return vm.map((m, i) => ({
       month: MONTHS[m],
       Entradas: flowDre.mRec[i],
       'Saídas': flowDre.mCost[i] + flowDre.mDespOp[i] + flowDre.mDespNop[i],
       Saldo: flowDre.mSaldo[i],
+      ...(!isOvr && drePrev ? {
+        [`Entradas ${compareYear}`]: drePrev.mRec[i] ?? 0,
+        [`Saídas ${compareYear}`]:   (drePrev.mCost[i] ?? 0) + (drePrev.mDespOp[i] ?? 0) + (drePrev.mDespNop[i] ?? 0),
+        [`Saldo ${compareYear}`]:    drePrev.mSaldo[i] ?? 0,
+      } : {}),
     }));
-  }, [flowCF.isOverriding, flowCF.effectiveVisMonths, visMonths, flowDre]);
+  }, [flowCF.isOverriding, flowCF.effectiveVisMonths, visMonths, flowDre, compareYear, drePrev]);
 
   const acumChartData = useMemo(() => {
-    const vm  = acumCF.isOverriding ? acumCF.effectiveVisMonths : visMonths;
+    const isOvr = acumCF.isOverriding;
+    const vm  = isOvr ? acumCF.effectiveVisMonths : visMonths;
     const arr = acumDre.mAcum;
     const a = arr[0] || 0, b = arr[arr.length - 1] || 0, n = arr.length;
     const tend = arr.map((_, i) => n > 1 ? +(a + (b - a) / (n - 1) * i).toFixed(0) : a);
-    return vm.map((m, i) => ({ month: MONTHS[m], Acumulado: arr[i], Tendência: tend[i] }));
-  }, [acumCF.isOverriding, acumCF.effectiveVisMonths, visMonths, acumDre]);
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      Acumulado: arr[i],
+      Tendência: tend[i],
+      ...(!isOvr && drePrev ? { [`Acum. ${compareYear}`]: drePrev.mAcum[i] ?? 0 } : {}),
+    }));
+  }, [acumCF.isOverriding, acumCF.effectiveVisMonths, visMonths, acumDre, compareYear, drePrev]);
 
   const cicloSeries = useMemo(
     () => calcCicloSeries(tx, cicloCF.effectiveYear, cicloCF.effectiveVisMonths),
     [tx, cicloCF.effectiveYear, cicloCF.effectiveVisMonths]);
+
+  const cicloSeriesPrev = useMemo(() => {
+    if (!compareYear || cicloCF.isOverriding) return null;
+    return calcCicloSeries(tx, compareYear, visMonths);
+  }, [tx, compareYear, visMonths, cicloCF.isOverriding]);
 
   const cicloChartData = useMemo(() =>
     cicloCF.effectiveVisMonths.map((m, i) => ({
@@ -212,8 +283,13 @@ export default function Caixa() {
       'PMR — Recebimento': cicloSeries[i]?.pmr  ?? 0,
       'PMP — Pagamento':   cicloSeries[i]?.pmp  ?? 0,
       'Ciclo de Caixa':    cicloSeries[i]?.ciclo ?? 0,
+      ...(cicloSeriesPrev ? {
+        [`PMR ${compareYear}`]:   cicloSeriesPrev[i]?.pmr  ?? 0,
+        [`PMP ${compareYear}`]:   cicloSeriesPrev[i]?.pmp  ?? 0,
+        [`Ciclo ${compareYear}`]: cicloSeriesPrev[i]?.ciclo ?? 0,
+      } : {}),
     })),
-    [cicloCF.effectiveVisMonths, cicloSeries]);
+    [cicloCF.effectiveVisMonths, cicloSeries, cicloSeriesPrev, compareYear]);
 
   const moCaixaPct = useMemo(() =>
     margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRec[i] > 0 ? +(v / margDreCaixa.mRec[i] * 100).toFixed(1) : 0),
@@ -224,13 +300,20 @@ export default function Caixa() {
     [margDreComp]);
 
   const margCompChartData = useMemo(() => {
-    const vm = margCF.isOverriding ? margCF.effectiveVisMonths : visMonths;
+    const isOvr = margCF.isOverriding;
+    const vm = isOvr ? margCF.effectiveVisMonths : visMonths;
     return vm.map((m, i) => ({
       month: MONTHS[m],
       'Mg. Op. Caixa':       moCaixaPct[i],
       'Mg. Op. Competência': moCompPct[i],
+      ...(!isOvr && drePrev && drePrevComp ? {
+        [`Mg. Caixa ${compareYear}`]: drePrev.mRec[i] > 0
+          ? +(drePrev.mMgOp[i] / drePrev.mRec[i] * 100).toFixed(1) : 0,
+        [`Mg. Comp. ${compareYear}`]: drePrevComp.mRec[i] > 0
+          ? +(drePrevComp.mMgOp[i] / drePrevComp.mRec[i] * 100).toFixed(1) : 0,
+      } : {}),
     }));
-  }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct]);
+  }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct, compareYear, drePrev, drePrevComp]);
 
   // ── Chart renders ─────────────────────────────────────────────────
   function renderFlow(h) {
@@ -252,6 +335,13 @@ export default function Caixa() {
           <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }}>
             {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(59,130,246,.9)' }} />}
           </Line>
+          {!flowCF.isOverriding && drePrev && (
+            <>
+              <Bar dataKey={`Entradas ${compareYear}`} fill="rgba(16,185,129,.3)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey={`Saídas ${compareYear}`} fill="rgba(239,68,68,.3)" radius={[4, 4, 0, 0]} />
+              <Line dataKey={`Saldo ${compareYear}`} type="monotone" stroke="rgba(59,130,246,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+            </>
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     );
@@ -271,6 +361,9 @@ export default function Caixa() {
             {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
           </Area>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
+          {!acumCF.isOverriding && drePrev && (
+            <Line dataKey={`Acum. ${compareYear}`} type="monotone" stroke="rgba(16,185,129,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     );
@@ -295,6 +388,13 @@ export default function Caixa() {
           <Line dataKey="Ciclo de Caixa" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
             {showVCiclo && <LabelList dataKey="Ciclo de Caixa" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#E53E3E' }} />}
           </Line>
+          {cicloSeriesPrev && (
+            <>
+              <Line dataKey={`PMR ${compareYear}`} type="monotone" stroke="rgba(109,191,69,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+              <Line dataKey={`PMP ${compareYear}`} type="monotone" stroke="rgba(43,108,176,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+              <Line dataKey={`Ciclo ${compareYear}`} type="monotone" stroke="rgba(229,62,62,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+            </>
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     );
@@ -316,6 +416,12 @@ export default function Caixa() {
           <Line dataKey="Mg. Op. Competência" type="monotone" stroke="#2B6CB0" strokeWidth={2.5} dot={{ r: 4, fill: '#2B6CB0' }} activeDot={{ r: 5 }}>
             {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#2B6CB0' }} />}
           </Line>
+          {!margCF.isOverriding && drePrev && drePrevComp && (
+            <>
+              <Line dataKey={`Mg. Caixa ${compareYear}`} type="monotone" stroke="rgba(109,191,69,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+              <Line dataKey={`Mg. Comp. ${compareYear}`} type="monotone" stroke="rgba(43,108,176,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+            </>
+          )}
         </LineChart>
       </ResponsiveContainer>
     );
@@ -348,21 +454,22 @@ export default function Caixa() {
         <>
           {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
-            <CNode first label="Entradas / Receita" value={fmtK(dre.totRec)} sub={`${visMonths.length} mês(es)`} color="#10b981" />
+            <CNode first label="Entradas / Receita" value={fmtK(dre.totRec)} rawValue={dre.totRec} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRec)} />
             <CSep symbol="−" />
-            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} sub={fmtPct(pct(dre.totCost, dre.totRec)) + ' da receita'} color="#ef4444" />
+            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRec)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" />
+            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
             <CSep symbol="=" />
-            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} />
+            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
             <CSep symbol="+" />
-            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} color="#10b981" />
+            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
             <CSep symbol="−" />
-            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} color="#8b5cf6" />
+            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
             <CSep symbol="=" />
-            <CNode last result label="Saldo do Período" value={fmtK(totSaldo)} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} color={totSaldo >= 0 ? '#10b981' : '#ef4444'}
+            <CNode last result label="Saldo do Período" value={fmtK(totSaldo)} rawValue={totSaldo} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} color={totSaldo >= 0 ? '#10b981' : '#ef4444'}
               delta={dre.mSaldo.length > 1 ? fmtPct(pct(dre.mSaldo[dre.mSaldo.length - 1] - dre.mSaldo[dre.mSaldo.length - 2], Math.abs(dre.mSaldo[dre.mSaldo.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mSaldo.length > 1 && dre.mSaldo[dre.mSaldo.length - 1] >= dre.mSaldo[dre.mSaldo.length - 2] ? 'up' : 'down'}
+              cmp={prevSaldo != null ? { prev: prevSaldo, year: compareYear, positiveIsGood: true } : null}
             />
           </div>
 

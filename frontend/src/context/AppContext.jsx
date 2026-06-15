@@ -20,6 +20,7 @@ const initialState = {
     months: new Set(),
     group: 'all',
     availableMonths: [],
+    compareYear: null,
   },
   darkMode: storedDark,
   loading: false,
