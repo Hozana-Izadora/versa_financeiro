@@ -327,13 +327,13 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="Entradas" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
-            {showVFlow && <LabelList dataKey="Entradas" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+            {showVFlow && <LabelList dataKey="Entradas" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
           </Bar>
           <Bar dataKey="Saídas" fill="rgba(239,68,68,.7)" radius={[4, 4, 0, 0]}>
-            {showVFlow && <LabelList dataKey="Saídas" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#ef4444' }} />}
+            {showVFlow && <LabelList dataKey="Saídas" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#ef4444' }} />}
           </Bar>
           <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }}>
-            {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(59,130,246,.9)' }} />}
+            {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(59,130,246,.9)' }} />}
           </Line>
           {!flowCF.isOverriding && drePrev && (
             <>
@@ -358,7 +358,7 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Area dataKey="Acumulado" type="monotone" stroke="rgba(16,185,129,1)" fill="rgba(16,185,129,.12)" strokeWidth={2} dot={{ r: 5, fill: 'rgba(16,185,129,1)' }}>
-            {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+            {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
           </Area>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
           {!acumCF.isOverriding && drePrev && (
@@ -380,13 +380,13 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => `dia ${v ?? 'N/A'}`} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="PMR — Recebimento" fill="rgba(109,191,69,.7)" radius={[4, 4, 0, 0]}>
-            {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(109,191,69,1)' }} />}
+            {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(109,191,69,1)' }} />}
           </Bar>
           <Bar dataKey="PMP — Pagamento" fill="rgba(43,108,176,.7)" radius={[4, 4, 0, 0]}>
-            {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(43,108,176,1)' }} />}
+            {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(43,108,176,1)' }} />}
           </Bar>
           <Line dataKey="Ciclo de Caixa" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
-            {showVCiclo && <LabelList dataKey="Ciclo de Caixa" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#E53E3E' }} />}
+            {showVCiclo && <LabelList dataKey="Ciclo de Caixa" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#E53E3E' }} />}
           </Line>
           {cicloSeriesPrev && (
             <>
@@ -411,10 +411,10 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Mg. Op. Caixa" type="monotone" stroke="#6DBF45" strokeWidth={2.5} dot={{ r: 4, fill: '#6DBF45' }} activeDot={{ r: 5 }}>
-            {showVMarg && <LabelList dataKey="Mg. Op. Caixa" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#6DBF45' }} />}
+            {showVMarg && <LabelList dataKey="Mg. Op. Caixa" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#6DBF45' }} />}
           </Line>
           <Line dataKey="Mg. Op. Competência" type="monotone" stroke="#2B6CB0" strokeWidth={2.5} dot={{ r: 4, fill: '#2B6CB0' }} activeDot={{ r: 5 }}>
-            {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#2B6CB0' }} />}
+            {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#2B6CB0' }} />}
           </Line>
           {!margCF.isOverriding && drePrev && drePrevComp && (
             <>

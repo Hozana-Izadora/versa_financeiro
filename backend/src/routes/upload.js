@@ -389,9 +389,11 @@ router.delete('/history/:id', requirePermission('importar', 'write'), async (req
   const importId = parseInt(req.params.id, 10);
   if (!Number.isFinite(importId)) return res.status(400).json({ error: 'ID inválido' });
   try {
-    const deleted = await historyStore.deleteImportEntry(req.tenantSchema, importId);
-    if (!deleted) return res.status(404).json({ error: 'Importação não encontrada' });
+    // Transactions must be deleted BEFORE the history entry: the FK is ON DELETE SET NULL,
+    // so deleting the history row first would null out import_id before we can filter by it.
     const txDeleted = await txStore.deleteImportTransactions(req.tenantSchema, importId);
+    const deleted   = await historyStore.deleteImportEntry(req.tenantSchema, importId);
+    if (!deleted) return res.status(404).json({ error: 'Importação não encontrada' });
     const history   = await historyStore.getImportHistory(req.tenantSchema);
     res.json({ deleted: { ...deleted, txDeleted }, history });
   } catch (err) { next(err); }

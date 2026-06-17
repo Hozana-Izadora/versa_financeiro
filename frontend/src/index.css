@@ -112,7 +112,8 @@
     color: #10b981 !important;
     border-top: 1.5px solid rgba(16,185,129,0.20) !important;
   }
-  .dr-total td:first-child { background: rgba(16,185,129,0.04) !important; }
+  /* Sticky first column must use opaque backgrounds — rgba would let scrolled columns bleed through */
+  .dr-total td:first-child { background: #f5fcfa !important; }
   .dr-saldo { background: rgba(16,185,129,0.05) !important; }
   .dr-saldo td {
     font-family: 'Inter', sans-serif !important;
@@ -120,7 +121,7 @@
     font-size: 13px !important;
     border-top: 2px solid rgba(16,185,129,0.22) !important;
   }
-  .dr-saldo td:first-child { background: rgba(16,185,129,0.05) !important; color: #10b981 !important; }
+  .dr-saldo td:first-child { background: #f3fbf9 !important; color: #10b981 !important; }
   .dr-saldo-acum { background: rgba(16,185,129,0.07) !important; }
   .dr-saldo-acum td {
     font-family: 'Inter', sans-serif !important;
@@ -128,7 +129,7 @@
     font-size: 13px !important;
     border-top: 2px solid rgba(16,185,129,0.22) !important;
   }
-  .dr-saldo-acum td:first-child { background: rgba(16,185,129,0.07) !important; color: #10b981 !important; }
+  .dr-saldo-acum td:first-child { background: #eefaf6 !important; color: #10b981 !important; }
   .dr-ll { background: rgba(139,92,246,0.05) !important; }
   .dr-ll td {
     font-family: 'Inter', sans-serif !important;
@@ -136,7 +137,7 @@
     font-size: 13px !important;
     border-top: 2px solid rgba(139,92,246,0.22) !important;
   }
-  .dr-ll td:first-child { background: rgba(139,92,246,0.05) !important; color: #8b5cf6 !important; }
+  .dr-ll td:first-child { background: #f9f7ff !important; color: #8b5cf6 !important; }
 
   .cv-pos { color: #10b981; }
   .cv-neg { color: #ef4444; }
@@ -416,11 +417,11 @@ html.dark .dr-section td:first-child { background: #0d1117 !important; }
 html.dark .dr-group td { background: #21262d !important; color: #e6edf3 !important; }
 html.dark .dr-group td:first-child { background: #21262d !important; color: #e6edf3 !important; }
 html.dark .dr-total td { background: rgba(16,185,129,0.10) !important; color: #6ee7b7 !important; }
-html.dark .dr-total td:first-child { background: rgba(16,185,129,0.10) !important; }
+html.dark .dr-total td:first-child { background: #152b2c !important; }
 html.dark .dr-saldo td { color: #6ee7b7 !important; }
-html.dark .dr-saldo td:first-child { background: rgba(16,185,129,0.08) !important; color: #6ee7b7 !important; }
-html.dark .dr-saldo-acum td:first-child { background: rgba(16,185,129,0.10) !important; color: #6ee7b7 !important; }
-html.dark .dr-ll td:first-child { background: rgba(139,92,246,0.08) !important; color: #c4b5fd !important; }
+html.dark .dr-saldo td:first-child { background: #16272a !important; color: #6ee7b7 !important; }
+html.dark .dr-saldo-acum td:first-child { background: #152b2c !important; color: #6ee7b7 !important; }
+html.dark .dr-ll td:first-child { background: #1f2033 !important; color: #c4b5fd !important; }
 
 html.dark .tx-tbl th { color: #8b949e !important; border-color: rgba(255,255,255,0.07) !important; background: #0d1117 !important; }
 html.dark .tx-tbl td { border-color: rgba(255,255,255,0.06) !important; color: #adbac7 !important; }
