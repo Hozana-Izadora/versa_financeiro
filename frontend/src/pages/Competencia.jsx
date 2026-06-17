@@ -233,13 +233,13 @@ export default function Competencia() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="Receita" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
-            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#10b981' }} />}
+            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
           </Bar>
           <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)" radius={[4, 4, 0, 0]}>
-            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 9, fill: '#ef4444' }} />}
+            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#ef4444' }} />}
           </Bar>
           <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
-            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,.9)' }} />}
+            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(139,92,246,.9)' }} />}
           </Line>
           {!dreChartCF.isOverriding && drePrev && (
             <>
@@ -264,13 +264,13 @@ export default function Competencia() {
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(16,185,129,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(16,185,129,1)' }} />}
           </Line>
           <Line dataKey="Mg. Op. %" type="monotone" stroke="rgba(6,182,212,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(6,182,212,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(6,182,212,1)' }} />}
           </Line>
           <Line dataKey="Mg. Líq. %" type="monotone" stroke="rgba(139,92,246,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 9, fill: 'rgba(139,92,246,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(139,92,246,1)' }} />}
           </Line>
           {!mgChartCF.isOverriding && prevMbPct && (
             <>
