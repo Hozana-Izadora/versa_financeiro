@@ -364,20 +364,96 @@ const FIELD_LABELS = {
   valor: 'Valor', movimento: 'Movimento', regime: 'Regime',
 };
 
-// ── Import preview panel ──────────────────────────────────────────────────────
-function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isImporting }) {
-  const [colMap, setColMap]             = useState(preview.colMap ?? {});
-  const [forceImbalanced, setForce]     = useState(false);
-  const [remapping, setRemapping]       = useState(false);
+const NIVEL_ORDER = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional', 'Entrada Não Operacional'];
 
-  const { orphans, transfers, summary } = preview;
-  const hasOrphans   = orphans.length > 0;
-  const hasTransfers = transfers.count > 0;
-  const unbalanced   = hasTransfers && !transfers.balanced;
+// ── Searchable select ─────────────────────────────────────────────────────────
+function SearchableSelect({ value, onChange, groups }) {
+  const [open, setOpen]     = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const filtered = groups
+    .map(g => ({ ...g, options: g.options.filter(o => o.toLowerCase().includes(search.toLowerCase())) }))
+    .filter(g => g.options.length > 0);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(v => !v); setSearch(''); }}
+        className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent w-full min-w-[220px] text-left flex items-center justify-between gap-1"
+      >
+        <span className="truncate flex-1">{value || '—'}</span>
+        <Icon name={open ? 'expand_less' : 'expand_more'} size="text-[14px]" className="text-text-3 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 w-72 bg-card border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl">
+          <div className="p-1.5 border-b border-slate-100 dark:border-slate-700">
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar tipo..."
+              className="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </div>
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-[11px] text-text-3 text-center">Nenhum resultado</div>
+            ) : filtered.map(g => (
+              <div key={g.label}>
+                <div className="px-3 py-1 text-[9px] uppercase tracking-wider text-text-3 font-semibold bg-slate-50 dark:bg-slate-800/60 sticky top-0">
+                  {g.label}
+                </div>
+                {g.options.map(tipo => (
+                  <button
+                    key={tipo}
+                    type="button"
+                    onClick={() => { onChange(tipo); setOpen(false); setSearch(''); }}
+                    className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:bg-accent/10 ${tipo === value ? 'text-accent font-semibold bg-accent/5' : 'text-text-base'}`}
+                  >
+                    {tipo}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Import preview panel ──────────────────────────────────────────────────────
+function ImportPreview({ preview, file, base, plano, categoryOverrides, onOverrideChange, onConfirm, onCancel, onRemap, isImporting }) {
+  const [colMap, setColMap]         = useState(preview.colMap ?? {});
+  const [forceImbalanced, setForce] = useState(false);
+  const [remapping, setRemapping]   = useState(false);
+
+  const { orphans, transfers, summary, signConflicts } = preview;
+  const hasOrphans      = orphans.length > 0;
+  const hasTransfers    = transfers.count > 0;
+  const unbalanced      = hasTransfers && !transfers.balanced;
+  const hasSignConflict = (signConflicts?.count ?? 0) > 0;
+
+  // Group plano by nivel for dropdown optgroups
+  const planoByNivel = NIVEL_ORDER.reduce((acc, nivel) => {
+    acc[nivel] = (plano ?? []).filter(p => p.nivel === nivel).sort((a, b) => a.tipo.localeCompare(b.tipo, 'pt-BR'));
+    return acc;
+  }, {});
 
   async function handleRemap() {
     setRemapping(true);
-    try { await onRemap(colMap); }
+    try { await onRemap(colMap, categoryOverrides); }
     finally { setRemapping(false); }
   }
 
@@ -437,7 +513,7 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isIm
                   {summary.orphanCount} lançamento{summary.orphanCount !== 1 ? 's' : ''} com categoria não identificada
                 </div>
                 <div className="text-[10px] text-amber-600 dark:text-amber-500 mt-0.5">
-                  Serão vinculados automaticamente ao fallback padrão
+                  Escolha abaixo qual tipo do plano de contas será usado como fallback para cada categoria
                 </div>
               </div>
             </div>
@@ -447,27 +523,89 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isIm
               <thead>
                 <tr className="border-b border-amber-100 dark:border-amber-800">
                   <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Categoria no arquivo</th>
-                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Tipo de mov.</th>
-                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Fallback aplicado</th>
+                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Mov.</th>
+                  <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Mapear para (fallback)</th>
                   <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-text-3 font-semibold">Qtd</th>
                 </tr>
               </thead>
               <tbody>
-                {orphans.map(o => (
-                  <tr key={o.categoria} className="border-b border-amber-50 dark:border-amber-900/30">
-                    <td className="px-4 py-2 font-mono text-amber-700 dark:text-amber-400">{o.categoria}</td>
-                    <td className="px-4 py-2">
-                      <span className={`tag ${o.mov === 'Entrada' ? 't-entrada' : 't-saida'}`}>{o.mov}</span>
-                    </td>
-                    <td className="px-4 py-2 text-text-2">{o.fallback}</td>
-                    <td className="px-4 py-2 text-right font-mono font-semibold">{o.count}</td>
-                  </tr>
-                ))}
+                {orphans.map(o => {
+                  const currentTipo = categoryOverrides[o.categoria]?.tipo ?? o.fallback;
+                  return (
+                    <tr key={o.categoria} className="border-b border-amber-50 dark:border-amber-900/30">
+                      <td className="px-4 py-2 font-mono text-amber-700 dark:text-amber-400 max-w-[180px]">
+                        <div className="truncate" title={o.categoria}>{o.categoria}</div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`tag ${o.mov === 'Entrada' ? 't-entrada' : 't-saida'}`}>{o.mov}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <SearchableSelect
+                          value={currentTipo}
+                          onChange={tipoName => onOverrideChange(o.categoria, tipoName)}
+                          groups={NIVEL_ORDER
+                            .filter(nivel => planoByNivel[nivel]?.length)
+                            .map(nivel => ({ label: nivel, options: planoByNivel[nivel].map(p => p.tipo) }))
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono font-semibold">{o.count}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="px-4 py-2 text-[10px] text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-900/10">
-            Para mapear corretamente, crie os tipos no Plano de Contas e reimporte com a coluna "Categoria" preenchida com o nome exato do tipo.
+            O fallback selecionado será aplicado somente a esta importação. Para classificar permanentemente, crie os tipos no Plano de Contas e reimporte.
+          </div>
+        </div>
+      )}
+
+      {/* Sign conflicts */}
+      {hasSignConflict && (
+        <div className="panel border border-orange-200 dark:border-orange-700">
+          <div className="panel-hdr bg-orange-50 dark:bg-orange-900/20">
+            <div className="flex items-center gap-2">
+              <Icon name="swap_vert" size="text-[16px]" className="text-orange-500" />
+              <div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.count} lançamento{signConflicts.count !== 1 ? 's' : ''} com sinal inconsistente
+                </div>
+                <div className="text-[10px] text-orange-600 dark:text-orange-500 mt-0.5">
+                  A coluna Movimento indica direção diferente do sinal do valor numérico
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 grid grid-cols-2 gap-3">
+            {signConflicts.positiveSaidas.count > 0 && (
+              <div className="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg p-3">
+                <div className="text-[10px] text-text-3 mb-1">Tipo="Saídas" com valor positivo</div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.positiveSaidas.count} lançamento{signConflicts.positiveSaidas.count !== 1 ? 's' : ''}
+                </div>
+                <div className="font-mono text-[11px] text-text-3 mt-0.5">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(signConflicts.positiveSaidas.total)}
+                </div>
+              </div>
+            )}
+            {signConflicts.negativeEntradas.count > 0 && (
+              <div className="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg p-3">
+                <div className="text-[10px] text-text-3 mb-1">Tipo="Entradas" com valor negativo</div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.negativeEntradas.count} lançamento{signConflicts.negativeEntradas.count !== 1 ? 's' : ''}
+                </div>
+                <div className="font-mono text-[11px] text-text-3 mt-0.5">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(signConflicts.negativeEntradas.total)}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-2.5 text-[10px] text-orange-700 dark:text-orange-400 bg-orange-50/50 dark:bg-orange-900/10 leading-relaxed">
+            <strong>O sistema usa a coluna Movimento/Tipo como autoridade sobre a direção do lançamento</strong>, ignorando o sinal do valor.
+            Se esses registros forem estornos ou ajustes legítimos, o comportamento está correto.
+            Caso contrário, verifique se a coluna de movimento está mapeada corretamente acima.
           </div>
         </div>
       )}
@@ -571,7 +709,7 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isIm
               </button>
               <button
                 className="btn btn-primary btn-sm"
-                onClick={() => onConfirm(colMap, forceImbalanced)}
+                onClick={() => onConfirm(colMap, forceImbalanced, categoryOverrides)}
                 disabled={unbalanced && !forceImbalanced}
               >
                 <Icon name="check_circle" size="text-[14px]" /> Confirmar Importação
@@ -896,18 +1034,20 @@ function PlanoImportTab({ actions }) {
 export default function Importar() {
   const { state, actions } = useApp();
   const { importHistory }  = state;
-  const [activeTab, setActiveTab]       = useState('upload');
-  const [uploadBase, setUploadBase]     = useState('caixa');
-  const [dragging, setDragging]         = useState(false);
-  const [previewData, setPreview]       = useState(null);
-  const [previewFile, setPreviewFile]   = useState(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [isImporting, setIsImporting]   = useState(false);
-  const [confirmModal, setConfirmModal] = useState(null); // { title, body, onConfirm }
+  const [activeTab, setActiveTab]             = useState('upload');
+  const [uploadBase, setUploadBase]           = useState('caixa');
+  const [dragging, setDragging]               = useState(false);
+  const [previewData, setPreview]             = useState(null);
+  const [previewFile, setPreviewFile]         = useState(null);
+  const [isPreviewing, setIsPreviewing]       = useState(false);
+  const [isImporting, setIsImporting]         = useState(false);
+  const [categoryOverrides, setCatOverrides]  = useState({});
+  const [confirmModal, setConfirmModal]       = useState(null);
   const fileRef = useRef();
 
   async function processFile(file) {
     setPreviewFile(file);
+    setCatOverrides({});
     setIsPreviewing(true);
     try {
       const res = await api.previewImport(file, uploadBase);
@@ -919,10 +1059,16 @@ export default function Importar() {
     }
   }
 
-  async function handleRemap(colMap) {
+  function handleOverrideChange(categoria, tipoName) {
+    const planoItem = state.plano.find(p => p.tipo === tipoName);
+    if (!planoItem) return;
+    setCatOverrides(prev => ({ ...prev, [categoria]: planoItem }));
+  }
+
+  async function handleRemap(colMap, overrides = categoryOverrides) {
     setIsPreviewing(true);
     try {
-      const res = await api.previewImport(previewFile, uploadBase, colMap);
+      const res = await api.previewImport(previewFile, uploadBase, colMap, overrides);
       setPreview(res);
     } catch (e) {
       actions.notify('Erro ao re-analisar: ' + e.message, 'ne');
@@ -931,13 +1077,14 @@ export default function Importar() {
     }
   }
 
-  async function handleConfirm(colMap, forceImbalanced) {
+  async function handleConfirm(colMap, forceImbalanced, overrides = categoryOverrides) {
     setIsImporting(true);
     try {
-      const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced);
+      const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced, overrides);
       await actions.refreshAll();
       setPreview(null);
       setPreviewFile(null);
+      setCatOverrides({});
       const base = uploadBase === 'caixa' ? 'Caixa' : 'Competência';
       actions.notify(`${res.imported} lançamentos importados para a base ${base}!`, 'ns');
     } catch (e) {
@@ -1128,8 +1275,11 @@ export default function Importar() {
               preview={previewData}
               file={previewFile}
               base={uploadBase}
+              plano={state.plano}
+              categoryOverrides={categoryOverrides}
+              onOverrideChange={handleOverrideChange}
               onConfirm={handleConfirm}
-              onCancel={() => { setPreview(null); setPreviewFile(null); }}
+              onCancel={() => { setPreview(null); setPreviewFile(null); setCatOverrides({}); }}
               onRemap={handleRemap}
               isImporting={isImporting}
             />
