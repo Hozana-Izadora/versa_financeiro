@@ -183,12 +183,26 @@ function resolveCategory(catRaw, descRaw, mov, plano) {
 function parseRows(rawRows, plano, cm, baseRegime) {
   const orphanMap = new Map();
   let transferEntrada = 0, transferSaida = 0;
+  let psCount = 0, psTotal = 0; // Tipo='Saída' but positive value
+  let neCount = 0, neTotal = 0; // Tipo='Entrada' but negative value
 
   const records = rawRows.map((row, idx) => {
     const rawMov = cm.movimento ? row[cm.movimento] : '';
+    const rawVal = cm.valor ? row[cm.valor] : 0;
     const mov    = parseMov(rawMov);
-    const valor  = parseValor(cm.valor ? row[cm.valor] : 0);
+    const valor  = parseValor(rawVal);
     if (valor === 0) return null;
+
+    // Detect sign/direction conflict: value sign disagrees with the Tipo column
+    const numSign = typeof rawVal === 'number' ? Math.sign(rawVal) : (() => {
+      const s = String(rawVal ?? '').trim().replace(/[R$\s"']/g, '').replace(/\./g, '').replace(',', '.');
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : Math.sign(n);
+    })();
+    if (numSign !== 0) {
+      if (mov === 'Saída'   && numSign > 0) { psCount++; psTotal += valor; }
+      if (mov === 'Entrada' && numSign < 0) { neCount++; neTotal += valor; }
+    }
 
     const rawCat  = cm.categoria ? row[cm.categoria] : '';
     const rawDesc = cm.descricao ? row[cm.descricao] : '';
@@ -236,7 +250,13 @@ function parseRows(rawRows, plano, cm, baseRegime) {
     balanced:     Math.abs(delta) < 0.01,
   };
 
-  return { records, orphans, transfers };
+  const signConflicts = {
+    count: psCount + neCount,
+    positiveSaidas:   { count: psCount, total: Math.round(psTotal * 100) / 100 },
+    negativeEntradas: { count: neCount, total: Math.round(neTotal * 100) / 100 },
+  };
+
+  return { records, orphans, transfers, signConflicts };
 }
 
 // ── File readers ──────────────────────────────────────────────────────────────
@@ -308,7 +328,7 @@ router.post('/preview', requirePermission('importar', 'write'), upload.single('f
 
     const headers = Object.keys(rawRows[0]);
     const cm      = resolveColMap(headers, colMapOverride);
-    const { records, orphans, transfers } = parseRows(rawRows, plano, cm, base);
+    const { records, orphans, transfers, signConflicts } = parseRows(rawRows, plano, cm, base);
 
     res.json({
       headers,
@@ -316,6 +336,7 @@ router.post('/preview', requirePermission('importar', 'write'), upload.single('f
       rows:   records,
       orphans,
       transfers,
+      signConflicts,
       summary: {
         total:         records.length,
         orphanCount:   orphans.reduce((s, o) => s + o.count, 0),

@@ -370,10 +370,11 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isIm
   const [forceImbalanced, setForce]     = useState(false);
   const [remapping, setRemapping]       = useState(false);
 
-  const { orphans, transfers, summary } = preview;
-  const hasOrphans   = orphans.length > 0;
-  const hasTransfers = transfers.count > 0;
-  const unbalanced   = hasTransfers && !transfers.balanced;
+  const { orphans, transfers, summary, signConflicts } = preview;
+  const hasOrphans      = orphans.length > 0;
+  const hasTransfers    = transfers.count > 0;
+  const unbalanced      = hasTransfers && !transfers.balanced;
+  const hasSignConflict = (signConflicts?.count ?? 0) > 0;
 
   async function handleRemap() {
     setRemapping(true);
@@ -468,6 +469,54 @@ function ImportPreview({ preview, file, base, onConfirm, onCancel, onRemap, isIm
           </div>
           <div className="px-4 py-2 text-[10px] text-amber-600 dark:text-amber-500 bg-amber-50/50 dark:bg-amber-900/10">
             Para mapear corretamente, crie os tipos no Plano de Contas e reimporte com a coluna "Categoria" preenchida com o nome exato do tipo.
+          </div>
+        </div>
+      )}
+
+      {/* Sign conflicts */}
+      {hasSignConflict && (
+        <div className="panel border border-orange-200 dark:border-orange-700">
+          <div className="panel-hdr bg-orange-50 dark:bg-orange-900/20">
+            <div className="flex items-center gap-2">
+              <Icon name="swap_vert" size="text-[16px]" className="text-orange-500" />
+              <div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.count} lançamento{signConflicts.count !== 1 ? 's' : ''} com sinal inconsistente
+                </div>
+                <div className="text-[10px] text-orange-600 dark:text-orange-500 mt-0.5">
+                  A coluna Movimento indica direção diferente do sinal do valor numérico
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 grid grid-cols-2 gap-3">
+            {signConflicts.positiveSaidas.count > 0 && (
+              <div className="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg p-3">
+                <div className="text-[10px] text-text-3 mb-1">Tipo="Saídas" com valor positivo</div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.positiveSaidas.count} lançamento{signConflicts.positiveSaidas.count !== 1 ? 's' : ''}
+                </div>
+                <div className="font-mono text-[11px] text-text-3 mt-0.5">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(signConflicts.positiveSaidas.total)}
+                </div>
+              </div>
+            )}
+            {signConflicts.negativeEntradas.count > 0 && (
+              <div className="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-lg p-3">
+                <div className="text-[10px] text-text-3 mb-1">Tipo="Entradas" com valor negativo</div>
+                <div className="font-inter font-semibold text-[13px] text-orange-700 dark:text-orange-400">
+                  {signConflicts.negativeEntradas.count} lançamento{signConflicts.negativeEntradas.count !== 1 ? 's' : ''}
+                </div>
+                <div className="font-mono text-[11px] text-text-3 mt-0.5">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(signConflicts.negativeEntradas.total)}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-2.5 text-[10px] text-orange-700 dark:text-orange-400 bg-orange-50/50 dark:bg-orange-900/10 leading-relaxed">
+            <strong>O sistema usa a coluna Movimento/Tipo como autoridade sobre a direção do lançamento</strong>, ignorando o sinal do valor.
+            Se esses registros forem estornos ou ajustes legítimos, o comportamento está correto.
+            Caso contrário, verifique se a coluna de movimento está mapeada corretamente acima.
           </div>
         </div>
       )}
