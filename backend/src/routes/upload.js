@@ -19,9 +19,9 @@ const COL_ALIASES = {
   regime:    ['regime', 'tipo_lancamento'],
 };
 
-// Fallback plano items for orphan categories
-const FALLBACK_SAIDA   = { tipo: 'Material de Escritório',       grp: 'Despesas Administrativas', cat: 'DESPESAS OPERACIONAIS', nivel: 'Despesa Operacional' };
-const FALLBACK_ENTRADA = { tipo: 'Outras Receitas Operacionais', grp: 'Receita Operacional', cat: 'RECEITA BRUTA',   nivel: 'Receita'             };
+// Fallback plano items for orphan categories (based on Consolidado caixa.xlsx plano)
+const FALLBACK_SAIDA   = { tipo: 'DESPESA ADMINISTRATIVA', grp: 'Despesas Administrativas', cat: 'DESPESAS OPERACIONAIS', nivel: 'Despesa Operacional' };
+const FALLBACK_ENTRADA = { tipo: 'RECEITAS',               grp: 'Receita Operacional',       cat: 'RECEITA BRUTA',         nivel: 'Receita'             };
 
 // Plano item for inter-account transfers (system-managed, not in user plano)
 const TRANSFER_PLANO = { cat: 'TRANSFERÊNCIAS', grp: 'Transferências', tipo: 'Transferência entre Contas', nivel: 'Transferência' };
@@ -148,7 +148,7 @@ function parseMov(raw) {
  *   5. Description fuzzy match (first 10 chars of tipo)
  *   6. Orphan → apply fallback (Despesas Fixas/Estrutura for exits, Receita Bruta for entries)
  */
-function resolveCategory(catRaw, descRaw, mov, plano) {
+function resolveCategory(catRaw, descRaw, mov, plano, overrides = {}) {
   const cat  = String(catRaw  ?? '').trim();
   const desc = String(descRaw ?? '').trim();
 
@@ -163,6 +163,13 @@ function resolveCategory(catRaw, descRaw, mov, plano) {
              ?? (desc ? plano.find(p => desc.toLowerCase().includes(p.tipo.toLowerCase().slice(0, 10))) : null);
 
   if (found) return { planoItem: found, isTransfer: false, isOrphan: false };
+
+  // User-selected override for this orphan category
+  if (overrides[cat]) {
+    const ov = overrides[cat];
+    const overridePlanoItem = plano.find(p => p.tipo === ov.tipo) ?? ov;
+    return { planoItem: overridePlanoItem, isTransfer: false, isOrphan: true, originalCat: cat || '(sem categoria)' };
+  }
 
   const fallback = mov === 'Entrada' ? FALLBACK_ENTRADA : FALLBACK_SAIDA;
   const fallbackItem = plano.find(p => p.tipo === fallback.tipo) ?? fallback;
@@ -180,7 +187,7 @@ function resolveCategory(catRaw, descRaw, mov, plano) {
  * Transfer rows use mov='Transferência' so dreBuilder naturally excludes them
  * from all DRE sums (sumMonth filters by movFilter = 'Entrada' | 'Saída').
  */
-function parseRows(rawRows, plano, cm, baseRegime) {
+function parseRows(rawRows, plano, cm, baseRegime, categoryOverrides = {}) {
   const orphanMap = new Map();
   let transferEntrada = 0, transferSaida = 0;
   let psCount = 0, psTotal = 0; // Tipo='Saída' but positive value
@@ -206,7 +213,7 @@ function parseRows(rawRows, plano, cm, baseRegime) {
 
     const rawCat  = cm.categoria ? row[cm.categoria] : '';
     const rawDesc = cm.descricao ? row[cm.descricao] : '';
-    const { planoItem, isTransfer, isOrphan, originalCat } = resolveCategory(rawCat, rawDesc, mov, plano);
+    const { planoItem, isTransfer, isOrphan, originalCat } = resolveCategory(rawCat, rawDesc, mov, plano, categoryOverrides);
 
     if (isOrphan && originalCat) {
       if (!orphanMap.has(originalCat)) orphanMap.set(originalCat, { count: 0, fallback: planoItem.tipo, mov });
@@ -326,9 +333,10 @@ router.post('/preview', requirePermission('importar', 'write'), upload.single('f
     const rawRows   = readFile(req.file.buffer, ext);
     if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
 
-    const headers = Object.keys(rawRows[0]);
-    const cm      = resolveColMap(headers, colMapOverride);
-    const { records, orphans, transfers, signConflicts } = parseRows(rawRows, plano, cm, base);
+    const headers        = Object.keys(rawRows[0]);
+    const cm             = resolveColMap(headers, colMapOverride);
+    const catOverrides   = req.body.categoryOverrides ? JSON.parse(req.body.categoryOverrides) : {};
+    const { records, orphans, transfers, signConflicts } = parseRows(rawRows, plano, cm, base, catOverrides);
 
     res.json({
       headers,
@@ -373,9 +381,10 @@ router.post('/', requirePermission('importar', 'write'), upload.single('file'), 
     const rawRows   = readFile(req.file.buffer, ext);
     if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
 
-    const headers = Object.keys(rawRows[0]);
-    const cm      = resolveColMap(headers, colMapOverride);
-    const { records, transfers } = parseRows(rawRows, plano, cm, base);
+    const headers      = Object.keys(rawRows[0]);
+    const cm           = resolveColMap(headers, colMapOverride);
+    const catOverrides = req.body.categoryOverrides ? JSON.parse(req.body.categoryOverrides) : {};
+    const { records, transfers } = parseRows(rawRows, plano, cm, base, catOverrides);
 
     if (!forceImbalanced && transfers.count > 0 && !transfers.balanced) {
       return res.status(422).json({
