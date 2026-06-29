@@ -8,6 +8,8 @@ import { api } from '../api/index.js';
 import { DRILL_TREE, sumNode } from '../utils/drillHierarchy.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import Icon from '../components/ui/Icon.jsx';
+import MetasTab from '../components/orcamento/MetasTab.jsx';
+import InfoPopover from '../components/ui/InfoPopover.jsx';
 
 const MES12    = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const ALL_MES  = [0,1,2,3,4,5,6,7,8,9,10,11];
@@ -66,6 +68,7 @@ export default function Orcamento() {
   const year = filterState.year;
   const tx = transactions.competencia;
 
+  const [tab, setTab]               = useState('acompanhamento'); // 'acompanhamento' | 'metas'
   const [scenario, setScenario]     = useState(1);
   const [gastoStack, setGastoStack] = useState(['root']);
   const [modalChart, setModalChart] = useState(null);
@@ -78,21 +81,48 @@ export default function Orcamento() {
 
   // ── Parse orcamento entries into lookup maps ──────────────────
   const orcMap = useMemo(() => {
-    const receita   = {};   // mes → valor
-    const cenarios  = {};   // key → { mes → valor }
-    const metaCat   = {};   // nodeId → valor (annual)
-    let breakeven   = 0;
+    const receita      = {};   // mes → valor
+    const cenarios     = {};   // key → { mes → valor }
+    const metaCat      = {};   // nodeId → valor (annual)
+    const metaDespesa  = {};   // 'op'|'nop' → { mes → valor }
+    const cenarioDelta = {};   // 'pessimista'|'otimista'|'muito_otimista' → %
+    let breakeven      = 0;
+    let metaCustoPct   = null;
 
     for (const e of orcamento) {
-      if (e.tipo === 'receita')   receita[e.mes]    = e.valor;
-      if (e.tipo === 'breakeven') breakeven          = e.valor;
+      if (e.tipo === 'receita')        receita[e.mes] = e.valor;
+      if (e.tipo === 'breakeven')      breakeven = e.valor;
       if (e.tipo === 'cenario') {
         if (!cenarios[e.referencia]) cenarios[e.referencia] = {};
         cenarios[e.referencia][e.mes] = e.valor;
       }
-      if (e.tipo === 'meta_cat')  metaCat[e.referencia] = e.valor;
+      if (e.tipo === 'meta_cat')       metaCat[e.referencia] = e.valor;
+      if (e.tipo === 'meta_despesa') {
+        if (!metaDespesa[e.referencia]) metaDespesa[e.referencia] = {};
+        metaDespesa[e.referencia][e.mes] = e.valor;
+      }
+      if (e.tipo === 'meta_custo_pct') metaCustoPct = e.valor;
+      if (e.tipo === 'cenario_delta')  cenarioDelta[e.referencia] = e.valor;
     }
-    return { receita, cenarios, metaCat, breakeven };
+
+    // Compute cenario projections from meta × delta when delta entries exist
+    if (Object.keys(cenarioDelta).length > 0) {
+      const meses = Object.keys(receita).map(Number);
+      ['pessimista', 'otimista', 'muito_otimista'].forEach(key => {
+        const pct  = cenarioDelta[key];
+        if (pct == null) return;
+        const mult = key === 'pessimista' ? (1 - pct / 100) : (1 + pct / 100);
+        if (!cenarios[key]) cenarios[key] = {};
+        meses.forEach(m => { if (receita[m]) cenarios[key][m] = Math.round(receita[m] * mult); });
+      });
+      // Moderado = 100% of meta
+      if (!cenarios['moderado']) {
+        cenarios['moderado'] = {};
+        Object.keys(receita).forEach(m => { cenarios['moderado'][Number(m)] = receita[Number(m)]; });
+      }
+    }
+
+    return { receita, cenarios, metaCat, metaDespesa, metaCustoPct, cenarioDelta, breakeven };
   }, [orcamento]);
 
   // ── Actuals from transactions ─────────────────────────────────
@@ -184,7 +214,7 @@ export default function Orcamento() {
     // Saídas operacionais reais no mês
     const despOpNode = DRILL_TREE.children[0]; // gastos-op
     const despOpReal = sumNodeMes(despOpNode, tx, year, m);
-    const despOpMeta = (orcMap.metaCat['gastos-op'] ?? 0) / 12;
+    const despOpMeta = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
 
     // Margem operacional
     const mgOpReal = recReal > 0 ? ((recReal - despOpReal) / recReal * 100) : 0;
@@ -193,7 +223,7 @@ export default function Orcamento() {
     // Saídas não operacionais
     const nopNode  = DRILL_TREE.children[1];
     const nopReal  = sumNodeMes(nopNode, tx, year, m);
-    const nopMeta  = (orcMap.metaCat['gastos-nop'] ?? 0) / 12;
+    const nopMeta  = orcMap.metaDespesa?.nop?.[m] ?? (orcMap.metaCat['gastos-nop'] ?? 0) / 12;
 
     // Resultado líquido
     const resReal  = recReal - despOpReal - nopReal;
@@ -236,13 +266,15 @@ export default function Orcamento() {
 
     const despOpNode = DRILL_TREE.children[0];
     const despOpRealMes = sumNodeMes(despOpNode, tx, year, m);
-    const despOpMeta    = (orcMap.metaCat['gastos-op'] ?? 0) / 12;
-    const despOpMetaAno = orcMap.metaCat['gastos-op'] ?? 0;
+    const despOpMeta    = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
+    const despOpMetaAno = ALL_MES.reduce((s, i) => s + (orcMap.metaDespesa?.op?.[i] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12), 0);
 
     // Custos reais no mês
     const custoNode  = despOpNode.children?.[0]; // custos-diretos
     const custoReal  = custoNode ? sumNodeMes(custoNode, tx, year, m) : 0;
-    const custoMeta  = custoNode ? (orcMap.metaCat[custoNode.id] ?? 0) / 12 : 0;
+    const custoMeta  = orcMap.metaCustoPct
+      ? (recOrcMes * orcMap.metaCustoPct / 100)
+      : custoNode ? (orcMap.metaCat[custoNode.id] ?? 0) / 12 : 0;
 
     const mgBReal = recRealMes - custoReal;
     const mgBMeta = recOrcMes - custoMeta;
@@ -282,9 +314,62 @@ export default function Orcamento() {
 
   const hasOrcamento = orcamento.length > 0;
 
+  const KPI_INFO = {
+    'Receita Bruta': {
+      title: 'KPI — Receita Bruta',
+      description: 'Total faturado no último mês com dados reais, comparado à meta mensal definida na aba Metas.\n\nVerde = receita acima ou igual à meta.\nVermelho = receita abaixo da meta.',
+    },
+    'Desp. Operacionais': {
+      title: 'KPI — Despesas Operacionais',
+      description: 'Soma de todos os gastos operacionais (pessoal, aluguel, administrativo, comercial, etc.) no último mês com dados, comparado à meta mensal.\n\nVerde = despesas abaixo da meta (bom).\nVermelho = despesas acima da meta (atenção).',
+    },
+    'Margem Operacional': {
+      title: 'KPI — Margem Operacional (EBIT)',
+      description: 'Percentual da Receita Bruta que sobra após deduzir custos diretos e despesas operacionais.\n\nFórmula: (Receita − Custos − Desp. Op.) / Receita × 100\n\nVerde = margem acima da meta.\nVermelho = margem abaixo da meta.',
+    },
+    'Gastos Não Operacionais': {
+      title: 'KPI — Gastos Não Operacionais',
+      description: 'Total de despesas fora da operação principal (impostos sobre lucro, juros, tarifas bancárias, investimentos) no último mês com dados.\n\nVerde = abaixo da meta (bom).\nVermelho = acima da meta (atenção).',
+    },
+    'Resultado Líquido': {
+      title: 'KPI — Resultado Líquido',
+      description: 'Receita Bruta menos todos os gastos (operacionais + não operacionais) no último mês com dados.\n\nFórmula: Receita − Desp. Op. − Desp. Não Op.\n\nVerde = resultado acima da meta.\nVermelho = resultado abaixo da meta.',
+    },
+  };
+
   return (
     <div className="ani">
       {modalChart && <ChartModal chart={modalChart} onClose={() => setModalChart(null)} />}
+
+      {/* ── Sub-tabs ── */}
+      <div className="flex items-center gap-0 mb-4 border-b border-slate-200 dark:border-slate-700">
+        {[
+          { id: 'acompanhamento', label: 'Acompanhamento' },
+          { id: 'metas',          label: 'Metas' },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-[12px] font-semibold border-b-2 transition-colors cursor-pointer ${
+              tab === t.id
+                ? 'border-accent text-accent'
+                : 'border-transparent text-text-3 hover:text-text-2'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Metas ── */}
+      {tab === 'metas' && (
+        <MetasTab
+          orcamento={orcamento}
+          receitaReal={receitaReal}
+          year={year}
+          actions={actions}
+        />
+      )}
+
+      {/* ── Tab: Acompanhamento ── */}
+      {tab === 'acompanhamento' && <>
 
       {/* ── Aviso sem orçamento ── */}
       {!hasOrcamento && (
@@ -293,7 +378,7 @@ export default function Orcamento() {
           <div>
             <div className="font-semibold text-[13px] text-text-base">Nenhuma meta cadastrada para {year}</div>
             <div className="text-[11px] text-text-3 mt-0.5">
-              Use o painel <strong>Metas de Receita</strong> abaixo para definir os valores orçados mês a mês.
+              Acesse a aba <strong>Metas</strong> para definir receita esperada, limites de gastos e cenários.
             </div>
           </div>
         </div>
@@ -304,7 +389,12 @@ export default function Orcamento() {
         <div className="flex gap-2.5 flex-wrap mb-3.5">
           {kpiCards.map((k, i) => (
             <div key={i} className={`kpi-card flex-1 min-w-[155px] ${k.good ? 'kc-g' : 'kc-r'}`}>
-              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2">{k.label}</div>
+              <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2 flex items-center gap-1">
+                {k.label}
+                {KPI_INFO[k.label] && (
+                  <InfoPopover title={KPI_INFO[k.label].title} description={KPI_INFO[k.label].description} />
+                )}
+              </div>
               <div className="flex gap-3 items-end mb-1">
                 <div>
                   <div className="text-[8.5px] text-text-3 mb-0.5">META</div>
@@ -342,7 +432,13 @@ export default function Orcamento() {
       {/* ── Gráfico: Receita Bruta ── */}
       <div className="panel mb-3.5">
         <div className="panel-hdr">
-          <div className="font-inter font-semibold text-[13px]">Receita Bruta — Realizado vs Orçado</div>
+          <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+            Receita Bruta — Realizado vs Orçado
+            <InfoPopover
+              title="Receita Bruta — Realizado vs Orçado"
+              description={'Comparativo mensal entre três séries:\n\n• Realizado (verde): receita efetivamente obtida, com base nos lançamentos de Competência.\n• Orçado (cinza): meta de receita definida na aba Metas.\n• Cenário (cor variável): projeção calculada como Meta × variação % do cenário selecionado.\n\nA linha laranja tracejada representa o Ponto de Equilíbrio anual configurado.\n\nUse o seletor de cenário acima para alternar entre Pessimista, Moderado, Otimista e Muito Otimista.'}
+            />
+          </div>
           <span className="text-[9.5px] text-text-3 cursor-pointer"
             onClick={() => openModal('Receita Bruta — Realizado vs Orçado',
               <ResponsiveContainer width="100%" height="100%">
@@ -381,7 +477,13 @@ export default function Orcamento() {
       <div className="panel mb-3.5">
         <div className="panel-hdr">
           <div>
-            <div className="font-inter font-semibold text-[13px]">Gastos por Categoria — Meta vs Realizado</div>
+            <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+              Gastos por Categoria — Meta vs Realizado
+              <InfoPopover
+                title="Gastos por Categoria — Meta vs Realizado"
+                description={'Compara a meta anual de cada grupo de gastos com o valor acumulado até agora no ano.\n\n• Cinza: meta definida na aba Metas.\n• Verde: realizado abaixo da meta (dentro do orçamento).\n• Vermelho: realizado acima da meta (estouro do orçamento).\n\nClique em uma barra para detalhar o grupo por categoria. Use "← Voltar" para subir um nível na hierarquia.'}
+              />
+            </div>
             {gastoStack.length > 1 && (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <button onClick={() => setGastoStack(s => s.slice(0, -1))} className="text-[10px] text-accent underline cursor-pointer">← Voltar</button>
@@ -416,8 +518,12 @@ export default function Orcamento() {
       {orcTable.length > 0 && (
         <div className="panel mb-3.5">
           <div className="panel-hdr">
-            <div className="font-inter font-semibold text-[13px]">
+            <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
               Acompanhamento Orçamentário — {MES12[lastRealMes]} {year}
+              <InfoPopover
+                title="Acompanhamento Orçamentário (Rolling Forecast)"
+                description={'Tabela de controle do último mês com dados reais.\n\nColunas:\n• Orç. Mês: meta mensal definida.\n• Real. Mês: valor efetivamente realizado no mês.\n• Variação R$ / %: diferença entre realizado e orçado.\n• Orç. Ano: soma das metas mensais do ano inteiro.\n• Proj. Ano: realizado acumulado até o mês atual + orçado nos meses restantes (Rolling Forecast).\n• Status: indica se a linha está acima ou abaixo da meta (considerando se maior é melhor ou pior).'}
+              />
             </div>
             <span className="text-[9.5px] font-bold px-2.5 py-1 rounded-full"
               style={{ background: 'rgba(109,191,69,.12)', color: '#5aaa36' }}>Rolling Forecast</span>
@@ -461,49 +567,7 @@ export default function Orcamento() {
         </div>
       )}
 
-      {/* ── Painel de edição de metas ── */}
-      <div className="panel">
-        <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px]">Metas de Receita — {year}</div>
-            <div className="text-[10px] text-text-3 mt-0.5">Defina o orçado mensal e o ponto de equilíbrio</div>
-          </div>
-          {saving && <span className="text-[11px] text-text-3 italic">Salvando…</span>}
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
-            {MES12.map((mes, m) => (
-              <div key={m}>
-                <div className="text-[9px] uppercase tracking-widest text-text-3 mb-1">{mes}</div>
-                <input
-                  type="number"
-                  className="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-                  placeholder="R$"
-                  defaultValue={orcMap.receita[m] ?? ''}
-                  onBlur={e => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v) && v > 0) saveMeta('receita', '', m, v);
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-semibold text-text-2">Ponto de Equilíbrio (anual R$):</span>
-            <input
-              type="number"
-              className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-              style={{ width: 140 }}
-              placeholder="R$"
-              defaultValue={orcMap.breakeven || ''}
-              onBlur={e => {
-                const v = parseFloat(e.target.value);
-                if (!isNaN(v) && v > 0) saveMeta('breakeven', '', null, v);
-              }}
-            />
-          </div>
-        </div>
-      </div>
+      </> /* end tab: acompanhamento */}
     </div>
   );
 }

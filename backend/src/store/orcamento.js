@@ -2,14 +2,21 @@ import { withTenant } from '../db/tenantContext.js';
 
 export async function getOrcamento(schema, ano) {
   return withTenant(schema, async (client) => {
-    const { rows } = await client.query(
-      `SELECT id, ano, mes, tipo, referencia, valor
-       FROM orcamento
-       WHERE ano = $1
-       ORDER BY tipo, referencia, mes NULLS FIRST`,
-      [ano]
-    );
-    return rows.map(r => ({ ...r, valor: Number(r.valor) }));
+    try {
+      const { rows } = await client.query(
+        `SELECT id, ano, mes, tipo, referencia, valor
+         FROM orcamento
+         WHERE ano = $1
+         ORDER BY tipo, referencia, mes NULLS FIRST`,
+        [ano]
+      );
+      return rows.map(r => ({ ...r, valor: Number(r.valor) }));
+    } catch (err) {
+      // 42P01 = undefined_table: tenant schema was provisioned before migration 003.
+      // Return empty list so refreshAll() doesn't break the entire app.
+      if (err.code === '42P01') return [];
+      throw err;
+    }
   });
 }
 

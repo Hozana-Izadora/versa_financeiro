@@ -2,6 +2,10 @@
 -- Migration 003: Orçamento table
 -- Adds orcamento to the provision_tenant function and creates
 -- the table in all existing tenant schemas.
+--
+-- REQUIRES: run as postgres superuser (not financas_app).
+-- Reason: CREATE TABLE in tenant schemas needs schema ownership,
+-- and CREATE OR REPLACE FUNCTION needs to own the existing function.
 -- ============================================================
 
 -- 1. Create orcamento in every existing tenant schema
