@@ -49,7 +49,10 @@ services:
       context: ./backend
     command: node scripts/migrate.js
     environment:
-      DATABASE_URL: postgresql://financas_app:${POSTGRES_APP_PASSWORD}@db:5432/financas
+      # Superuser connection — required to apply migrations that create functions,
+      # schemas, or roles (tagged "REQUIRES: run as postgres superuser").
+      DATABASE_ADMIN_URL: postgresql://postgres:${POSTGRES_SUPERUSER_PASSWORD}@db:5432/financas
+      DATABASE_URL:        postgresql://financas_app:${POSTGRES_APP_PASSWORD}@db:5432/financas
     networks:
       - internal
     depends_on:
