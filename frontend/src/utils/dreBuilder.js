@@ -17,10 +17,13 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // Single pass over tx to build aggregation maps — O(n) instead of O(n × tipos × months)
   const byTipoMov = new Map(); // `${m}|${mov}|${tipo}` → sum
   const byMov     = new Map(); // `${m}|${mov}`         → sum
+  // Raw transactions kept for unclassified drill-down (filtered to year+group)
+  const txFiltered = [];
   for (const r of tx) {
     const d = new Date(r.data + 'T12:00');
     if (d.getFullYear() !== year) continue;
     if (groupFilter !== 'all' && r.grp !== groupFilter) continue;
+    txFiltered.push({ ...r, _month: d.getMonth() });
     const m = d.getMonth();
     const kMov = `${m}|${r.mov}`;
     byMov.set(kMov, (byMov.get(kMov) ?? 0) + r.valor);
@@ -181,6 +184,36 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
       monthValues: mEntNaoClass, total: totEntNaoClass, isPos: true,
       refValues: mRec,
     });
+
+    // Drill-down: one item row per tipo not present in the plano as Receita / Entrada Não Op.
+    const classifiedEntTipos = new Set(
+      plano
+        .filter(p => p.nivel === 'Receita' || p.nivel === 'Entrada Não Operacional')
+        .map(p => p.tipo)
+    );
+    const monthIdx = new Map(visMonths.map((m, i) => [m, i]));
+    const naoClassByTipo = new Map(); // tipo → monthly array
+
+    for (const r of txFiltered) {
+      if (r.mov !== 'Entrada') continue;
+      if (classifiedEntTipos.has(r.tipo)) continue;
+      const mi = monthIdx.get(r._month);
+      if (mi === undefined) continue;
+      const label = r.tipo || '(sem tipo)';
+      if (!naoClassByTipo.has(label)) naoClassByTipo.set(label, new Array(visMonths.length).fill(0));
+      naoClassByTipo.get(label)[mi] += r.valor;
+    }
+
+    [...naoClassByTipo.entries()]
+      .map(([label, mv]) => ({ label, mv, total: mv.reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .forEach(({ label, mv, total }) => {
+        rows.push({
+          type: 'item', label, parentGid: 'naoclass-ent',
+          monthValues: mv, total, isPos: true,
+          refValues: mRec, movFilter: 'Entrada',
+        });
+      });
   }
   rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRec, total: totRec, isPos: true });
 
