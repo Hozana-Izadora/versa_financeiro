@@ -83,6 +83,9 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // Classified non-operational entries
   const mEntNop = visMonths.map(m => catTotal(entNopCats, 'Entrada', m));
 
+  // Operational revenue only (excludes classified non-operational entries like loans)
+  const mRecOp = visMonths.map((_, i) => mRec[i] - mEntNop[i]);
+
   // Classified entries (to detect orphaned entrada transactions)
   const mClassRec = visMonths.map(m => catTotal(entradaCats, 'Entrada', m) + catTotal(entNopCats, 'Entrada', m));
 
@@ -92,10 +95,11 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     mAllSaidas[i] - mCost[i] - mDespOp[i] - mDespNop[i]
   );
 
-  // Analytical margins (use mRec so cascade KPI stays consistent)
-  const mMgB  = visMonths.map((_, i) => mRec[i] - mCost[i]);
+  // Analytical margins — operational margins are based on operational revenue only (mRecOp),
+  // non-operational entries (e.g. loans) are added after Resultado Operacional, not before.
+  const mMgB  = visMonths.map((_, i) => mRecOp[i] - mCost[i]);
   const mMgOp = visMonths.map((_, i) => mMgB[i] - mDespOp[i]);
-  const mLL   = visMonths.map((_, i) => mMgOp[i] - mDespNop[i]);
+  const mLL   = visMonths.map((_, i) => mMgOp[i] + mEntNop[i] - mDespNop[i]);
 
   // ── FIX 2: saldo = ALL entries − ALL exits (was: entries − classified only) ─
   const mSaldo = visMonths.map((_, i) => mRec[i] - mAllSaidas[i]);
@@ -110,13 +114,14 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   // Totals
   const totRec     = mRec.reduce((a, b) => a + b, 0);
+  const totRecOp   = mRecOp.reduce((a, b) => a + b, 0);
   const totCost    = mCost.reduce((a, b) => a + b, 0);
   const totDespOp  = mDespOp.reduce((a, b) => a + b, 0);
   const totDespNop = mDespNop.reduce((a, b) => a + b, 0);
   const totEntNop  = mEntNop.reduce((a, b) => a + b, 0);
-  const totMgB     = totRec - totCost;
+  const totMgB     = totRecOp - totCost;
   const totMgOp    = totMgB - totDespOp;
-  const totLL      = totMgOp - totDespNop;
+  const totLL      = totMgOp + totEntNop - totDespNop;
 
   const totEntNaoClass   = mEntNaoClass.reduce((a, b) => a + b, 0);
   const totSaidaNaoClass = mSaidaNaoClass.reduce((a, b) => a + b, 0);
@@ -149,7 +154,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
       rows.push({
         type: 'group', label: cat, gid, cat,
         monthValues: catMonths, total: catTot, isPos,
-        refValues: isPos ? mRec : totalSaidas,
+        refValues: isPos ? mRecOp : totalSaidas,
       });
 
       Object.entries(gs).forEach(([grp, tipos]) => {
@@ -159,7 +164,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'subgroup', label: grp, parentGid: gid, cat,
           monthValues: grpMonths, total: grpTot, isPos, movFilter,
-          refValues: isPos ? mRec : totalSaidas,
+          refValues: isPos ? mRecOp : totalSaidas,
         });
         tipos.forEach(tipo => {
           const tipoMonths = visMonths.map(m => sm(m, movFilter, tipo));
@@ -168,7 +173,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
           rows.push({
             type: 'item', label: tipo, parentGid: gid, cat,
             monthValues: tipoMonths, total: tipoTot, isPos, movFilter,
-            refValues: isPos ? mRec : totalSaidas,
+            refValues: isPos ? mRecOp : totalSaidas,
           });
         });
       });
@@ -182,7 +187,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     rows.push({
       type: 'group', label: 'Entradas não classificadas', gid: 'naoclass-ent',
       monthValues: mEntNaoClass, total: totEntNaoClass, isPos: true,
-      refValues: mRec,
+      refValues: mRecOp,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Receita / Entrada Não Op.
@@ -211,21 +216,21 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-ent',
           monthValues: mv, total, isPos: true,
-          refValues: mRec, movFilter: 'Entrada',
+          refValues: mRecOp, movFilter: 'Entrada',
         });
       });
   }
-  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRec, total: totRec, isPos: true });
+  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true });
 
   if (custoCats.length) addSection(custoLabel);
   buildSection(custoCats, 'Saída');
   rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false });
-  rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRec, totRef: totRec });
+  rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (despOpCats.length) addSection(despOpLabel);
   buildSection(despOpCats, 'Saída');
   rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false });
-  rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRec, totRef: totRec });
+  rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (entNopCats.length) addSection(entNopLabel);
   buildSection(entNopCats, 'Entrada');
@@ -246,7 +251,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   }
 
   if (mode === 'competencia') {
-    rows.push({ type: 'll', label: 'LUCRO LÍQUIDO', monthValues: mLL, total: totLL, isPos: totLL >= 0, showPct: true, refValues: mRec, totRef: totRec });
+    rows.push({ type: 'll', label: 'LUCRO LÍQUIDO', monthValues: mLL, total: totLL, isPos: totLL >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
   } else {
     // ── FIX 2 & 4: totSaldo now = sum of (all entries − all exits) per month ──
     const totSaldo = mSaldo.reduce((a, b) => a + b, 0);
@@ -257,7 +262,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   return {
     rows, visMonths,
-    mRec, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
-    totRec, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
+    mRec, mRecOp, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
+    totRec, totRecOp, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
   };
 }

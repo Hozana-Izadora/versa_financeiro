@@ -57,10 +57,9 @@ function MarginCard({ label, value, base, color, lines, info }) {
 }
 
 export default function MarginsPanel({ dre }) {
-  const { totRec, totCost, totMgB, totDespOp, totMgOp, totEntNop, totDespNop } = dre;
-  const totRL = totMgOp + totEntNop - totDespNop;
+  const { totRecOp, totCost, totMgB, totDespOp, totMgOp, totEntNop, totDespNop, totLL } = dre;
 
-  if (totRec === 0) return null;
+  if (totRecOp === 0) return null;
 
   return (
     <div className="panel mb-3.5">
@@ -75,11 +74,11 @@ export default function MarginsPanel({ dre }) {
         <MarginCard
           label="Margem Bruta"
           value={totMgB}
-          base={totRec}
+          base={totRecOp}
           color="#10b981"
           lines={[
-            `Receita Bruta: ${fmt(totRec)}`,
-            `(−) Custos Diretos: ${fmtPct(pct(totCost, totRec))} · ${fmt(totCost)}`,
+            `Receita Operacional: ${fmt(totRecOp)}`,
+            `(−) Custos Diretos: ${fmtPct(pct(totCost, totRecOp))} · ${fmt(totCost)}`,
           ]}
           info={{
             title: 'Margem Bruta',
@@ -90,11 +89,11 @@ export default function MarginsPanel({ dre }) {
         <MarginCard
           label="Margem Operacional"
           value={totMgOp}
-          base={totRec}
+          base={totRecOp}
           color="#2563eb"
           lines={[
-            `Margem Bruta: ${fmtPct(pct(totMgB, totRec))}`,
-            `(−) Desp. Operacionais: ${fmtPct(pct(totDespOp, totRec))} · ${fmt(totDespOp)}`,
+            `Margem Bruta: ${fmtPct(pct(totMgB, totRecOp))}`,
+            `(−) Desp. Operacionais: ${fmtPct(pct(totDespOp, totRecOp))} · ${fmt(totDespOp)}`,
           ]}
           info={{
             title: 'Margem Operacional (EBIT)',
@@ -104,13 +103,13 @@ export default function MarginsPanel({ dre }) {
 
         <MarginCard
           label="Resultado Líquido"
-          value={totRL}
-          base={totRec}
+          value={totLL}
+          base={totRecOp}
           color="#7c3aed"
           lines={[
-            `Margem Op.: ${fmtPct(pct(totMgOp, totRec))}`,
-            ...(totEntNop > 0 ? [`(+) Ent. Não Op.: ${fmtPct(pct(totEntNop, totRec))}`] : []),
-            ...(totDespNop > 0 ? [`(−) Desp. Não Op.: ${fmtPct(pct(totDespNop, totRec))}`] : []),
+            `Margem Op.: ${fmtPct(pct(totMgOp, totRecOp))}`,
+            ...(totEntNop > 0 ? [`(+) Ent. Não Op.: ${fmtPct(pct(totEntNop, totRecOp))}`] : []),
+            ...(totDespNop > 0 ? [`(−) Desp. Não Op.: ${fmtPct(pct(totDespNop, totRecOp))}`] : []),
           ]}
           info={{
             title: 'Resultado Líquido',

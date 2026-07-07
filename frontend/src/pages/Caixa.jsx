@@ -36,19 +36,22 @@ function ChartTip({ active, payload, label, formatter }) {
   );
 }
 
-function CNode({ label, value, sub, color, result, first, last, delta, deltaDir, rawValue, cmp }) {
+const KPI_TONE = {
+  '#10b981': 'green',
+  '#ef4444': 'red',
+  '#f59e0b': 'amber',
+  '#2563eb': 'blue',
+  '#8b5cf6': 'purple',
+};
+
+function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp }) {
   const cmpDelta = cmp != null && rawValue != null && Math.abs(cmp.prev) > 0.01
     ? ((rawValue - cmp.prev) / Math.abs(cmp.prev) * 100) : null;
   const cmpUp = cmp != null && rawValue != null ? rawValue >= cmp.prev : null;
   const cmpGood = cmp != null && cmpUp != null ? (cmp.positiveIsGood !== false ? cmpUp : !cmpUp) : null;
+  const tone = KPI_TONE[color];
   return (
-    <div
-      className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''}`}
-      style={{
-        borderRadius: first ? '8px 0 0 8px' : last ? '0 8px 8px 0' : '0',
-        borderRight: last ? undefined : 'none',
-      }}
-    >
+    <div className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''} ${tone ? `kpi-tone-${tone}` : ''}`}>
       <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
@@ -292,11 +295,11 @@ export default function Caixa() {
     [cicloCF.effectiveVisMonths, cicloSeries, cicloSeriesPrev, compareYear]);
 
   const moCaixaPct = useMemo(() =>
-    margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRec[i] > 0 ? +(v / margDreCaixa.mRec[i] * 100).toFixed(1) : 0),
+    margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRecOp[i] > 0 ? +(v / margDreCaixa.mRecOp[i] * 100).toFixed(1) : 0),
     [margDreCaixa]);
 
   const moCompPct = useMemo(() =>
-    margDreComp.mMgOp.map((v, i) => margDreComp.mRec[i] > 0 ? +(v / margDreComp.mRec[i] * 100).toFixed(1) : 0),
+    margDreComp.mMgOp.map((v, i) => margDreComp.mRecOp[i] > 0 ? +(v / margDreComp.mRecOp[i] * 100).toFixed(1) : 0),
     [margDreComp]);
 
   const margCompChartData = useMemo(() => {
@@ -307,10 +310,10 @@ export default function Caixa() {
       'Mg. Op. Caixa':       moCaixaPct[i],
       'Mg. Op. Competência': moCompPct[i],
       ...(!isOvr && drePrev && drePrevComp ? {
-        [`Mg. Caixa ${compareYear}`]: drePrev.mRec[i] > 0
-          ? +(drePrev.mMgOp[i] / drePrev.mRec[i] * 100).toFixed(1) : 0,
-        [`Mg. Comp. ${compareYear}`]: drePrevComp.mRec[i] > 0
-          ? +(drePrevComp.mMgOp[i] / drePrevComp.mRec[i] * 100).toFixed(1) : 0,
+        [`Mg. Caixa ${compareYear}`]: drePrev.mRecOp[i] > 0
+          ? +(drePrev.mMgOp[i] / drePrev.mRecOp[i] * 100).toFixed(1) : 0,
+        [`Mg. Comp. ${compareYear}`]: drePrevComp.mRecOp[i] > 0
+          ? +(drePrevComp.mMgOp[i] / drePrevComp.mRecOp[i] * 100).toFixed(1) : 0,
       } : {}),
     }));
   }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct, compareYear, drePrev, drePrevComp]);
@@ -454,19 +457,19 @@ export default function Caixa() {
         <>
           {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
-            <CNode first label="Entradas / Receita" value={fmtK(dre.totRec)} rawValue={dre.totRec} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRec)} />
+            <CNode label="Entrada Operacional" value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
             <CSep symbol="−" />
-            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRec)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
+            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecOp)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
+            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecOp)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
             <CSep symbol="=" />
-            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
+            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecOp)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
             <CSep symbol="+" />
-            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRec)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
+            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecOp)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
             <CSep symbol="−" />
-            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
+            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecOp)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
             <CSep symbol="=" />
-            <CNode last result label="Saldo do Período" value={fmtK(totSaldo)} rawValue={totSaldo} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} color={totSaldo >= 0 ? '#10b981' : '#ef4444'}
+            <CNode result label="Saldo do Período" value={fmtK(totSaldo)} rawValue={totSaldo} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} color={totSaldo >= 0 ? '#10b981' : '#ef4444'}
               delta={dre.mSaldo.length > 1 ? fmtPct(pct(dre.mSaldo[dre.mSaldo.length - 1] - dre.mSaldo[dre.mSaldo.length - 2], Math.abs(dre.mSaldo[dre.mSaldo.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mSaldo.length > 1 && dre.mSaldo[dre.mSaldo.length - 1] >= dre.mSaldo[dre.mSaldo.length - 2] ? 'up' : 'down'}
               cmp={prevSaldo != null ? { prev: prevSaldo, year: compareYear, positiveIsGood: true } : null}

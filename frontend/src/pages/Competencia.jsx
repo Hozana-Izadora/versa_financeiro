@@ -35,16 +35,22 @@ function ChartTip({ active, payload, label, formatter }) {
   );
 }
 
-function CNode({ label, value, sub, color, result, first, last, delta, deltaDir, rawValue, cmp }) {
+const KPI_TONE = {
+  '#10b981': 'green',
+  '#ef4444': 'red',
+  '#f59e0b': 'amber',
+  '#2563eb': 'blue',
+  '#8b5cf6': 'purple',
+};
+
+function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp }) {
   const cmpDelta = cmp != null && rawValue != null && Math.abs(cmp.prev) > 0.01
     ? ((rawValue - cmp.prev) / Math.abs(cmp.prev) * 100) : null;
   const cmpUp = cmp != null && rawValue != null ? rawValue >= cmp.prev : null;
   const cmpGood = cmp != null && cmpUp != null ? (cmp.positiveIsGood !== false ? cmpUp : !cmpUp) : null;
+  const tone = KPI_TONE[color];
   return (
-    <div
-      className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''}`}
-      style={{ borderRadius: first ? '8px 0 0 8px' : last ? '0 8px 8px 0' : '0', borderRight: last ? undefined : 'none' }}
-    >
+    <div className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''} ${tone ? `kpi-tone-${tone}` : ''}`}>
       <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
@@ -184,25 +190,25 @@ export default function Competencia() {
   }, [dreChartCF.isOverriding, dreChartCF.effectiveVisMonths, visMonths, dreChartDre, compareYear, drePrev]);
 
   const mbPct = useMemo(() =>
-    mgChartDre.mMgB.map((v, i)  => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    mgChartDre.mMgB.map((v, i)  => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const moPct = useMemo(() =>
-    mgChartDre.mMgOp.map((v, i) => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    mgChartDre.mMgOp.map((v, i) => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const llPct = useMemo(() =>
-    mgChartDre.mLL.map((v, i)   => mgChartDre.mRec[i] > 0 ? +(v / mgChartDre.mRec[i] * 100).toFixed(1) : 0),
+    mgChartDre.mLL.map((v, i)   => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const prevMbPct = useMemo(() =>
-    drePrev ? drePrev.mMgB.map((v, i) => drePrev.mRec[i] > 0 ? +(v / drePrev.mRec[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mMgB.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
   const prevMoPct = useMemo(() =>
-    drePrev ? drePrev.mMgOp.map((v, i) => drePrev.mRec[i] > 0 ? +(v / drePrev.mRec[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mMgOp.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
   const prevLlPct = useMemo(() =>
-    drePrev ? drePrev.mLL.map((v, i) => drePrev.mRec[i] > 0 ? +(v / drePrev.mRec[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mLL.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
 
   const mgChartData = useMemo(() => {
@@ -311,19 +317,21 @@ export default function Competencia() {
         <>
           {/* ── Cascade: DRE waterfall ── */}
           <div className="kpi-cascade mb-3.5">
-            <CNode first label="Receita Bruta" value={fmtK(dre.totRec)} rawValue={dre.totRec} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRec)} />
+            <CNode label="Receita Operacional" value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
             <CSep symbol="−" />
-            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRec)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
+            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecOp)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="=" />
-            <CNode result label="Margem Bruta" value={fmtK(dre.totMgB)} rawValue={dre.totMgB} sub={fmtPct(pct(dre.totMgB, dre.totRec)) + ' de margem'} color={dre.totMgB >= 0 ? '#10b981' : '#ef4444'} cmp={cmpNode(drePrev?.totMgB)} />
+            <CNode result label="Margem Bruta" value={fmtK(dre.totMgB)} rawValue={dre.totMgB} sub={fmtPct(pct(dre.totMgB, dre.totRecOp)) + ' de margem'} color={dre.totMgB >= 0 ? '#10b981' : '#ef4444'} cmp={cmpNode(drePrev?.totMgB)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRec)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
+            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecOp)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
             <CSep symbol="=" />
-            <CNode result label="EBIT" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRec)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
+            <CNode result label="Resultado Operacional (EBIT)" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecOp)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
+            <CSep symbol="+" />
+            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecOp)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRec)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
+            <CNode label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecOp)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
             <CSep symbol="=" />
-            <CNode last result label="Lucro Líquido" value={fmtK(dre.totLL)} rawValue={dre.totLL} sub={fmtPct(pct(dre.totLL, dre.totRec)) + ' de margem líquida'} color={dre.totLL >= 0 ? '#10b981' : '#ef4444'}
+            <CNode result label="Lucro Líquido" value={fmtK(dre.totLL)} rawValue={dre.totLL} sub={fmtPct(pct(dre.totLL, dre.totRecOp)) + ' de margem líquida'} color={dre.totLL >= 0 ? '#10b981' : '#ef4444'}
               delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
               cmp={cmpNode(drePrev?.totLL)}
