@@ -234,27 +234,29 @@
 
   /* KPI Cascade */
   .kpi-cascade {
-    display: flex; align-items: stretch;
+    display: flex; align-items: stretch; gap: 10px;
     overflow-x: auto; -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
   .kpi-cascade::-webkit-scrollbar { display: none; }
-  .kpi-cascade .kpi-card { min-width: 110px; }
+  .kpi-cascade .kpi-card { min-width: 118px; border-width: 1.5px; }
   .cascade-sep {
     display: flex; align-items: center; justify-content: center;
-    background: #f8fafc;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    min-width: 26px; flex-shrink: 0;
+    min-width: 22px; flex-shrink: 0;
     font-weight: 700; font-size: 1rem;
     color: #9ca3af;
-    font-family: 'Inter', sans-serif;
   }
   .kpi-result {
-    border-color: rgba(16,185,129,0.22) !important;
-    background: rgba(16,185,129,0.04) !important;
+    border-width: 2px !important;
   }
   .kpi-result::before { display: none !important; }
+
+  /* KPI tone — card stays white/neutral; color shows only as a thin border detail */
+  .kpi-card.kpi-tone-green  { border-color: rgba(16,185,129,.38); }
+  .kpi-card.kpi-tone-red    { border-color: rgba(239,68,68,.36); }
+  .kpi-card.kpi-tone-amber  { border-color: rgba(245,158,11,.36); }
+  .kpi-card.kpi-tone-blue   { border-color: rgba(37,99,235,.36); }
+  .kpi-card.kpi-tone-purple { border-color: rgba(139,92,246,.36); }
 
   /* ── Upload Zone ─────────────────────────────────────── */
   .upload-zone {
@@ -388,14 +390,14 @@ html.dark .kpi-card {
 }
 html.dark .kpi-cascade { background: transparent; }
 html.dark .cascade-sep {
-  background: #21262d !important;
-  border-color: rgba(255,255,255,0.07) !important;
   color: #8b949e !important;
 }
-html.dark .kpi-result {
-  background: rgba(16,185,129,0.08) !important;
-  border-color: rgba(16,185,129,0.25) !important;
-}
+
+html.dark .kpi-card.kpi-tone-green  { border-color: rgba(16,185,129,.42) !important; }
+html.dark .kpi-card.kpi-tone-red    { border-color: rgba(239,68,68,.40) !important; }
+html.dark .kpi-card.kpi-tone-amber  { border-color: rgba(245,158,11,.40) !important; }
+html.dark .kpi-card.kpi-tone-blue   { border-color: rgba(37,99,235,.40) !important; }
+html.dark .kpi-card.kpi-tone-purple { border-color: rgba(139,92,246,.40) !important; }
 
 html.dark .dre-tbl th {
   background: #0d1117 !important;
