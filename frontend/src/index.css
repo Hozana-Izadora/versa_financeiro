@@ -84,7 +84,9 @@
     position: sticky; left: 0; background: #ffffff; z-index: 1;
   }
   .dre-tbl tr:hover td { background: rgba(16,185,129,0.03); }
-  .dre-tbl tr:hover td:first-child { background: rgba(16,185,129,0.05); }
+  /* Sticky column must stay opaque on hover too — a transparent tint here lets the
+     horizontally-scrolled columns underneath show through the description cell. */
+  .dre-tbl tr:hover td:first-child { background: #eef8f3 !important; }
 
   .dr-section td {
     background: #f8fafc !important;
@@ -413,7 +415,8 @@ html.dark .dre-tbl td:first-child {
   color: #e6edf3 !important;
 }
 html.dark .dre-tbl tr:hover td { background: rgba(16,185,129,0.05) !important; }
-html.dark .dre-tbl tr:hover td:first-child { background: rgba(16,185,129,0.07) !important; }
+/* Same as light mode: keep the sticky column opaque on hover so scrolled columns don't bleed through. */
+html.dark .dre-tbl tr:hover td:first-child { background: #17262a !important; }
 html.dark .dr-section td { background: #0d1117 !important; color: #8b949e !important; }
 html.dark .dr-section td:first-child { background: #0d1117 !important; }
 html.dark .dr-group td { background: #21262d !important; color: #e6edf3 !important; }
