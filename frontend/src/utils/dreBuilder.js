@@ -36,6 +36,8 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     return byMov.get(`${month}|${movFilter}`) ?? 0;
   }
 
+  const monthIdx = new Map(visMonths.map((m, i) => [m, i]));
+
   // Group plano by cat > grp > tipo
   const grouped = {};
   plano.forEach(p => {
@@ -196,7 +198,6 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         .filter(p => p.nivel === 'Receita' || p.nivel === 'Entrada Não Operacional')
         .map(p => p.tipo)
     );
-    const monthIdx = new Map(visMonths.map((m, i) => [m, i]));
     const naoClassByTipo = new Map(); // tipo → monthly array
 
     for (const r of txFiltered) {
@@ -245,9 +246,39 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
   if (totSaidaNaoClass > 0) {
     rows.push({
-      type: 'subtotal', label: '( − ) Saídas não classificadas',
+      type: 'group', label: 'Saídas não classificadas', gid: 'naoclass-saida',
       monthValues: mSaidaNaoClass, total: totSaidaNaoClass, isPos: false,
+      refValues: mAllSaidas,
     });
+
+    // Drill-down: one item row per tipo not present in the plano as Custo / Despesa Operacional / Despesa Não Op.
+    const classifiedSaidaTipos = new Set(
+      plano
+        .filter(p => p.nivel === 'Custo' || p.nivel === 'Despesa Operacional' || p.nivel === 'Despesa Não Operacional')
+        .map(p => p.tipo)
+    );
+    const naoClassSaidaByTipo = new Map(); // tipo → monthly array
+
+    for (const r of txFiltered) {
+      if (r.mov !== 'Saída') continue;
+      if (classifiedSaidaTipos.has(r.tipo)) continue;
+      const mi = monthIdx.get(r._month);
+      if (mi === undefined) continue;
+      const label = r.tipo || '(sem tipo)';
+      if (!naoClassSaidaByTipo.has(label)) naoClassSaidaByTipo.set(label, new Array(visMonths.length).fill(0));
+      naoClassSaidaByTipo.get(label)[mi] += r.valor;
+    }
+
+    [...naoClassSaidaByTipo.entries()]
+      .map(([label, mv]) => ({ label, mv, total: mv.reduce((a, b) => a + b, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .forEach(({ label, mv, total }) => {
+        rows.push({
+          type: 'item', label, parentGid: 'naoclass-saida',
+          monthValues: mv, total, isPos: false,
+          refValues: mAllSaidas, movFilter: 'Saída',
+        });
+      });
   }
 
   if (mode === 'competencia') {
