@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { COLOR_VAR } from '../utils/formatters.js';
@@ -152,6 +152,7 @@ export default function Plano() {
   const { plano, planoCores } = state;
 
   const [collapsed, setCollapsed] = useState(new Set());
+  const [search, setSearch] = useState('');
 
   function toggleCat(cat) {
     setCollapsed(prev => {
@@ -161,12 +162,34 @@ export default function Plano() {
     });
   }
 
+  const filteredPlano = useMemo(() => {
+    if (!search) return plano;
+    const q = search.toLowerCase();
+    return plano.filter(p =>
+      p.tipo?.toLowerCase().includes(q) ||
+      p.cat?.toLowerCase().includes(q)  ||
+      p.grp?.toLowerCase().includes(q)  ||
+      p.nivel?.toLowerCase().includes(q)
+    );
+  }, [plano, search]);
+
   const grouped = {};
-  plano.forEach(p => {
+  filteredPlano.forEach(p => {
     if (!grouped[p.cat]) grouped[p.cat] = {};
     if (!grouped[p.cat][p.grp]) grouped[p.cat][p.grp] = [];
     grouped[p.cat][p.grp].push(p);
   });
+
+  function exportCSV() {
+    const rows = [['Tipo', 'Grupo', 'Categoria', 'Nível']];
+    filteredPlano.forEach(p => rows.push([p.cat, p.grp, p.tipo, p.nivel]));
+    const csv = rows.map(r => r.map(v => `"${v ?? ''}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'plano_de_contas.csv'; a.click();
+    URL.revokeObjectURL(url);
+    actions.notify('Exportado!', 'ns');
+  }
 
   function refresh(data) {
     actions.dispatch({ type: 'SET_PLANO', payload: data });
@@ -178,7 +201,7 @@ export default function Plano() {
     actions.openModal(
       <div>
         <div className="font-inter font-bold text-base mb-4 flex items-center gap-2">
-          <Icon name="create_new_folder" size="text-[18px]" className="text-accent" /> Nova Categoria
+          <Icon name="create_new_folder" size="text-[18px]" className="text-accent" /> Novo Tipo
         </div>
         <Field label="Nome">
           <input type="text" placeholder="Ex: RECEITAS ESPECIAIS" onChange={e => { nome = e.target.value.toUpperCase(); }} />
@@ -197,7 +220,7 @@ export default function Plano() {
               const planoData = await api.getPlano();
               refresh(planoData);
               actions.closeModal();
-              actions.notify('Categoria criada!', 'ns');
+              actions.notify('Tipo criado!', 'ns');
             } catch (e) { actions.notify(e.message, 'ne'); }
           }}>Salvar</button>
           <button className="btn btn-ghost" onClick={actions.closeModal}>Cancelar</button>
@@ -211,7 +234,7 @@ export default function Plano() {
     actions.openModal(
       <div>
         <div className="font-inter font-bold text-base mb-4 flex items-center gap-2">
-          <Icon name="edit" size="text-[18px]" className="text-accent" /> Editar Categoria
+          <Icon name="edit" size="text-[18px]" className="text-accent" /> Editar Tipo
         </div>
         <Field label="Nome">
           <input type="text" defaultValue={cat} onChange={e => { nome = e.target.value.toUpperCase(); }} />
@@ -229,7 +252,7 @@ export default function Plano() {
               const txRes = await api.getTransactions();
               actions.dispatch({ type: 'SET_TRANSACTIONS', payload: txRes });
               actions.closeModal();
-              actions.notify('Categoria atualizada!', 'ns');
+              actions.notify('Tipo atualizado!', 'ns');
             } catch (e) { actions.notify(e.message, 'ne'); }
           }}>Salvar</button>
           <button className="btn btn-ghost" onClick={actions.closeModal}>Cancelar</button>
@@ -239,11 +262,11 @@ export default function Plano() {
   }
 
   async function deleteCat(cat) {
-    if (!confirm(`Remover "${cat}" e todos os seus tipos?`)) return;
+    if (!confirm(`Remover "${cat}" e todas as suas categorias?`)) return;
     try {
       const data = await api.deleteCategoria(cat);
       refresh(data);
-      actions.notify('Removida.', 'ni');
+      actions.notify('Removido.', 'ni');
     } catch (e) { actions.notify(e.message, 'ne'); }
   }
 
@@ -254,9 +277,9 @@ export default function Plano() {
     actions.openModal(
       <div>
         <div className="font-inter font-bold text-base mb-4 flex items-center gap-2">
-          <Icon name="add_circle" size="text-[18px]" className="text-accent" /> Novo Tipo de Conta
+          <Icon name="add_circle" size="text-[18px]" className="text-accent" /> Nova Categoria de Conta
         </div>
-        <Field label="Categoria">
+        <Field label="Tipo">
           <select defaultValue={cat} onChange={e => { cat = e.target.value; }}>
             {cats.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -264,7 +287,7 @@ export default function Plano() {
         <Field label="Grupo">
           <input type="text" defaultValue={grp} placeholder="Nome do grupo" onChange={e => { grp = e.target.value; }} />
         </Field>
-        <Field label="Nome do Tipo">
+        <Field label="Nome da Categoria">
           <input type="text" placeholder="Ex: Receita de Assinatura" onChange={e => { tipo = e.target.value; }} />
         </Field>
         <Field label="Classificação Financeira">
@@ -272,12 +295,12 @@ export default function Plano() {
         </Field>
         <div className="flex gap-2 mt-4">
           <button className="btn btn-primary flex-1" onClick={async () => {
-            if (!tipo) return actions.notify('Informe o tipo.', 'ne');
+            if (!tipo) return actions.notify('Informe a categoria.', 'ne');
             try {
               const updated = await api.createPlanoItem({ cat, grp, tipo, nivel });
               actions.dispatch({ type: 'SET_PLANO', payload: { plano: updated, planoCores } });
               actions.closeModal();
-              actions.notify('Tipo criado!', 'ns');
+              actions.notify('Categoria criada!', 'ns');
             } catch (e) { actions.notify(e.message, 'ne'); }
           }}>Salvar</button>
           <button className="btn btn-ghost" onClick={actions.closeModal}>Cancelar</button>
@@ -291,9 +314,9 @@ export default function Plano() {
     actions.openModal(
       <div>
         <div className="font-inter font-bold text-base mb-4 flex items-center gap-2">
-          <Icon name="edit" size="text-[18px]" className="text-accent" /> Editar Tipo
+          <Icon name="edit" size="text-[18px]" className="text-accent" /> Editar Categoria
         </div>
-        <Field label="Categoria">
+        <Field label="Tipo">
           <select defaultValue={cat} onChange={e => { cat = e.target.value; }}>
             {[...new Set(plano.map(p => p.cat))].map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -301,7 +324,7 @@ export default function Plano() {
         <Field label="Grupo">
           <input type="text" defaultValue={grp} onChange={e => { grp = e.target.value; }} />
         </Field>
-        <Field label="Nome do Tipo">
+        <Field label="Nome da Categoria">
           <input type="text" defaultValue={tipo} onChange={e => { tipo = e.target.value; }} />
         </Field>
         <Field label="Classificação Financeira">
@@ -315,7 +338,7 @@ export default function Plano() {
               const txRes = await api.getTransactions();
               actions.dispatch({ type: 'SET_TRANSACTIONS', payload: txRes });
               actions.closeModal();
-              actions.notify('Tipo atualizado!', 'ns');
+              actions.notify('Categoria atualizada!', 'ns');
             } catch (e) { actions.notify(e.message, 'ne'); }
           }}>Salvar</button>
           <button className="btn btn-ghost" onClick={actions.closeModal}>Cancelar</button>
@@ -329,28 +352,60 @@ export default function Plano() {
     try {
       const updated = await api.deletePlanoItem(tipo);
       actions.dispatch({ type: 'SET_PLANO', payload: { plano: updated, planoCores } });
-      actions.notify('Removido.', 'ni');
+      actions.notify('Removida.', 'ni');
     } catch (e) { actions.notify(e.message, 'ne'); }
   }
 
   return (
     <div className="ani">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <div className="font-inter font-bold text-sm">Plano de Contas</div>
-          <div className="text-[11px] text-text-3 mt-0.5">{plano.length} tipos · {Object.keys(grouped).length} categorias</div>
+          <div className="text-[11px] text-text-3 mt-0.5">
+            {search ? `${filteredPlano.length} de ${plano.length} categorias` : `${plano.length} categorias`} · {Object.keys(grouped).length} tipos
+          </div>
         </div>
-        <div className="flex gap-1.5">
-          <button className="btn btn-ghost btn-sm" onClick={openNewCat}>+ Categoria</button>
-          <button className="btn btn-primary btn-sm" onClick={() => openNewTipo()}>+ Tipo</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Icon name="search" size="text-[13px]" className="absolute top-1/2 -translate-y-1/2 text-text-3 pointer-events-none" style={{ left: 12 }} />
+            <input
+              type="text"
+              placeholder="Buscar categoria, tipo, grupo…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="text-[11px] border border-slate-200 dark:border-slate-600 rounded-md bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+              style={{ width: 260, paddingLeft: 36, paddingRight: 28, paddingTop: 6, paddingBottom: 6 }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute top-1/2 -translate-y-1/2 text-text-3 hover:text-text-base" style={{ right: 8 }}>
+                <Icon name="close" size="text-[12px]" />
+              </button>
+            )}
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
+            <Icon name="download" size="text-[14px]" /> CSV
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={openNewCat}>+ Tipo</button>
+          <button className="btn btn-primary btn-sm" onClick={() => openNewTipo()}>+ Categoria</button>
         </div>
       </div>
+
+      {search && Object.keys(grouped).length === 0 && (
+        <div className="panel">
+          <div className="text-center py-12 text-text-3">
+            <Icon name="inbox" size="text-[40px]" className="opacity-30 text-text-3 block mx-auto mb-3" />
+            <div className="font-inter text-base text-text-2 mb-1.5">Nenhum resultado para "{search}"</div>
+            <button onClick={() => setSearch('')} className="btn btn-ghost btn-sm text-accent mt-1">Limpar busca</button>
+          </div>
+        </div>
+      )}
 
       {Object.entries(grouped).map(([cat, grupos]) => {
         const cor = planoCores[cat] || 'blue';
         const color = COLOR_VAR[cor] || COLOR_VAR.blue;
         const allItems = Object.values(grupos).flat();
-        const isCollapsed = collapsed.has(cat);
+        const isCollapsed = search ? false : collapsed.has(cat);
         return (
           <div key={cat} className="panel mb-3">
             <div
@@ -366,11 +421,11 @@ export default function Plano() {
                 />
                 <Icon name="folder" size="text-[16px]" style={{ color }} />
                 <div className="font-inter font-semibold text-[13px]" style={{ color }}>{cat}</div>
-                <span className="t-cat">{allItems.length} tipos</span>
+                <span className="t-cat">{allItems.length} categorias</span>
                 <CatClassificacao items={allItems} />
               </div>
               <div className="flex gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <button className="btn btn-ghost btn-sm" onClick={() => openNewTipo(cat)}>+ Tipo</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => openNewTipo(cat)}>+ Categoria</button>
                 <button className="btn btn-ghost btn-sm" onClick={() => openEditCat(cat)}><Icon name="edit" size="text-[14px]" /></button>
                 <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444' }} onClick={() => deleteCat(cat)}><Icon name="delete" size="text-[14px]" /></button>
               </div>
@@ -380,7 +435,7 @@ export default function Plano() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left' }}>Grupo</th>
-                    <th style={{ textAlign: 'left' }}>Tipo</th>
+                    <th style={{ textAlign: 'left' }}>Categoria</th>
                     <th style={{ textAlign: 'left' }}>Classificação</th>
                     <th>Ações</th>
                   </tr>
@@ -393,7 +448,7 @@ export default function Plano() {
                         <td></td>
                         <td></td>
                         <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => openNewTipo(cat, grp)}>+ Tipo</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openNewTipo(cat, grp)}>+ Categoria</button>
                         </td>
                       </tr>
                       {items.map(item => (

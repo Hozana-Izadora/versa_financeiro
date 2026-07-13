@@ -68,7 +68,7 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
               Composição das Saídas
               <InfoPopover
                 title="Composição das Saídas"
-                description={'Gráfico de rosca com navegação hierárquica conforme o Plano de Contas:\n  Saídas → Operacional / Não Operacional → Categoria → Grupo → Tipo\n\nGastos Operacionais: Custos Diretos e Despesas Operacionais (Pessoal, Administrativo, Comercial, Tecnologia).\nGastos Não Operacionais: Despesas Financeiras, Impostos e Tributos, Outras.\n\nClique em uma fatia ou item da lista para detalhar. Use o breadcrumb ou o botão ← para voltar.'}
+                description={'Gráfico de rosca com navegação hierárquica conforme o Plano de Contas:\n  Saídas → Operacional / Não Operacional → Tipo → Grupo → Categoria\n\nGastos Operacionais: Custos Diretos e Despesas Operacionais (Pessoal, Administrativo, Comercial, Tecnologia).\nGastos Não Operacionais: Despesas Financeiras, Impostos e Tributos, Outras.\n\nClique em uma fatia ou item da lista para detalhar. Use o breadcrumb ou o botão ← para voltar.'}
               />
             </div>
 
