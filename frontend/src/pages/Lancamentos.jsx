@@ -52,7 +52,7 @@ function TransactionForm({ initial, plano, onSave, onCancel, title }) {
       <div className="field"><label>Descrição</label><input type="text" value={form.desc} onChange={e => set('desc', e.target.value)} placeholder="Descrição do lançamento" /></div>
       <div className="grid grid-cols-2 gap-2.5">
         <div className="field">
-          <label>Categoria</label>
+          <label>Tipo</label>
           <select value={cat} onChange={e => handleCatChange(e.target.value)}>
             {cats.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -65,7 +65,7 @@ function TransactionForm({ initial, plano, onSave, onCancel, title }) {
         </div>
       </div>
       <div className="field">
-        <label>Tipo</label>
+        <label>Categoria</label>
         <select value={tipo} onChange={e => setTipo(e.target.value)}>
           {tipos.map(p => <option key={p.tipo} value={p.tipo}>{p.tipo}</option>)}
         </select>
@@ -155,7 +155,7 @@ export default function Lancamentos() {
     return arr.filter(r => new Date(r.data + 'T12:00').getFullYear() === filterState.year);
   }, [transactions, filterState.year]);
 
-  // ── Dropdown options (cascade Categoria → Grupo → Tipo) ─────────
+  // ── Dropdown options (cascade Tipo → Grupo → Categoria) ─────────
   const catOptions = useMemo(() =>
     [...new Set(allTx.map(r => r.cat))].sort(),
     [allTx]);
@@ -290,7 +290,7 @@ export default function Lancamentos() {
   }
 
   function exportCSV() {
-    const rows = [['ID','Data','Descrição','Categoria','Grupo','Tipo','Nível','Valor','Movimento','Regime']];
+    const rows = [['ID','Data','Descrição','Tipo','Grupo','Categoria','Nível','Valor','Movimento','Regime']];
     filtered.forEach(r => rows.push([r.id, r.data, r.desc, r.cat, r.grp, r.tipo, r.nivel, r.valor, r.mov, r.regime]));
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -321,7 +321,7 @@ export default function Lancamentos() {
             <Icon name="search" size="text-[13px]" className="absolute top-1/2 -translate-y-1/2 text-text-3 pointer-events-none" style={{ left: 12 }} />
             <input
               type="text"
-              placeholder="Buscar descrição, categoria…"
+              placeholder="Buscar descrição, tipo…"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="text-[11px] border border-slate-200 dark:border-slate-600 rounded-md bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
@@ -397,9 +397,9 @@ export default function Lancamentos() {
           <div className="flex flex-wrap items-end gap-2.5">
             <div className="flex flex-wrap gap-2.5 flex-1 min-w-0">
               <div className="min-w-[160px] flex-1">
-                <FF label="Categoria">
+                <FF label="Tipo">
                   <select value={filterCat} onChange={e => handleCatChange(e.target.value)} className={selectCls}>
-                    <option value="all">Todas</option>
+                    <option value="all">Todos</option>
                     {catOptions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </FF>
@@ -413,9 +413,9 @@ export default function Lancamentos() {
                 </FF>
               </div>
               <div className="min-w-[180px] flex-1">
-                <FF label="Tipo">
+                <FF label="Categoria">
                   <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)} className={selectCls}>
-                    <option value="all">Todos</option>
+                    <option value="all">Todas</option>
                     {tipoOptions.map(v => <option key={v} value={v}>{v}</option>)}
                   </select>
                 </FF>
@@ -440,9 +440,9 @@ export default function Lancamentos() {
               <tr>
                 <SortTh col="data"   label="Data"      sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                 <SortTh col="desc"   label="Descrição" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="cat"    label="Categoria" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <SortTh col="cat"    label="Tipo"      sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                 <SortTh col="grp"    label="Grupo"     sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="tipo"   label="Tipo"      sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
+                <SortTh col="tipo"   label="Categoria" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                 <SortTh col="regime" label="Regime"    sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                 <SortTh col="mov"    label="Movimento" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                 <SortTh col="valor"  label="Valor"     sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="text-right" />

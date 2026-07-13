@@ -127,13 +127,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
             }
 
             if (row.type === 'subtotal') {
+              const cls = row.isPos ? 'cv-pos' : 'cv-neg';
               return (
                 <tr key={i} className="dr-subtotal">
                   <td style={{ paddingLeft: '8px' }}>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className="cv-neg">({fmt(v)})</td>
+                    <td key={mi} className={cls}>{row.isPos ? fmt(v) : `(${fmt(v)})`}</td>
                   ))}
-                  <td className="cv-neg">({fmt(row.total)})</td>
+                  <td className={cls}>{row.isPos ? fmt(row.total) : `(${fmt(row.total)})`}</td>
                 </tr>
               );
             }
