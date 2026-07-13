@@ -38,13 +38,27 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   const monthIdx = new Map(visMonths.map((m, i) => [m, i]));
 
-  // Group plano by cat > grp > tipo
-  const grouped = {};
-  plano.forEach(p => {
-    if (!grouped[p.cat]) grouped[p.cat] = {};
-    if (!grouped[p.cat][p.grp]) grouped[p.cat][p.grp] = [];
-    if (!grouped[p.cat][p.grp].includes(p.tipo)) grouped[p.cat][p.grp].push(p.tipo);
-  });
+  // Group plano by nivel > cat > grp > tipo. Scoping by nivel FIRST matters: if a category
+  // name is reused across two niveis (e.g. "RECEITA BRUTA" holds both Receita tipos and
+  // Entrada Não Operacional tipos), grouping by cat alone would sum the whole category into
+  // both sections — double-counting it. Keeping one grouped map per nivel prevents that.
+  function groupByNivel(nivel) {
+    const g = {};
+    plano.forEach(p => {
+      if (p.nivel !== nivel) return;
+      if (!g[p.cat]) g[p.cat] = {};
+      if (!g[p.cat][p.grp]) g[p.cat][p.grp] = [];
+      if (!g[p.cat][p.grp].includes(p.tipo)) g[p.cat][p.grp].push(p.tipo);
+    });
+    return g;
+  }
+  const groupedByNivel = {
+    'Receita': groupByNivel('Receita'),
+    'Custo': groupByNivel('Custo'),
+    'Despesa Operacional': groupByNivel('Despesa Operacional'),
+    'Despesa Não Operacional': groupByNivel('Despesa Não Operacional'),
+    'Entrada Não Operacional': groupByNivel('Entrada Não Operacional'),
+  };
 
   // Per-category level sets by nivel
   const entradaCats = [...new Set(plano.filter(p => p.nivel === 'Receita').map(p => p.cat))];
@@ -63,10 +77,11 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const entNopLabel  = sectionLabel(entNopCats,  'ENTRADAS NÃO OPERACIONAIS');
   const despNopLabel = sectionLabel(despNopCats, 'DESPESAS NÃO OPERACIONAIS');
 
-  function catTotal(cats, movFilter, m) {
+  function catTotal(cats, movFilter, m, nivel) {
     let s = 0;
+    const g = groupedByNivel[nivel];
     cats.forEach(cat => {
-      Object.values(grouped[cat] || {}).flat().forEach(tipo => { s += sm(m, movFilter, tipo); });
+      Object.values(g[cat] || {}).flat().forEach(tipo => { s += sm(m, movFilter, tipo); });
     });
     return s;
   }
@@ -78,18 +93,19 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const mAllSaidas = visMonths.map(m => sm(m, 'Saída'));
 
   // Classified exits by nivel (for DRE structural breakdown)
-  const mCost    = visMonths.map(m => catTotal(custoCats,   'Saída', m));
-  const mDespOp  = visMonths.map(m => catTotal(despOpCats,  'Saída', m));
-  const mDespNop = visMonths.map(m => catTotal(despNopCats, 'Saída', m));
+  const mCost    = visMonths.map(m => catTotal(custoCats,   'Saída', m, 'Custo'));
+  const mDespOp  = visMonths.map(m => catTotal(despOpCats,  'Saída', m, 'Despesa Operacional'));
+  const mDespNop = visMonths.map(m => catTotal(despNopCats, 'Saída', m, 'Despesa Não Operacional'));
 
   // Classified non-operational entries
-  const mEntNop = visMonths.map(m => catTotal(entNopCats, 'Entrada', m));
+  const mEntNop = visMonths.map(m => catTotal(entNopCats, 'Entrada', m, 'Entrada Não Operacional'));
 
   // Operational revenue only (excludes classified non-operational entries like loans)
   const mRecOp = visMonths.map((_, i) => mRec[i] - mEntNop[i]);
 
   // Classified entries (to detect orphaned entrada transactions)
-  const mClassRec = visMonths.map(m => catTotal(entradaCats, 'Entrada', m) + catTotal(entNopCats, 'Entrada', m));
+  const mClassRec = visMonths.map(m =>
+    catTotal(entradaCats, 'Entrada', m, 'Receita') + catTotal(entNopCats, 'Entrada', m, 'Entrada Não Operacional'));
 
   // Reconciliation buckets — non-zero means transactions exist outside the plano
   const mEntNaoClass   = visMonths.map((_, i) => mRec[i] - mClassRec[i]);
@@ -135,12 +151,13 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     rows.push({ type: 'section', label });
   }
 
-  function buildSection(cats, movFilter) {
+  function buildSection(cats, movFilter, nivel) {
     // totalSaidas for % reference includes unclassified exits
     const totalSaidas = visMonths.map((_, i) => mAllSaidas[i]);
+    const g = groupedByNivel[nivel];
 
     cats.forEach(cat => {
-      const gs = grouped[cat];
+      const gs = g[cat];
       if (!gs) return;
       const catMonths = visMonths.map(m => {
         let s = 0;
@@ -183,7 +200,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   }
 
   if (entradaCats.length) addSection(entradaLabel);
-  buildSection(entradaCats, 'Entrada');
+  buildSection(entradaCats, 'Entrada', 'Receita');
   // ── FIX 1a: show unclassified entries so detail rows sum to the total ──────
   if (totEntNaoClass > 0) {
     rows.push({
@@ -224,23 +241,23 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true });
 
   if (custoCats.length) addSection(custoLabel);
-  buildSection(custoCats, 'Saída');
+  buildSection(custoCats, 'Saída', 'Custo');
   rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false });
   rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (despOpCats.length) addSection(despOpLabel);
-  buildSection(despOpCats, 'Saída');
+  buildSection(despOpCats, 'Saída', 'Despesa Operacional');
   rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false });
   rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (entNopCats.length) addSection(entNopLabel);
-  buildSection(entNopCats, 'Entrada');
+  buildSection(entNopCats, 'Entrada', 'Entrada Não Operacional');
   if (totEntNop > 0) {
     rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true });
   }
 
   if (despNopCats.length) addSection(despNopLabel);
-  buildSection(despNopCats, 'Saída');
+  buildSection(despNopCats, 'Saída', 'Despesa Não Operacional');
   rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false });
 
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
