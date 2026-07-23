@@ -70,21 +70,23 @@ export const api = {
   deleteSaldoEntry: (chave)        => req(`/api/saldos/entry/${encodeURIComponent(chave)}`, { method: 'DELETE' }),
 
   // Import
-  previewImport: (file, base, colMap = {}, categoryOverrides = {}) => {
+  previewImport: (file, base, colMap = {}, categoryOverrides = {}, extraColMap = {}) => {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('base', base);
     if (Object.keys(colMap).length)            fd.append('colMap',            JSON.stringify(colMap));
     if (Object.keys(categoryOverrides).length) fd.append('categoryOverrides', JSON.stringify(categoryOverrides));
+    if (Object.keys(extraColMap).length)       fd.append('extraColMap',       JSON.stringify(extraColMap));
     return req('/api/import/preview', { method: 'POST', body: fd });
   },
-  importFile: (file, base, colMap = {}, forceImbalanced = false, categoryOverrides = {}) => {
+  importFile: (file, base, colMap = {}, forceImbalanced = false, categoryOverrides = {}, extraColMap = {}) => {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('base', base);
     if (Object.keys(colMap).length)            fd.append('colMap',            JSON.stringify(colMap));
     if (forceImbalanced)                        fd.append('forceImbalanced',   'true');
     if (Object.keys(categoryOverrides).length) fd.append('categoryOverrides', JSON.stringify(categoryOverrides));
+    if (Object.keys(extraColMap).length)       fd.append('extraColMap',       JSON.stringify(extraColMap));
     return req('/api/import', { method: 'POST', body: fd });
   },
   getImportHistory:      () => req('/api/import/history'),
@@ -116,6 +118,10 @@ export const api = {
   adminAddUserClient:       (id, clientId)          => req(`/api/admin/users/${id}/clients`,                           { method: 'POST',   ...json({ clientId }) }),
   adminRemoveUserClient:    (id, clientId)          => req(`/api/admin/users/${id}/clients/${clientId}`,               { method: 'DELETE' }),
   adminSetUserClientRole:   (id, clientId, roleId)  => req(`/api/admin/users/${id}/clients/${clientId}/role`,          { method: 'PUT',    ...json({ roleId }) }),
+
+  // Preferências do usuário (ex: colunas visíveis em Lançamentos)
+  getPreferences: ()            => req('/api/preferences'),
+  setPreference:  (key, value)  => req(`/api/preferences/${encodeURIComponent(key)}`, { method: 'PUT', ...json({ value }) }),
 
   // Roles (funções de acesso)
   adminListRoles:   (clientId)       => req(clientId ? `/api/admin/roles?clientId=${clientId}` : '/api/admin/roles'),

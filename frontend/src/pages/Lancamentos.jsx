@@ -1,27 +1,36 @@
-import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { fmt, fmtK } from '../utils/formatters.js';
 import Icon from '../components/ui/Icon.jsx';
 
-// ── Transaction form (unchanged) ────────────────────────────────────────────
+// ── Transaction form ─────────────────────────────────────────────────────────
 function TransactionForm({ initial, plano, onSave, onCancel, title }) {
   const cats = [...new Set(plano.map(p => p.cat))];
   const [cat,  setCat]  = useState(initial?.cat  || cats[0] || '');
   const [grp,  setGrp]  = useState(initial?.grp  || '');
   const [tipo, setTipo] = useState(initial?.tipo  || '');
   const [form, setForm] = useState({
-    data:   initial?.data   || new Date().toISOString().split('T')[0],
-    desc:   initial?.desc   || '',
-    valor:  initial?.valor  || '',
-    mov:    initial?.mov    || 'Entrada',
-    regime: initial?.regime || 'Caixa',
+    data:            initial?.data            || new Date().toISOString().split('T')[0],
+    desc:            initial?.desc            || '',
+    valor:           initial?.valor           || '',
+    mov:             initial?.mov             || 'Entrada',
+    regime:          initial?.regime          || 'Caixa',
+    fornecedor:      initial?.fornecedor      || '',
+    dataEmissao:     initial?.dataEmissao     || '',
+    dataVencimento:  initial?.dataVencimento  || '',
   });
+  const [extraFields, setExtraFields] = useState(
+    () => Object.entries(initial?.extra || {}).map(([key, value]) => ({ key, value }))
+  );
 
   const grps  = [...new Set(plano.filter(p => p.cat === cat).map(p => p.grp))];
   const tipos = plano.filter(p => p.grp === grp);
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function addExtraField() { setExtraFields(f => [...f, { key: '', value: '' }]); }
+  function updateExtraField(i, patch) { setExtraFields(f => f.map((x, idx) => idx === i ? { ...x, ...patch } : x)); }
+  function removeExtraField(i) { setExtraFields(f => f.filter((_, idx) => idx !== i)); }
 
   function handleCatChange(c) {
     setCat(c);
@@ -39,7 +48,16 @@ function TransactionForm({ initial, plano, onSave, onCancel, title }) {
 
   function handleSubmit() {
     const p = plano.find(x => x.tipo === tipo) || plano[0];
-    onSave({ ...form, cat, grp, tipo, nivel: p?.nivel || '', valor: parseFloat(form.valor) || 0 });
+    const extra = extraFields.reduce((acc, { key, value }) => {
+      if (key) acc[key] = value;
+      return acc;
+    }, {});
+    onSave({
+      ...form, cat, grp, tipo, nivel: p?.nivel || '', valor: parseFloat(form.valor) || 0,
+      dataEmissao:    form.dataEmissao    || null,
+      dataVencimento: form.dataVencimento || null,
+      extra,
+    });
   }
 
   return (
@@ -84,6 +102,36 @@ function TransactionForm({ initial, plano, onSave, onCancel, title }) {
           </select>
         </div>
       </div>
+
+      <div className="field">
+        <label>Fornecedor</label>
+        <input type="text" value={form.fornecedor} onChange={e => set('fornecedor', e.target.value)} placeholder="Opcional" />
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="field"><label>Data Emissão</label><input type="date" value={form.dataEmissao} onChange={e => set('dataEmissao', e.target.value)} /></div>
+        <div className="field"><label>Data Vencimento</label><input type="date" value={form.dataVencimento} onChange={e => set('dataVencimento', e.target.value)} /></div>
+      </div>
+
+      <div className="field">
+        <label>Campos adicionais</label>
+        <div className="space-y-1.5">
+          {extraFields.map((ef, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input type="text" placeholder="Nome" value={ef.key}
+                onChange={e => updateExtraField(i, { key: e.target.value })} className="flex-1" />
+              <input type="text" placeholder="Valor" value={ef.value}
+                onChange={e => updateExtraField(i, { value: e.target.value })} className="flex-1" />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeExtraField(i)}>
+                <Icon name="close" size="text-[14px]" />
+              </button>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={addExtraField}>
+            <Icon name="add_circle" size="text-[14px]" /> Adicionar campo
+          </button>
+        </div>
+      </div>
+
       <div className="flex gap-2 mt-4">
         <button className="btn btn-primary flex-1" onClick={handleSubmit}>Salvar</button>
         <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
@@ -120,6 +168,79 @@ function FF({ label, children }) {
   );
 }
 
+// ── Column definitions (base fields) ────────────────────────────────────────
+const BASE_COLUMNS = [
+  { key: 'data', label: 'Data', sortKey: 'data',
+    cell: r => new Date(r.data + 'T12:00').toLocaleDateString('pt-BR'),
+    cellClassName: 'text-text-2 whitespace-nowrap' },
+  { key: 'desc', label: 'Descrição', sortKey: 'desc',
+    cell: r => r.desc,
+    cellClassName: 'max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap' },
+  { key: 'cat', label: 'Tipo', sortKey: 'cat',
+    cell: r => <span className="t-cat">{r.cat}</span> },
+  { key: 'grp', label: 'Grupo', sortKey: 'grp',
+    cell: r => r.grp, cellClassName: 'text-text-2 text-[11px]' },
+  { key: 'tipo', label: 'Categoria', sortKey: 'tipo',
+    cell: r => r.tipo, cellClassName: 'text-text-3 text-[11px]' },
+  { key: 'regime', label: 'Regime', sortKey: 'regime',
+    cell: r => <span className={`tag ${r.regime === 'Caixa' ? 't-caixa' : 't-comp'}`}>{r.regime}</span> },
+  { key: 'mov', label: 'Movimento', sortKey: 'mov',
+    cell: r => <span className={`tag ${r.mov === 'Entrada' ? 't-entrada' : 't-saida'}`}>{r.mov}</span> },
+  { key: 'valor', label: 'Valor', sortKey: 'valor', headClassName: 'text-right',
+    cell: r => <>{r.mov === 'Entrada' ? '+' : '−'}{fmt(r.valor)}</>,
+    cellClassName: r => `text-right font-mono ${r.mov === 'Entrada' ? 'cv-pos' : 'cv-neg'}` },
+  { key: 'fornecedor', label: 'Fornecedor', sortKey: 'fornecedor',
+    cell: r => r.fornecedor || '—', cellClassName: 'text-text-2 text-[11px]' },
+  { key: 'dataEmissao', label: 'Data Emissão', sortKey: 'dataEmissao',
+    cell: r => r.dataEmissao ? new Date(r.dataEmissao + 'T12:00').toLocaleDateString('pt-BR') : '—',
+    cellClassName: 'text-text-2 text-[11px] whitespace-nowrap' },
+  { key: 'dataVencimento', label: 'Data Vencimento', sortKey: 'dataVencimento',
+    cell: r => r.dataVencimento ? new Date(r.dataVencimento + 'T12:00').toLocaleDateString('pt-BR') : '—',
+    cellClassName: 'text-text-2 text-[11px] whitespace-nowrap' },
+];
+
+const DEFAULT_VISIBLE_COLUMNS = ['data', 'desc', 'cat', 'grp', 'tipo', 'regime', 'mov', 'valor'];
+
+// ── Column visibility picker ─────────────────────────────────────────────────
+function ColumnPicker({ columns, visible, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  function toggle(key) {
+    const next = new Set(visible);
+    next.has(key) ? next.delete(key) : next.add(key);
+    onChange(columns.filter(c => next.has(c.key)).map(c => c.key));
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(o => !o)} className="btn btn-ghost btn-sm">
+        <Icon name="view_column" size="text-[14px]" /> Colunas
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 bg-card rounded-card border border-slate-200 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-1.5"
+          style={{ zIndex: 100, minWidth: 210, maxHeight: 320, overflowY: 'auto' }}
+        >
+          {columns.map(c => (
+            <label key={c.key} className="flex items-center gap-2 text-[11px] px-2 py-1.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+              <input type="checkbox" checked={visible.includes(c.key)} onChange={() => toggle(c.key)} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function Lancamentos() {
   const { state, actions } = useApp();
@@ -146,6 +267,24 @@ export default function Lancamentos() {
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(0);
 
+  // ── Visible columns (persisted per user via /api/preferences) ────
+  const [visibleCols, setVisibleCols] = useState(DEFAULT_VISIBLE_COLUMNS);
+
+  useEffect(() => {
+    api.getPreferences()
+      .then(prefs => {
+        if (Array.isArray(prefs?.lancamentos_columns) && prefs.lancamentos_columns.length) {
+          setVisibleCols(prefs.lancamentos_columns);
+        }
+      })
+      .catch(() => {}); // preference load failure shouldn't block the page
+  }, []);
+
+  function handleColumnsChange(cols) {
+    setVisibleCols(cols);
+    api.setPreference('lancamentos_columns', cols).catch(() => {});
+  }
+
   // Defer search input so keystrokes stay responsive with large datasets
   const deferredSearch = useDeferredValue(search);
 
@@ -154,6 +293,27 @@ export default function Lancamentos() {
     const arr = [...transactions.caixa, ...transactions.competencia];
     return arr.filter(r => new Date(r.data + 'T12:00').getFullYear() === filterState.year);
   }, [transactions, filterState.year]);
+
+  // ── Extra (dynamic) columns — union of keys seen across loaded transactions ──
+  const extraKeys = useMemo(() => {
+    const s = new Set();
+    allTx.forEach(r => Object.keys(r.extra || {}).forEach(k => s.add(k)));
+    return [...s].sort();
+  }, [allTx]);
+
+  const allColumns = useMemo(() => [
+    ...BASE_COLUMNS,
+    ...extraKeys.map(k => ({
+      key: `extra:${k}`, label: k,
+      cell: r => r.extra?.[k] ?? '—',
+      cellClassName: 'text-text-3 text-[11px]',
+    })),
+  ], [extraKeys]);
+
+  const visibleColumns = useMemo(
+    () => allColumns.filter(c => visibleCols.includes(c.key)),
+    [allColumns, visibleCols]
+  );
 
   // ── Dropdown options (cascade Tipo → Grupo → Categoria) ─────────
   const catOptions = useMemo(() =>
@@ -290,8 +450,15 @@ export default function Lancamentos() {
   }
 
   function exportCSV() {
-    const rows = [['ID','Data','Descrição','Tipo','Grupo','Categoria','Nível','Valor','Movimento','Regime']];
-    filtered.forEach(r => rows.push([r.id, r.data, r.desc, r.cat, r.grp, r.tipo, r.nivel, r.valor, r.mov, r.regime]));
+    const rows = [[
+      'ID', 'Data', 'Descrição', 'Tipo', 'Grupo', 'Categoria', 'Nível', 'Valor', 'Movimento', 'Regime',
+      'Fornecedor', 'Data Emissão', 'Data Vencimento', ...extraKeys,
+    ]];
+    filtered.forEach(r => rows.push([
+      r.id, r.data, r.desc, r.cat, r.grp, r.tipo, r.nivel, r.valor, r.mov, r.regime,
+      r.fornecedor || '', r.dataEmissao || '', r.dataVencimento || '',
+      ...extraKeys.map(k => r.extra?.[k] ?? ''),
+    ]));
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -355,6 +522,7 @@ export default function Lancamentos() {
           <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
             <Icon name="download" size="text-[14px]" /> CSV
           </button>
+          <ColumnPicker columns={allColumns} visible={visibleCols} onChange={handleColumnsChange} />
         </div>
       </div>
 
@@ -438,21 +606,19 @@ export default function Lancamentos() {
           <table className="tx-tbl">
             <thead>
               <tr>
-                <SortTh col="data"   label="Data"      sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="desc"   label="Descrição" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="cat"    label="Tipo"      sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="grp"    label="Grupo"     sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="tipo"   label="Categoria" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="regime" label="Regime"    sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="mov"    label="Movimento" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
-                <SortTh col="valor"  label="Valor"     sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="text-right" />
+                {visibleColumns.map(c => c.sortKey ? (
+                  <SortTh key={c.key} col={c.sortKey} label={c.label} sortCol={sortCol} sortDir={sortDir}
+                    onSort={toggleSort} className={c.headClassName} />
+                ) : (
+                  <th key={c.key} className={c.headClassName}>{c.label}</th>
+                ))}
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={visibleColumns.length + 1}>
                     <div className="text-center py-12 text-text-3">
                       <Icon name="inbox" size="text-[40px]" className="opacity-30 text-text-3 block mx-auto mb-3" />
                       <div className="font-inter text-base text-text-2 mb-1.5">
@@ -470,18 +636,11 @@ export default function Lancamentos() {
                 </tr>
               ) : pageRows.map(r => (
                 <tr key={r.id} onClick={() => openEdit(r)}>
-                  <td className="text-text-2 whitespace-nowrap">
-                    {new Date(r.data + 'T12:00').toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap">{r.desc}</td>
-                  <td><span className="t-cat">{r.cat}</span></td>
-                  <td className="text-text-2 text-[11px]">{r.grp}</td>
-                  <td className="text-text-3 text-[11px]">{r.tipo}</td>
-                  <td><span className={`tag ${r.regime === 'Caixa' ? 't-caixa' : 't-comp'}`}>{r.regime}</span></td>
-                  <td><span className={`tag ${r.mov === 'Entrada' ? 't-entrada' : 't-saida'}`}>{r.mov}</span></td>
-                  <td className={`text-right font-mono ${r.mov === 'Entrada' ? 'cv-pos' : 'cv-neg'}`}>
-                    {r.mov === 'Entrada' ? '+' : '−'}{fmt(r.valor)}
-                  </td>
+                  {visibleColumns.map(c => (
+                    <td key={c.key} className={typeof c.cellClassName === 'function' ? c.cellClassName(r) : c.cellClassName}>
+                      {c.cell(r)}
+                    </td>
+                  ))}
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>
