@@ -4,18 +4,27 @@ import { withTenant } from '../db/tenantContext.js';
  * Maps a DB row to the shape the frontend expects.
  * Key difference: DB column is "descricao"; API field is "desc".
  */
+function normalizeDate(v) {
+  if (v == null) return null;
+  return v instanceof Date ? v.toISOString().split('T')[0] : String(v);
+}
+
 function normalize(r) {
   return {
-    id:     Number(r.id),
-    data:   r.data instanceof Date ? r.data.toISOString().split('T')[0] : String(r.data),
-    desc:   r.descricao,
-    cat:    r.cat,
-    grp:    r.grp,
-    tipo:   r.tipo,
-    nivel:  r.nivel,
-    valor:  Number(r.valor),
-    mov:    r.mov,
-    regime: r.regime,
+    id:              Number(r.id),
+    data:            normalizeDate(r.data),
+    desc:            r.descricao,
+    cat:             r.cat,
+    grp:             r.grp,
+    tipo:            r.tipo,
+    nivel:           r.nivel,
+    valor:           Number(r.valor),
+    mov:             r.mov,
+    regime:          r.regime,
+    fornecedor:      r.fornecedor,
+    dataEmissao:     normalizeDate(r.data_emissao),
+    dataVencimento:  normalizeDate(r.data_vencimento),
+    extra:           r.extra ?? {},
   };
 }
 
@@ -25,7 +34,8 @@ function normalize(r) {
 export async function getTransactions(tenantSchema) {
   return withTenant(tenantSchema, async (client) => {
     const { rows } = await client.query(
-      `SELECT id, data, descricao, cat, grp, tipo, nivel, valor, mov, regime
+      `SELECT id, data, descricao, cat, grp, tipo, nivel, valor, mov, regime,
+              fornecedor, data_emissao, data_vencimento, extra
          FROM transactions
         ORDER BY data DESC, id DESC`
     );
@@ -42,10 +52,17 @@ export async function getTransactions(tenantSchema) {
 export async function createTransaction(tenantSchema, tx) {
   return withTenant(tenantSchema, async (client) => {
     const { rows } = await client.query(
-      `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO transactions (
+         data, descricao, cat, grp, tipo, nivel, valor, mov, regime,
+         fornecedor, data_emissao, data_vencimento, extra
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
        RETURNING *`,
-      [tx.data, tx.desc, tx.cat, tx.grp, tx.tipo, tx.nivel, tx.valor, tx.mov, tx.regime]
+      [
+        tx.data, tx.desc, tx.cat, tx.grp, tx.tipo, tx.nivel, tx.valor, tx.mov, tx.regime,
+        tx.fornecedor ?? null, tx.dataEmissao ?? null, tx.dataVencimento ?? null,
+        JSON.stringify(tx.extra ?? {}),
+      ]
     );
     return normalize(rows[0]);
   });
@@ -66,19 +83,27 @@ export async function updateTransaction(tenantSchema, id, updates) {
 
     const { rows } = await client.query(
       `UPDATE transactions
-          SET data      = $1,
-              descricao = $2,
-              cat       = $3,
-              grp       = $4,
-              tipo      = $5,
-              nivel     = $6,
-              valor     = $7,
-              mov       = $8,
-              regime    = $9
-        WHERE id = $10
+          SET data             = $1,
+              descricao        = $2,
+              cat              = $3,
+              grp              = $4,
+              tipo             = $5,
+              nivel            = $6,
+              valor            = $7,
+              mov              = $8,
+              regime           = $9,
+              fornecedor       = $10,
+              data_emissao     = $11,
+              data_vencimento  = $12,
+              extra            = $13::jsonb
+        WHERE id = $14
         RETURNING *`,
-      [updates.data, updates.desc, updates.cat, updates.grp, updates.tipo,
-       nivel, updates.valor, updates.mov, updates.regime, id]
+      [
+        updates.data, updates.desc, updates.cat, updates.grp, updates.tipo,
+        nivel, updates.valor, updates.mov, updates.regime,
+        updates.fornecedor ?? null, updates.dataEmissao ?? null, updates.dataVencimento ?? null,
+        JSON.stringify(updates.extra ?? {}), id,
+      ]
     );
     return rows.length ? normalize(rows[0]) : null;
   });
@@ -106,11 +131,16 @@ export async function bulkInsertTransactions(tenantSchema, txList, importId = nu
   if (!txList.length) return 0;
   return withTenant(tenantSchema, async (client) => {
     await client.query(
-      `INSERT INTO transactions (data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)
+      `INSERT INTO transactions (
+         data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id,
+         fornecedor, data_emissao, data_vencimento, extra
+       )
        SELECT * FROM unnest(
          $1::date[], $2::text[], $3::text[], $4::text[], $5::text[],
-         $6::text[], $7::numeric[], $8::text[], $9::text[], $10::bigint[]
-       ) AS t(data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id)`,
+         $6::text[], $7::numeric[], $8::text[], $9::text[], $10::bigint[],
+         $11::text[], $12::date[], $13::date[], $14::jsonb[]
+       ) AS t(data, descricao, cat, grp, tipo, nivel, valor, mov, regime, import_id,
+              fornecedor, data_emissao, data_vencimento, extra)`,
       [
         txList.map(t => t.data),
         txList.map(t => t.desc),
@@ -122,6 +152,10 @@ export async function bulkInsertTransactions(tenantSchema, txList, importId = nu
         txList.map(t => t.mov),
         txList.map(t => t.regime),
         txList.map(() => importId),
+        txList.map(t => t.fornecedor ?? null),
+        txList.map(t => t.dataEmissao ?? null),
+        txList.map(t => t.dataVencimento ?? null),
+        txList.map(t => JSON.stringify(t.extra ?? {})),
       ]
     );
     return txList.length;

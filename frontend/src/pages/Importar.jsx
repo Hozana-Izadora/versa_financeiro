@@ -362,6 +362,7 @@ function SaldosTab({ actions }) {
 const FIELD_LABELS = {
   data: 'Data', descricao: 'Descrição', categoria: 'Categoria',
   valor: 'Valor', movimento: 'Movimento', regime: 'Regime',
+  fornecedor: 'Fornecedor', dataEmissao: 'Data Emissão', dataVencimento: 'Data Vencimento',
 };
 
 const NIVEL_ORDER = ['Receita', 'Custo', 'Despesa Operacional', 'Despesa Não Operacional', 'Entrada Não Operacional'];
@@ -438,6 +439,9 @@ function ImportPreview({ preview, file, base, plano, categoryOverrides, onOverri
   const [colMap, setColMap]         = useState(preview.colMap ?? {});
   const [forceImbalanced, setForce] = useState(false);
   const [remapping, setRemapping]   = useState(false);
+  const [extraFields, setExtraFields] = useState(
+    () => Object.entries(preview.extraColMap ?? {}).map(([field, header]) => ({ field, header }))
+  );
 
   const { orphans, transfers, summary, signConflicts } = preview;
   const hasOrphans      = orphans.length > 0;
@@ -451,13 +455,23 @@ function ImportPreview({ preview, file, base, plano, categoryOverrides, onOverri
     return acc;
   }, {});
 
+  function addExtraField() { setExtraFields(f => [...f, { field: '', header: '' }]); }
+  function updateExtraField(i, patch) { setExtraFields(f => f.map((x, idx) => idx === i ? { ...x, ...patch } : x)); }
+  function removeExtraField(i) { setExtraFields(f => f.filter((_, idx) => idx !== i)); }
+
+  const extraColMap = extraFields.reduce((acc, { field, header }) => {
+    if (field && header) acc[field] = header;
+    return acc;
+  }, {});
+
   async function handleRemap() {
     setRemapping(true);
-    try { await onRemap(colMap, categoryOverrides); }
+    try { await onRemap(colMap, categoryOverrides, extraColMap); }
     finally { setRemapping(false); }
   }
 
-  const colMapDirty = JSON.stringify(colMap) !== JSON.stringify(preview.colMap);
+  const colMapDirty = JSON.stringify(colMap) !== JSON.stringify(preview.colMap)
+    || JSON.stringify(extraColMap) !== JSON.stringify(preview.extraColMap ?? {});
 
   return (
     <div className="space-y-4">
@@ -500,6 +514,45 @@ function ImportPreview({ preview, file, base, plano, categoryOverrides, onOverri
             </button>
           </div>
         )}
+      </div>
+
+      {/* Extra fields — vary per client, stored generically on each transaction */}
+      <div className="panel">
+        <div className="panel-hdr">
+          <div>
+            <div className="font-inter font-semibold text-[13px]">Colunas Extras</div>
+            <div className="text-[10px] text-text-3 mt-0.5">
+              Campos que variam por cliente (ex: Centro de Custo, Nº Documento) — ficam salvos no lançamento sem precisar de uma coluna fixa no sistema
+            </div>
+          </div>
+        </div>
+        <div className="p-3 space-y-2">
+          {extraFields.map((ef, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Nome do campo (ex: Centro de Custo)"
+                value={ef.field}
+                onChange={e => updateExtraField(i, { field: e.target.value })}
+                className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1.5 bg-bg-1 text-text-base flex-1 focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              <select
+                value={ef.header}
+                onChange={e => updateExtraField(i, { header: e.target.value })}
+                className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2 py-1.5 bg-bg-1 text-text-base flex-1 focus:outline-none focus:ring-1 focus:ring-accent"
+              >
+                <option value="">(coluna da planilha)</option>
+                {preview.headers.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+              <button className="btn btn-ghost btn-sm" onClick={() => removeExtraField(i)}>
+                <Icon name="close" size="text-[14px]" />
+              </button>
+            </div>
+          ))}
+          <button className="btn btn-ghost btn-sm" onClick={addExtraField}>
+            <Icon name="add_circle" size="text-[14px]" /> Adicionar coluna extra
+          </button>
+        </div>
       </div>
 
       {/* Orphan categories */}
@@ -709,7 +762,7 @@ function ImportPreview({ preview, file, base, plano, categoryOverrides, onOverri
               </button>
               <button
                 className="btn btn-primary btn-sm"
-                onClick={() => onConfirm(colMap, forceImbalanced, categoryOverrides)}
+                onClick={() => onConfirm(colMap, forceImbalanced, categoryOverrides, extraColMap)}
                 disabled={unbalanced && !forceImbalanced}
               >
                 <Icon name="check_circle" size="text-[14px]" /> Confirmar Importação
@@ -1065,10 +1118,10 @@ export default function Importar() {
     setCatOverrides(prev => ({ ...prev, [categoria]: planoItem }));
   }
 
-  async function handleRemap(colMap, overrides = categoryOverrides) {
+  async function handleRemap(colMap, overrides = categoryOverrides, extraColMap = {}) {
     setIsPreviewing(true);
     try {
-      const res = await api.previewImport(previewFile, uploadBase, colMap, overrides);
+      const res = await api.previewImport(previewFile, uploadBase, colMap, overrides, extraColMap);
       setPreview(res);
     } catch (e) {
       actions.notify('Erro ao re-analisar: ' + e.message, 'ne');
@@ -1077,10 +1130,10 @@ export default function Importar() {
     }
   }
 
-  async function handleConfirm(colMap, forceImbalanced, overrides = categoryOverrides) {
+  async function handleConfirm(colMap, forceImbalanced, overrides = categoryOverrides, extraColMap = {}) {
     setIsImporting(true);
     try {
-      const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced, overrides);
+      const res = await api.importFile(previewFile, uploadBase, colMap, forceImbalanced, overrides, extraColMap);
       await actions.refreshAll();
       setPreview(null);
       setPreviewFile(null);

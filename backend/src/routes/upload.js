@@ -11,12 +11,15 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // ── Column auto-detection aliases ─────────────────────────────────────────────
 const COL_ALIASES = {
-  data:      ['data', 'date', 'dt', 'vencimento', 'competencia'],
-  descricao: ['descrição', 'descricao', 'description', 'historico', 'memo', 'obs'],
-  categoria: ['categoria', 'category', 'conta', 'plano'],
-  valor:     ['valor', 'value', 'amount', 'montante'],
-  movimento: ['tipo', 'movimento', 'operacao', 'entrada_saida'],
-  regime:    ['regime', 'tipo_lancamento'],
+  data:            ['data', 'date', 'dt', 'competencia'],
+  descricao:       ['descrição', 'descricao', 'description', 'historico', 'memo', 'obs'],
+  categoria:       ['categoria', 'category', 'conta', 'plano'],
+  valor:           ['valor', 'value', 'amount', 'montante'],
+  movimento:       ['tipo', 'movimento', 'operacao', 'entrada_saida'],
+  regime:          ['regime', 'tipo_lancamento'],
+  fornecedor:      ['fornecedor', 'supplier', 'favorecido'],
+  dataEmissao:     ['emiss'],
+  dataVencimento:  ['vencimento'],
 };
 
 // Fallback plano items for orphan categories (based on Consolidado caixa.xlsx plano)
@@ -117,6 +120,22 @@ function resolveColMap(headers, override = {}) {
   return cm;
 }
 
+/**
+ * Resolves user-defined "extra field" mappings — arbitrary column names that
+ * vary per client (e.g. Centro de Custo) and don't have a fixed alias list.
+ * @param {string[]} headers    - column headers from the file
+ * @param {object}   extraMap   - { fieldName: 'ExactColumnHeader', ... }
+ */
+function resolveExtraMap(headers, extraMap = {}) {
+  const em = {};
+  for (const [field, header] of Object.entries(extraMap)) {
+    if (!field || !header) continue;
+    const match = headers.find(h => h.toLowerCase() === String(header).toLowerCase());
+    if (match) em[field] = match;
+  }
+  return em;
+}
+
 function parseDate(rawDate) {
   if (rawDate === '' || rawDate == null) return new Date().toISOString().split('T')[0];
   const s = String(rawDate).trim();
@@ -130,6 +149,25 @@ function parseDate(rawDate) {
     if (!isNaN(d)) return d.toISOString().split('T')[0];
   }
   return new Date().toISOString().split('T')[0];
+}
+
+/** Same recognized formats as parseDate, but returns null (instead of
+ *  defaulting to today) when empty or unrecognized — for optional fields
+ *  like Data Emissão / Data Vencimento, where "no value" must stay empty. */
+function parseOptionalDate(rawDate) {
+  if (rawDate === '' || rawDate == null) return null;
+  const s = String(rawDate).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+    const [d, m, y] = s.split(/[\/\-]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  if (/^\d{4,5}$/.test(s)) {
+    const d = new Date(Math.round((parseFloat(s) - 25569) * 86400 * 1000));
+    if (!isNaN(d)) return d.toISOString().split('T')[0];
+  }
+  return null;
 }
 
 function parseMov(raw) {
@@ -187,7 +225,7 @@ function resolveCategory(catRaw, descRaw, mov, plano, overrides = {}) {
  * Transfer rows use mov='Transferência' so dreBuilder naturally excludes them
  * from all DRE sums (sumMonth filters by movFilter = 'Entrada' | 'Saída').
  */
-function parseRows(rawRows, plano, cm, baseRegime, categoryOverrides = {}) {
+function parseRows(rawRows, plano, cm, baseRegime, categoryOverrides = {}, em = {}) {
   const orphanMap = new Map();
   let transferEntrada = 0, transferSaida = 0;
   let psCount = 0, psTotal = 0; // Tipo='Saída' but positive value
@@ -226,16 +264,26 @@ function parseRows(rawRows, plano, cm, baseRegime, categoryOverrides = {}) {
       else transferSaida += valor;
     }
 
+    const extra = {};
+    for (const [field, header] of Object.entries(em)) {
+      const v = row[header];
+      if (v !== '' && v != null) extra[field] = v;
+    }
+
     return {
-      data:   parseDate(cm.data ? row[cm.data] : ''),
-      desc:   String(rawDesc || `Lançamento ${idx + 1}`),
-      cat:    planoItem.cat,
-      grp:    planoItem.grp,
-      tipo:   planoItem.tipo,
-      nivel:  planoItem.nivel,
+      data:            parseDate(cm.data ? row[cm.data] : ''),
+      desc:            String(rawDesc || `Lançamento ${idx + 1}`),
+      cat:             planoItem.cat,
+      grp:             planoItem.grp,
+      tipo:            planoItem.tipo,
+      nivel:           planoItem.nivel,
       valor,
-      mov:    isTransfer ? 'Transferência' : mov,
-      regime: baseRegime,
+      mov:             isTransfer ? 'Transferência' : mov,
+      regime:          baseRegime,
+      fornecedor:      cm.fornecedor ? (row[cm.fornecedor] || null) : null,
+      dataEmissao:     parseOptionalDate(cm.dataEmissao    ? row[cm.dataEmissao]    : ''),
+      dataVencimento:  parseOptionalDate(cm.dataVencimento ? row[cm.dataVencimento] : ''),
+      extra,
       _orphan:   isOrphan,
       _transfer: isTransfer,
     };
@@ -314,19 +362,23 @@ function parseCSV(text) {
  * balance before the user confirms the import.
  *
  * Multipart body:
- *   file   – xlsx / csv
- *   base   – 'caixa' | 'competencia'
- *   colMap – JSON string: { data?, descricao?, categoria?, valor?, movimento?, regime? }
- *            Each value is the exact column header to use for that field.
+ *   file        – xlsx / csv
+ *   base        – 'caixa' | 'competencia'
+ *   colMap      – JSON string: { data?, descricao?, categoria?, valor?, movimento?, regime?,
+ *                                fornecedor?, dataEmissao?, dataVencimento? }
+ *                 Each value is the exact column header to use for that field.
+ *   extraColMap – JSON string: { customFieldName: 'ExactColumnHeader', ... }
+ *                 Arbitrary columns (vary per client) stored on each transaction's `extra` field.
  *
- * Response: { headers, colMap, rows, orphans, transfers, summary }
+ * Response: { headers, colMap, extraColMap, rows, orphans, transfers, summary }
  */
 router.post('/preview', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
 
   const base           = req.body.base === 'competencia' ? 'Competência' : 'Caixa';
   const ext            = req.file.originalname.split('.').pop().toLowerCase();
-  const colMapOverride = req.body.colMap ? JSON.parse(req.body.colMap) : {};
+  const colMapOverride = req.body.colMap      ? JSON.parse(req.body.colMap)      : {};
+  const extraMapInput  = req.body.extraColMap ? JSON.parse(req.body.extraColMap) : {};
 
   try {
     const { plano } = await planoStore.getPlano(req.tenantSchema);
@@ -335,12 +387,14 @@ router.post('/preview', requirePermission('importar', 'write'), upload.single('f
 
     const headers        = Object.keys(rawRows[0]);
     const cm             = resolveColMap(headers, colMapOverride);
+    const em             = resolveExtraMap(headers, extraMapInput);
     const catOverrides   = req.body.categoryOverrides ? JSON.parse(req.body.categoryOverrides) : {};
-    const { records, orphans, transfers, signConflicts } = parseRows(rawRows, plano, cm, base, catOverrides);
+    const { records, orphans, transfers, signConflicts } = parseRows(rawRows, plano, cm, base, catOverrides, em);
 
     res.json({
       headers,
       colMap: cm,
+      extraColMap: em,
       rows:   records,
       orphans,
       transfers,
@@ -363,6 +417,7 @@ router.post('/preview', requirePermission('importar', 'write'), upload.single('f
  *   file             – xlsx / csv
  *   base             – 'caixa' | 'competencia'
  *   colMap           – JSON string (optional column override)
+ *   extraColMap      – JSON string (optional, arbitrary field → column header)
  *   forceImbalanced  – 'true' to proceed even when transfers don't balance
  *
  * Response: { imported, transfers, history }
@@ -373,7 +428,8 @@ router.post('/', requirePermission('importar', 'write'), upload.single('file'), 
 
   const base            = req.body.base === 'competencia' ? 'Competência' : 'Caixa';
   const ext             = req.file.originalname.split('.').pop().toLowerCase();
-  const colMapOverride  = req.body.colMap ? JSON.parse(req.body.colMap) : {};
+  const colMapOverride  = req.body.colMap      ? JSON.parse(req.body.colMap)      : {};
+  const extraMapInput   = req.body.extraColMap ? JSON.parse(req.body.extraColMap) : {};
   const forceImbalanced = req.body.forceImbalanced === 'true';
 
   try {
@@ -383,8 +439,9 @@ router.post('/', requirePermission('importar', 'write'), upload.single('file'), 
 
     const headers      = Object.keys(rawRows[0]);
     const cm           = resolveColMap(headers, colMapOverride);
+    const em           = resolveExtraMap(headers, extraMapInput);
     const catOverrides = req.body.categoryOverrides ? JSON.parse(req.body.categoryOverrides) : {};
-    const { records, transfers } = parseRows(rawRows, plano, cm, base, catOverrides);
+    const { records, transfers } = parseRows(rawRows, plano, cm, base, catOverrides, em);
 
     if (!forceImbalanced && transfers.count > 0 && !transfers.balanced) {
       return res.status(422).json({

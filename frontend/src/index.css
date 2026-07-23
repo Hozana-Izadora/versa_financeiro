@@ -468,6 +468,7 @@ html.dark .subtab-btn.act { color: #10b981 !important; border-color: #10b981 !im
 html.dark .bg-slate-100 { background: #21262d !important; }
 html.dark .bg-slate-50  { background: #21262d !important; }
 html.dark .bg-card      { background: #161b22 !important; }
+html.dark .bg-bg-2      { background: #21262d !important; }
 html.dark .bg-bg-3      { background: #0d1117 !important; }
 html.dark .border-slate-100 { border-color: rgba(255,255,255,0.07) !important; }
 html.dark .border-slate-200 { border-color: rgba(255,255,255,0.10) !important; }

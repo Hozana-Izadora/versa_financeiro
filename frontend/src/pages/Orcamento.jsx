@@ -548,7 +548,7 @@ export default function Orcamento() {
                   const cls  = pos ? 'text-fin-green font-semibold' : 'text-fin-red font-semibold';
                   const status = row.above ? (varR >= 0 ? '✔ Acima' : '✖ Abaixo') : (varR <= 0 ? '✔ Abaixo' : '✖ Acima');
                   return (
-                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                    <tr key={i} className="border-b border-slate-100 transition-colors"
                       style={row.res ? { background: 'rgba(109,191,69,.07)', fontWeight: 800, borderTop: '2px solid rgba(109,191,69,.2)' } : {}}>
                       <td className="px-3.5 py-2 text-left text-text-base font-medium">{row.label}</td>
                       <td className="px-3.5 py-2 text-right text-text-2 font-mono">{fmtBrl(row.orcMes)}</td>
