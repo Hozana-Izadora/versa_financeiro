@@ -131,20 +131,20 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
       </div>
 
       {/* ── Corpo: donut à esquerda, lista à direita ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr]">
+      <div className="grid grid-cols-1 sm:grid-cols-[240px_1fr] lg:grid-cols-[270px_1fr]">
 
         {/* Donut */}
-        <div style={{ padding: '12px 8px 12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: '14px 10px 14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {items.length > 0 ? (
-            <div style={{ height: 200, width: '100%', cursor: atMaxDepth ? 'default' : 'pointer' }}>
+            <div className="relative h-[220px] sm:h-[250px] lg:h-[280px]" style={{ width: '100%', cursor: atMaxDepth ? 'default' : 'pointer' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart key={chartKey}>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius="52%"
-                    outerRadius="78%"
+                    innerRadius="56%"
+                    outerRadius="85%"
                     paddingAngle={2}
                     dataKey="value"
                     animationBegin={0}
@@ -160,18 +160,30 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
                   <RcTooltip content={<DonutTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
+              {/* Total no centro do anel */}
+              <div
+                className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                style={{ textAlign: 'center' }}
+              >
+                <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>
+                  Total
+                </span>
+                <span style={{ fontSize: 17, fontWeight: 800, color: darkMode ? '#e2eaf4' : '#1e293b', marginTop: 2 }}>
+                  {fmtK(total)}
+                </span>
+              </div>
             </div>
           ) : (
-            <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center' }}>
+            <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
               Sem dados<br />no período
             </div>
           )}
         </div>
 
         {/* Lista de breakdown */}
-        <div style={{ padding: '12px 16px 12px 8px', overflowY: 'auto', maxHeight: 240 }}>
+        <div style={{ padding: '14px 18px 14px 10px', overflowY: 'auto' }} className="max-h-[270px] sm:max-h-[290px]">
           {items.length === 0 && (
-            <div style={{ color: '#94a3b8', fontSize: 12, paddingTop: 16 }}>
+            <div style={{ color: '#94a3b8', fontSize: 12.5, paddingTop: 16 }}>
               Nenhum lançamento encontrado para este nível.
             </div>
           )}
@@ -183,8 +195,8 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
                 key={item.node.id}
                 onClick={() => item.hasChildren && handleDrillDown(item.node)}
                 style={{
-                  marginBottom: 9,
-                  padding: '5px 7px',
+                  marginBottom: 10,
+                  padding: '6px 8px',
                   borderRadius: 7,
                   cursor: item.hasChildren ? 'pointer' : 'default',
                   transition: 'background .1s',
@@ -200,26 +212,26 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
                 {/* Linha: label + valor + % */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, fontWeight: 500, color: darkMode ? '#e2eaf4' : '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 500, color: darkMode ? '#e2eaf4' : '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.node.label}
                     </span>
                     {item.hasChildren && (
                       <Icon name="chevron_right" size="text-[12px]" style={{ color: '#94a3b8', flexShrink: 0 }} />
                     )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: '#ef4444' }}>
                       {fmtK(item.value)}
                     </span>
-                    <span style={{ fontSize: 10, color: '#94a3b8', minWidth: 34, textAlign: 'right' }}>
+                    <span style={{ fontSize: 10.5, color: '#94a3b8', minWidth: 36, textAlign: 'right' }}>
                       {pct.toFixed(1)}%
                     </span>
                   </div>
                 </div>
 
                 {/* Barra de progresso */}
-                <div style={{ height: 3, background: darkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: 4, background: darkMode ? 'rgba(255,255,255,0.08)' : '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', borderRadius: 99,
                     background: item.color,
@@ -234,12 +246,12 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
           {/* Total no rodapé */}
           {items.length > 0 && (
             <div style={{
-              marginTop: 8, paddingTop: 8,
+              marginTop: 9, paddingTop: 9,
               borderTop: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid #f1f5f9',
               display: 'flex', justifyContent: 'space-between',
             }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Total</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#ef4444' }}>{fmtK(total)}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748b' }}>Total</span>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: '#ef4444' }}>{fmtK(total)}</span>
             </div>
           )}
         </div>

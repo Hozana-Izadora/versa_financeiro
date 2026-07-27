@@ -51,3 +51,25 @@ export function getYears(txBase) {
   if (!ys.size) ys.add(new Date().getFullYear());
   return [...ys].sort((a, b) => b - a);
 }
+
+/**
+ * Linear trend (least-squares regression) over a series of values.
+ * Returns one point per input value, forming a straight best-fit line —
+ * used for "linha de tendência" overlays on evolution charts.
+ */
+export function linearTrend(values) {
+  const n = values.length;
+  if (n === 0) return [];
+  if (n === 1) return [values[0]];
+
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  values.forEach((y, x) => {
+    sumX += x; sumY += y; sumXY += x * y; sumXX += x * x;
+  });
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return values.map(() => Math.round(sumY / n));
+
+  const slope     = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return values.map((_, x) => Math.round(intercept + slope * x));
+}

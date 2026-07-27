@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
-import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths } from '../utils/formatters.js';
+import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths, linearTrend } from '../utils/formatters.js';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
@@ -111,6 +111,7 @@ export default function Caixa() {
   ].filter(Boolean);
   const [filterCat, setFilterCat] = useState('');
   const [modalChart, setModalChart] = useState(null);
+  const [showVRec,   setShowVRec]   = useState(false);
   const [showVFlow,  setShowVFlow]  = useState(false);
   const [showVAcum,  setShowVAcum]  = useState(false);
   const [showVCiclo, setShowVCiclo] = useState(false);
@@ -191,11 +192,18 @@ export default function Caixa() {
   const totSaldo = dre.mSaldo.reduce((a, b) => a + b, 0);
 
   // ── Per-chart filter hooks ────────────────────────────────────────
+  const recCF   = useChartFilter(tx, filterState);
   const flowCF  = useChartFilter(tx, filterState);
   const acumCF  = useChartFilter(tx, filterState);
   const cicloCF = useChartFilter(tx, filterState);
   const margCF  = useChartFilter(tx, filterState);
   const drillCF = useChartFilter(tx, filterState);
+
+  const recDre = useMemo(() =>
+    recCF.isOverriding
+      ? buildDRE(recCF.effectiveTx, plano, recCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      : dre,
+    [recCF.isOverriding, recCF.effectiveTx, recCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
 
   const flowDre = useMemo(() =>
     flowCF.isOverriding
@@ -241,6 +249,19 @@ export default function Caixa() {
   const legendStyle = { wrapperStyle: { fontSize: 11, color: tc } };
 
   // ── Chart data ────────────────────────────────────────────────────
+  const recChartData = useMemo(() => {
+    const isOvr = recCF.isOverriding;
+    const vm  = isOvr ? recCF.effectiveVisMonths : visMonths;
+    const arr = recDre.mRecOp;
+    const tend = linearTrend(arr);
+    return vm.map((m, i) => ({
+      month: MONTHS[m],
+      'Receita Bruta': arr[i],
+      Tendência: tend[i],
+      ...(!isOvr && drePrev ? { [`Receita Bruta ${compareYear}`]: drePrev.mRecOp[i] ?? 0 } : {}),
+    }));
+  }, [recCF.isOverriding, recCF.effectiveVisMonths, visMonths, recDre, compareYear, drePrev]);
+
   const flowChartData = useMemo(() => {
     const isOvr = flowCF.isOverriding;
     const vm = isOvr ? flowCF.effectiveVisMonths : visMonths;
@@ -319,6 +340,28 @@ export default function Caixa() {
   }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct, compareYear, drePrev, drePrevComp]);
 
   // ── Chart renders ─────────────────────────────────────────────────
+  function renderRec(h) {
+    const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
+    return (
+      <ResponsiveContainer width="100%" height={h}>
+        <LineChart data={recChartData} margin={{ top: showVRec ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid {...gridProps} />
+          <XAxis dataKey="month" {...axisProps} />
+          <YAxis tickFormatter={fmtK} {...axisProps} width={56} />
+          <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
+          <Legend {...legendStyle} />
+          <Line dataKey="Receita Bruta" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
+            {showVRec && <LabelList dataKey="Receita Bruta" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+          </Line>
+          <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
+          {!recCF.isOverriding && drePrev && (
+            <Line dataKey={`Receita Bruta ${compareYear}`} type="monotone" stroke="rgba(16,185,129,.4)" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 2 }} />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
   function renderFlow(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
@@ -475,6 +518,27 @@ export default function Caixa() {
               cmp={prevSaldo != null ? { prev: prevSaldo, year: compareYear, positiveIsGood: true } : null}
             />
           </div>
+
+          {/* ── Chart: evolução da receita bruta ── */}
+          {canChart('caixa', 'receita') && (
+            <div className="panel mb-3.5">
+              <div className="panel-hdr">
+                <div>
+                  <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                    Evolução da Receita Bruta
+                    <InfoPopover title="Evolução da Receita Bruta" description={'Receita operacional mês a mês (linha verde), com linha de tendência (azul tracejada) calculada por regressão linear sobre os meses visíveis.\n\nRegime Caixa: considera a data efetiva do recebimento.'} />
+                  </div>
+                  <div className="text-[10px] text-text-3 mt-0.5">Receita bruta e linha de tendência</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ChartFilterPicker tx={tx} override={recCF.override} setOverride={recCF.setOverride} globalFilterState={filterState} />
+                  <ValuesBtn show={showVRec} onToggle={() => setShowVRec(v => !v)} />
+                  <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução da Receita Bruta — Caixa', renderRec('100%'))}>⤢ ampliar</span>
+                </div>
+              </div>
+              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderRec('100%')}</div>
+            </div>
+          )}
 
           {/* ── Chart: resultado líquido ── */}
           {canChart('caixa', 'flow') && (
