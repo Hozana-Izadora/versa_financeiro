@@ -41,6 +41,8 @@ services:
       PGADMIN_DEFAULT_PASSWORD: admin
     ports:
       - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     networks:
       - internal
   # ── Migration runner ────────────────────────────────────────────────────────
@@ -109,18 +111,18 @@ services:
         condition: service_healthy
 
   # ── ngrok tunnel ────────────────────────────────────────────────────────────
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: unless-stopped
-    command: http frontend:80
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
-    ports:
-      - "4040:4040"
-    networks:
-      - internal
-    depends_on:
-      - frontend
+  # ngrok:
+  #   image: ngrok/ngrok:latest
+  #   restart: unless-stopped
+  #   command: http frontend:80
+  #   environment:
+  #     NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+  #   ports:
+  #     - "4040:4040"
+  #   networks:
+  #     - internal
+  #   depends_on:
+  #     - frontend
 
 networks:
   internal:
@@ -128,4 +130,6 @@ networks:
 
 volumes:
   pgdata:
+    driver: local
+  pgadmin_data:
     driver: local
