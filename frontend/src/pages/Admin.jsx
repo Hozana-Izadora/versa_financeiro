@@ -862,6 +862,7 @@ const PERM_SCHEMA = [
     items: [
       { key: 'subtab_overview', label: 'Subtab: Visão Geral' },
       { key: 'subtab_dre',      label: 'Subtab: Demonstrativo' },
+      { key: 'charts.receita',  label: 'Gráfico: Evolução da Receita Bruta' },
       { key: 'charts.flow',     label: 'Gráfico: Resultado Líquido' },
       { key: 'charts.acum',     label: 'Gráfico: Saldo Acumulado' },
       { key: 'charts.ciclo',    label: 'Gráfico: Ciclo Financeiro' },
@@ -874,6 +875,7 @@ const PERM_SCHEMA = [
     items: [
       { key: 'subtab_overview',   label: 'Subtab: Visão Geral' },
       { key: 'subtab_dre',        label: 'Subtab: Demonstrativo' },
+      { key: 'charts.receita',    label: 'Gráfico: Evolução da Receita Bruta' },
       { key: 'charts.dre_chart',  label: 'Gráfico: Resultado Operacional' },
       { key: 'charts.mg_chart',   label: 'Gráfico: Evolução das Margens' },
       { key: 'charts.drill',      label: 'Gráfico: Composição das Saídas' },
@@ -886,8 +888,8 @@ const PERM_SCHEMA = [
 ];
 
 const DEFAULT_PERMISSIONS = {
-  caixa:       { visible: true, subtab_overview: true, subtab_dre: true, charts: { flow: true, acum: true, ciclo: true, marg: true, drill: true } },
-  competencia: { visible: true, subtab_overview: true, subtab_dre: true, charts: { dre_chart: true, mg_chart: true, drill: true } },
+  caixa:       { visible: true, subtab_overview: true, subtab_dre: true, charts: { receita: true, flow: true, acum: true, ciclo: true, marg: true, drill: true } },
+  competencia: { visible: true, subtab_overview: true, subtab_dre: true, charts: { receita: true, dre_chart: true, mg_chart: true, drill: true } },
   orcamento:   { visible: true },
   lancamentos: { visible: true },
   plano:       { visible: true },
