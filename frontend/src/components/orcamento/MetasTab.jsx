@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../api/index.js';
 import InfoPopover from '../ui/InfoPopover.jsx';
+import Icon from '../ui/Icon.jsx';
+import { buildDrillTree, sumNode } from '../../utils/drillHierarchy.js';
 
 const MES12 = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const ALL_MES = [0,1,2,3,4,5,6,7,8,9,10,11];
 
 const DELTA_DEFS = [
   { key: 'pessimista',      label: 'Pessimista',      sign: -1, color: '#E53E3E', default: '15' },
@@ -18,6 +21,19 @@ function fmtBrl(v) {
 function fmtK(v) {
   const n = Number(v) || 0;
   return n > 0 ? 'R$' + (n / 1000).toFixed(0) + 'K' : '—';
+}
+
+// Colored icon badge used in each panel header — gives every section its own
+// visual identity at a glance (payments/receita, receipt/gastos, tree/categoria, dice/cenários).
+function SectionIcon({ name, color, bg }) {
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full shrink-0"
+      style={{ width: 28, height: 28, background: bg }}
+    >
+      <Icon name={name} size="text-[15px]" style={{ color }} />
+    </span>
+  );
 }
 
 function SectionTotal({ label, value }) {
@@ -52,7 +68,72 @@ function MonthGrid({ values, onChange }) {
   );
 }
 
-export default function MetasTab({ orcamento, receitaReal, year, actions }) {
+// Uma linha da árvore de metas por categoria — recursiva, então funciona em qualquer
+// profundidade do Plano de Contas: Categoria → Grupo → Tipo (tipo só existe como filho
+// quando o grupo tem mais de um tipo cadastrado). Cada nível tem seu próprio campo de meta.
+function MetaCategoriaNode({ node, depth, metaCat, onMetaChange, collapsedCats, onToggleCollapse, tx, year }) {
+  const hasChildren = node.children?.length > 0;
+  const isCollapsed = collapsedCats.has(node.id);
+  const realizado   = tx ? sumNode(node, tx, ALL_MES, year) : 0;
+  const isTop       = depth === 0;
+
+  return (
+    <div className={isTop ? 'rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden transition-shadow hover:shadow-sm' : ''}>
+      <div
+        className={`flex items-center justify-between gap-2 py-2 transition-colors ${
+          isTop ? 'px-3 bg-bg-2 hover:bg-slate-100 dark:hover:bg-slate-700/40' : 'pr-3 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+        }`}
+        style={{ cursor: hasChildren ? 'pointer' : 'default', paddingLeft: isTop ? undefined : 12 + depth * 18 }}
+        onClick={() => hasChildren && onToggleCollapse(node.id)}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {hasChildren && (
+            <Icon
+              name={isCollapsed ? 'chevron_right' : 'expand_more'}
+              size="text-[13px]"
+              style={{ color: '#94a3b8', flexShrink: 0 }}
+            />
+          )}
+          <span className={`truncate ${isTop ? 'text-[12px] font-semibold text-text-base' : 'text-[11.5px] text-text-2'}`}>
+            {node.label}
+          </span>
+          <span className="text-[10px] text-text-3 whitespace-nowrap">· realizado {fmtBrl(realizado)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+          <span className="text-[10px] text-text-3">R$</span>
+          <input
+            type="number" min="0"
+            className={`font-bold border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent ${isTop ? 'text-[12px]' : 'text-[11.5px]'}`}
+            style={{ width: isTop ? 120 : 108 }}
+            placeholder="0"
+            value={metaCat[node.id] ?? ''}
+            onChange={e => onMetaChange(node.id, e.target.value)}
+          />
+        </div>
+      </div>
+
+      {hasChildren && !isCollapsed && (
+        <div className={isTop ? 'divide-y divide-slate-100 dark:divide-slate-700' : 'space-y-0.5 pb-1'}>
+          {node.children.map(child => (
+            <MetaCategoriaNode
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              metaCat={metaCat}
+              onMetaChange={onMetaChange}
+              collapsedCats={collapsedCats}
+              onToggleCollapse={onToggleCollapse}
+              tx={tx}
+              year={year}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MetasTab({ orcamento, receitaReal, year, actions, plano, tx }) {
   const empty12 = () => Array(12).fill('');
 
   // ── Local state (controlled) ──────────────────────────────────
@@ -65,6 +146,8 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
   );
   const [distMode,  setDistMode]  = useState('manual');
   const [annualRec, setAnnualRec] = useState('');
+  const [metaCat,   setMetaCat]   = useState({});
+  const [collapsedCats, setCollapsedCats] = useState(new Set());
   const [saving,    setSaving]    = useState(false);
 
   // ── Populate from orcamento ───────────────────────────────────
@@ -74,6 +157,7 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
     const nop = empty12();
     let cPct  = '';
     const d   = Object.fromEntries(DELTA_DEFS.map(x => [x.key, x.default]));
+    const mc  = {};
 
     for (const e of orcamento) {
       if (e.tipo === 'receita'       && e.mes >= 0 && e.mes <= 11)  r[e.mes]   = e.valor ?? '';
@@ -81,6 +165,7 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
       if (e.tipo === 'meta_despesa'  && e.referencia === 'nop' && e.mes >= 0)  nop[e.mes] = e.valor ?? '';
       if (e.tipo === 'meta_custo_pct')  cPct = e.valor != null ? String(e.valor) : '';
       if (e.tipo === 'cenario_delta')   d[e.referencia] = e.valor != null ? String(e.valor) : d[e.referencia];
+      if (e.tipo === 'meta_cat')        mc[e.referencia] = e.valor != null ? String(e.valor) : '';
     }
 
     setReceita(r);
@@ -88,7 +173,28 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
     setDespNop(nop);
     setCustoPct(cPct);
     setDeltas(d);
+    setMetaCat(mc);
   }, [orcamento]);
+
+  // ── Árvore do Plano de Contas (mesma usada no gráfico "Gastos por Categoria") ──
+  const gastoTree = useMemo(() => plano?.length ? buildDrillTree(plano) : { children: [] }, [plano]);
+
+  function toggleCatCollapse(id) {
+    setCollapsedCats(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function setMetaCatValue(nodeId, value) {
+    setMetaCat(m => ({ ...m, [nodeId]: value }));
+  }
+
+  const totalMetaCat = useMemo(
+    () => Object.values(metaCat).reduce((s, v) => s + (Number(v) || 0), 0),
+    [metaCat]
+  );
 
   // ── Sazonal weights from historical actuals ───────────────────
   const sazonalWeights = useMemo(() => {
@@ -120,6 +226,24 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
   const totalRec     = receita.reduce((s, v) => s + (Number(v) || 0), 0);
   const totalDespOp  = despOp.reduce((s, v) => s + (Number(v) || 0), 0);
   const totalDespNop = despNop.reduce((s, v) => s + (Number(v) || 0), 0);
+
+  // ── Resumo geral (usado no cabeçalho da aba) ──────────────────
+  const totalCustoEstimado   = totalRec * (Number(custoPct) || 0) / 100;
+  const totalDespesasAnual   = totalDespOp + totalDespNop + totalCustoEstimado;
+  const resultadoProjetado   = totalRec - totalDespesasAnual;
+
+  const totalCategoriaNodes = useMemo(() => {
+    let count = 0;
+    (function walk(nodes) {
+      nodes.forEach(n => { count++; if (n.children?.length) walk(n.children); });
+    })(gastoTree.children ?? []);
+    return count;
+  }, [gastoTree]);
+
+  const categoriasComMeta = useMemo(
+    () => Object.values(metaCat).filter(v => Number(v) > 0).length,
+    [metaCat]
+  );
 
   // ── Scenario preview ─────────────────────────────────────────
   const cenarioPreview = useMemo(() => {
@@ -169,6 +293,13 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
     saveSection(entries);
   }
 
+  function saveMetaCategorias() {
+    const entries = Object.entries(metaCat)
+      .filter(([, v]) => Number(v) > 0)
+      .map(([nodeId, v]) => ({ mes: null, tipo: 'meta_cat', referencia: nodeId, valor: Number(v) }));
+    saveSection(entries);
+  }
+
   function saveCenarios() {
     const entries = DELTA_DEFS
       .filter(def => parseFloat(deltas[def.key]) > 0)
@@ -182,10 +313,44 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
   return (
     <div className="space-y-3.5">
 
+      {/* ════ Resumo geral ════════════════════════════════════════ */}
+      <div className="kpi-cascade mb-3.5">
+        <div className="kpi-card flex-1 min-w-0 kpi-tone-green">
+          <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 flex items-center gap-1">
+            <Icon name="payments" size="text-[11px]" style={{ color: '#10b981' }} /> Receita Anual
+          </div>
+          <div className="font-inter font-bold text-[18px] tracking-tight" style={{ color: '#10b981' }}>{fmtBrl(totalRec)}</div>
+          <div className="text-[10.5px] text-text-3">Meta {year}</div>
+        </div>
+        <div className="kpi-card flex-1 min-w-0 kpi-tone-amber">
+          <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 flex items-center gap-1">
+            <Icon name="receipt_long" size="text-[11px]" style={{ color: '#f59e0b' }} /> Despesas Anual
+          </div>
+          <div className="font-inter font-bold text-[18px] tracking-tight" style={{ color: '#f59e0b' }}>{fmtBrl(totalDespesasAnual)}</div>
+          <div className="text-[10.5px] text-text-3">Custo + Operacional + Não Operacional</div>
+        </div>
+        <div className={`kpi-card flex-1 min-w-0 ${resultadoProjetado >= 0 ? 'kpi-tone-blue' : 'kpi-tone-red'}`}>
+          <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 flex items-center gap-1">
+            <Icon name="trending_up" size="text-[11px]" style={{ color: resultadoProjetado >= 0 ? '#2563eb' : '#ef4444' }} /> Resultado Projetado
+          </div>
+          <div className="font-inter font-bold text-[18px] tracking-tight" style={{ color: resultadoProjetado >= 0 ? '#2563eb' : '#ef4444' }}>{fmtBrl(resultadoProjetado)}</div>
+          <div className="text-[10.5px] text-text-3">Receita − Despesas</div>
+        </div>
+        <div className="kpi-card flex-1 min-w-0 kpi-tone-purple">
+          <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 flex items-center gap-1">
+            <Icon name="account_tree" size="text-[11px]" style={{ color: '#8b5cf6' }} /> Categorias com Meta
+          </div>
+          <div className="font-inter font-bold text-[18px] tracking-tight" style={{ color: '#8b5cf6' }}>{categoriasComMeta} <span className="text-[13px] text-text-3 font-semibold">/ {totalCategoriaNodes}</span></div>
+          <div className="text-[10.5px] text-text-3">Definidas no Plano de Contas</div>
+        </div>
+      </div>
+
       {/* ════ Meta de Receita ════════════════════════════════════ */}
-      <div className="panel">
+      <div className="panel" style={{ borderTop: '3px solid #10b981' }}>
         <div className="panel-hdr">
-          <div>
+          <div className="flex items-center gap-2.5">
+            <SectionIcon name="payments" color="#10b981" bg="rgba(16,185,129,0.14)" />
+            <div>
             <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
               Meta de Receita — {year}
               <InfoPopover
@@ -194,6 +359,7 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
               />
             </div>
             <div className="text-[10px] text-text-3 mt-0.5">Receita esperada mês a mês</div>
+            </div>
           </div>
           <button onClick={saveReceita} disabled={saving} className={btnCls}>
             {saving ? 'Salvando…' : 'Salvar Receita'}
@@ -205,16 +371,17 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-semibold text-text-2">Distribuição:</span>
             {[
-              { id: 'manual',   label: 'Manual' },
-              { id: 'linear',   label: 'Linear (÷12)' },
-              { id: 'sazonal',  label: 'Sazonal (histórico)' },
-            ].map(({ id, label }) => (
+              { id: 'manual',   label: 'Manual',            icon: 'tune' },
+              { id: 'linear',   label: 'Linear (÷12)',      icon: 'trending_up' },
+              { id: 'sazonal',  label: 'Sazonal (histórico)', icon: 'insert_chart' },
+            ].map(({ id, label, icon }) => (
               <button key={id} onClick={() => setDistMode(id)}
-                className={`px-3 py-1 rounded-sm border text-[11px] font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   distMode === id
-                    ? 'bg-accent text-white border-accent'
+                    ? 'bg-accent text-white border-accent shadow-[0_2px_10px_rgba(16,185,129,0.35)]'
                     : 'bg-bg-1 text-text-2 border-slate-200 dark:border-slate-600 hover:border-accent hover:text-accent'
                 }`}>
+                <Icon name={icon} size="text-[13px]" />
                 {label}
               </button>
             ))}
@@ -251,17 +418,20 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
       </div>
 
       {/* ════ Metas de Gastos ════════════════════════════════════ */}
-      <div className="panel">
+      <div className="panel" style={{ borderTop: '3px solid #f59e0b' }}>
         <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-              Metas de Gastos — {year}
-              <InfoPopover
-                title="Metas de Gastos"
-                description={'Define os limites de custo e despesa para o ano.\n\n• Custo Direto %: percentual máximo da Receita Bruta que pode ser consumido por custos diretos (CPV/CMV). Ex: 30% significa que os custos não devem ultrapassar 30% do faturamento.\n\n• Despesas Operacionais: teto mensal em R$ para pessoal, aluguel, administrativo, comercial e similares.\n\n• Despesas Não Operacionais: teto mensal em R$ para financeiros, impostos, tributos e investimentos.\n\nOs valores são comparados ao realizado no card de KPI e na tabela de Acompanhamento.'}
-              />
+          <div className="flex items-center gap-2.5">
+            <SectionIcon name="receipt_long" color="#f59e0b" bg="rgba(245,158,11,0.14)" />
+            <div>
+              <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                Metas de Gastos — {year}
+                <InfoPopover
+                  title="Metas de Gastos"
+                  description={'Define os limites de custo e despesa para o ano.\n\n• Custo Direto %: percentual máximo da Receita Bruta que pode ser consumido por custos diretos (CPV/CMV). Ex: 30% significa que os custos não devem ultrapassar 30% do faturamento.\n\n• Despesas Operacionais: teto mensal em R$ para pessoal, aluguel, administrativo, comercial e similares.\n\n• Despesas Não Operacionais: teto mensal em R$ para financeiros, impostos, tributos e investimentos.\n\nOs valores são comparados ao realizado no card de KPI e na tabela de Acompanhamento.'}
+                />
+              </div>
+              <div className="text-[10px] text-text-3 mt-0.5">Limites mensais por categoria de gasto</div>
             </div>
-            <div className="text-[10px] text-text-3 mt-0.5">Limites mensais por categoria de gasto</div>
           </div>
           <button onClick={saveGastos} disabled={saving} className={btnCls}>
             {saving ? 'Salvando…' : 'Salvar Gastos'}
@@ -334,18 +504,75 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
         </div>
       </div>
 
-      {/* ════ Cenários ═══════════════════════════════════════════ */}
-      <div className="panel">
+      {/* ════ Metas por Categoria ════════════════════════════════ */}
+      <div className="panel" style={{ borderTop: '3px solid #8b5cf6' }}>
         <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-              Configuração de Cenários
-              <InfoPopover
-                title="Cenários de Receita"
-                description={'Permite projetar diferentes expectativas de faturamento aplicando variações percentuais sobre a meta definida.\n\n• Moderado: a própria meta (100%) — cenário base.\n• Pessimista: meta reduzida pelo % configurado. Use para simular queda de vendas ou perda de clientes.\n• Otimista: meta acrescida pelo % configurado. Simula crescimento acima do esperado.\n• Muito Otimista: crescimento ainda maior — útil para cenários de expansão ou sazonalidade positiva.\n\nOs cenários aparecem no gráfico "Receita Bruta" da aba Acompanhamento. A prévia abaixo mostra os valores calculados para cada mês.'}
-              />
+          <div className="flex items-center gap-2.5">
+            <SectionIcon name="account_tree" color="#8b5cf6" bg="rgba(139,92,246,0.14)" />
+            <div>
+              <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                Metas por Categoria — {year}
+                <InfoPopover
+                  title="Metas por Categoria"
+                  description={'Define uma meta anual para qualquer nível do Plano de Contas — Categoria, Grupo ou Tipo — além dos tetos gerais de Despesas Operacionais/Não Operacionais definidos acima.\n\nClique numa linha com seta para expandir e ver os grupos/tipos dentro dela; cada nível tem seu próprio campo de meta, independente dos demais.\n\nQuando um nível tem meta própria, ela é usada no gráfico "Gastos por Categoria" e nas metas mais específicas do Acompanhamento — em vez de só ratear o teto geral.\n\nO valor "realizado" ao lado de cada linha é a soma do ano corrente, só para referência ao definir a meta.'}
+                />
+              </div>
+              <div className="text-[10px] text-text-3 mt-0.5">Meta anual (R$) por categoria, grupo ou tipo do plano de contas</div>
             </div>
-            <div className="text-[10px] text-text-3 mt-0.5">Variações percentuais sobre a meta de receita</div>
+          </div>
+          <button onClick={saveMetaCategorias} disabled={saving} className={btnCls}>
+            {saving ? 'Salvando…' : 'Salvar Metas por Categoria'}
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {!gastoTree.children?.length && (
+            <div className="text-[11px] text-text-3">Nenhuma categoria de gasto encontrada no Plano de Contas.</div>
+          )}
+
+          {gastoTree.children?.map(macro => (
+            <div key={macro.id}>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-text-3 mb-2 flex items-center gap-1.5">
+                <Icon name="folder_open" size="text-[12px]" style={{ color: '#94a3b8' }} />
+                {macro.label}
+              </div>
+              <div className="space-y-1.5">
+                {macro.children?.map(cat => (
+                  <MetaCategoriaNode
+                    key={cat.id}
+                    node={cat}
+                    depth={0}
+                    metaCat={metaCat}
+                    onMetaChange={setMetaCatValue}
+                    collapsedCats={collapsedCats}
+                    onToggleCollapse={toggleCatCollapse}
+                    tx={tx}
+                    year={year}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <SectionTotal label="Total das metas por categoria:" value={totalMetaCat} />
+        </div>
+      </div>
+
+      {/* ════ Cenários ═══════════════════════════════════════════ */}
+      <div className="panel" style={{ borderTop: '3px solid #2B6CB0' }}>
+        <div className="panel-hdr">
+          <div className="flex items-center gap-2.5">
+            <SectionIcon name="casino" color="#2B6CB0" bg="rgba(43,108,176,0.14)" />
+            <div>
+              <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+                Configuração de Cenários
+                <InfoPopover
+                  title="Cenários de Receita"
+                  description={'Permite projetar diferentes expectativas de faturamento aplicando variações percentuais sobre a meta definida.\n\n• Moderado: a própria meta (100%) — cenário base.\n• Pessimista: meta reduzida pelo % configurado. Use para simular queda de vendas ou perda de clientes.\n• Otimista: meta acrescida pelo % configurado. Simula crescimento acima do esperado.\n• Muito Otimista: crescimento ainda maior — útil para cenários de expansão ou sazonalidade positiva.\n\nOs cenários aparecem no gráfico "Receita Bruta" da aba Acompanhamento. A prévia abaixo mostra os valores calculados para cada mês.'}
+                />
+              </div>
+              <div className="text-[10px] text-text-3 mt-0.5">Variações percentuais sobre a meta de receita</div>
+            </div>
           </div>
           <button onClick={saveCenarios} disabled={saving} className={btnCls}>
             {saving ? 'Salvando…' : 'Salvar Cenários'}
@@ -356,14 +583,14 @@ export default function MetasTab({ orcamento, receitaReal, year, actions }) {
           {/* Delta cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {/* Moderado — fixed base */}
-            <div className="p-3 rounded border border-slate-200 dark:border-slate-700 bg-bg-2">
+            <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-bg-2" style={{ borderLeft: '3px solid #94a3b8' }}>
               <div className="text-[9.5px] uppercase tracking-widest text-text-3 mb-1.5">Moderado</div>
               <div className="text-[15px] font-black text-text-base">= 100%</div>
               <div className="text-[9.5px] text-text-3 mt-1">Meta definida (base)</div>
             </div>
 
             {DELTA_DEFS.map(({ key, label, sign, color }) => (
-              <div key={key} className="p-3 rounded border border-slate-200 dark:border-slate-700 bg-bg-2">
+              <div key={key} className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-bg-2" style={{ borderLeft: `3px solid ${color}` }}>
                 <div className="text-[9.5px] uppercase tracking-widest text-text-3 mb-1.5">{label}</div>
                 <div className="flex items-center gap-1">
                   <span className="text-[11px] font-semibold" style={{ color }}>

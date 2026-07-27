@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
-import { DRILL_TREE, sumNode } from '../utils/drillHierarchy.js';
+import { DRILL_TREE, buildDrillTree, sumNode } from '../utils/drillHierarchy.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import MetasTab from '../components/orcamento/MetasTab.jsx';
@@ -25,13 +25,6 @@ const SCENARIO_DEFS = [
   { key: 'otimista',        label: 'Otimista',        color: 'rgba(109,191,69,.55)', desc: 'Com aceleração de vendas' },
   { key: 'muito_otimista',  label: 'Muito Otimista',  color: 'rgba(43,108,176,.55)', desc: 'Com forte expansão de receita' },
 ];
-
-// Gasto nodes mapeados do DRILL_TREE (L0 e L1 de saídas)
-const GASTO_NODES = DRILL_TREE.children; // [gastos-op, gastos-nop]
-const GASTO_L1 = {
-  'gastos-op':  DRILL_TREE.children[0].children,
-  'gastos-nop': DRILL_TREE.children[1].children,
-};
 
 function fmtBrl(v) {
   if (v == null) return '—';
@@ -64,7 +57,7 @@ function receitaRealPorMes(tx, year) {
 
 export default function Orcamento() {
   const { state, actions } = useApp();
-  const { transactions, orcamento, filterState, darkMode } = state;
+  const { transactions, orcamento, filterState, darkMode, plano } = state;
   const year = filterState.year;
   const tx = transactions.competencia;
 
@@ -73,6 +66,7 @@ export default function Orcamento() {
   const [gastoStack, setGastoStack] = useState(['root']);
   const [modalChart, setModalChart] = useState(null);
   const [saving, setSaving]         = useState(false);
+  const [alertsCollapsed, setAlertsCollapsed] = useState(false);
 
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
@@ -143,39 +137,41 @@ export default function Orcamento() {
     [sc.label + ' (proj)']: orcMap.cenarios[sc.key]?.[m] != null ? +(orcMap.cenarios[sc.key][m] / 1000).toFixed(1) : null,
   })), [receitaReal, orcMap, sc]);
 
+  // Árvore real do Plano de Contas (cat/grp/tipo) — a mesma usada em Metas por Categoria.
+  // Antes disso usava a DRILL_TREE estática (fallback com filhos vazios), o que fazia o
+  // drill-down parar sempre no nível macro (Gastos Operacionais / Não Operacionais).
+  const gastoTree = useMemo(() => plano?.length ? buildDrillTree(plano) : DRILL_TREE, [plano]);
+
+  function findGastoNode(nodes, id) {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.children?.length) {
+        const found = findGastoNode(n.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
   // ── Gastos drill-down ─────────────────────────────────────────
   const gastoItems = useMemo(() => {
     const nodeKey = gastoStack[gastoStack.length - 1];
-    let nodes;
-    if (nodeKey === 'root')       nodes = GASTO_NODES;
-    else if (GASTO_L1[nodeKey])   nodes = GASTO_L1[nodeKey];
-    else {
-      // L1 leaf — find node in GASTO_L1
-      for (const children of Object.values(GASTO_L1)) {
-        const n = children.find(c => c.id === nodeKey);
-        if (n) { nodes = n.children ?? []; break; }
-      }
-      nodes = nodes ?? [];
-    }
+    const nodes = nodeKey === 'root'
+      ? gastoTree.children
+      : (findGastoNode(gastoTree.children, nodeKey)?.children ?? []);
     return nodes.map(node => ({
       node,
       real: sumNodeYear(node, tx, year) / 1000,
       meta: (orcMap.metaCat[node.id] ?? 0) / 1000,
       hasChildren: !!(node.children?.length),
     }));
-  }, [gastoStack, tx, year, orcMap]);
+  }, [gastoStack, tx, year, orcMap, gastoTree]);
 
   const gastoLabel = useMemo(() => {
     const key = gastoStack[gastoStack.length - 1];
     if (key === 'root') return 'Todos os Grupos';
-    for (const n of GASTO_NODES) {
-      if (n.id === key) return n.label;
-      for (const c of (n.children ?? [])) {
-        if (c.id === key) return c.label;
-      }
-    }
-    return '';
-  }, [gastoStack]);
+    return findGastoNode(gastoTree.children, key)?.label ?? '';
+  }, [gastoStack, gastoTree]);
 
   const gastoData = useMemo(() => gastoItems.map(i => ({
     name: i.node.label,
@@ -212,8 +208,8 @@ export default function Orcamento() {
     const recMeta  = orcMap.receita[m] ?? 0;
 
     // Saídas operacionais reais no mês
-    const despOpNode = DRILL_TREE.children[0]; // gastos-op
-    const despOpReal = sumNodeMes(despOpNode, tx, year, m);
+    const despOpNode = findGastoNode(gastoTree.children, 'gastos-op');
+    const despOpReal = despOpNode ? sumNodeMes(despOpNode, tx, year, m) : 0;
     const despOpMeta = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
 
     // Margem operacional
@@ -221,8 +217,8 @@ export default function Orcamento() {
     const mgOpMeta = recMeta > 0 ? ((recMeta - despOpMeta) / recMeta * 100) : 0;
 
     // Saídas não operacionais
-    const nopNode  = DRILL_TREE.children[1];
-    const nopReal  = sumNodeMes(nopNode, tx, year, m);
+    const nopNode  = findGastoNode(gastoTree.children, 'gastos-nop');
+    const nopReal  = nopNode ? sumNodeMes(nopNode, tx, year, m) : 0;
     const nopMeta  = orcMap.metaDespesa?.nop?.[m] ?? (orcMap.metaCat['gastos-nop'] ?? 0) / 12;
 
     // Resultado líquido
@@ -237,7 +233,7 @@ export default function Orcamento() {
       const delta   = isPercent
         ? (diff >= 0 ? '+' : '') + diff.toFixed(1) + 'pp vs meta'
         : fmtPct(pct) + ' vs meta';
-      return { label, meta: fmtV(meta), real: fmtV(real), good, delta };
+      return { label, meta: fmtV(meta), real: fmtV(real), good, higherIsBetter, delta };
     }
 
     return [
@@ -247,7 +243,7 @@ export default function Orcamento() {
       card('Gastos Não Operacionais', nopMeta,  nopReal,   false),
       card('Resultado Líquido',      resMeta,   resReal,   true),
     ];
-  }, [lastRealMes, receitaReal, tx, year, orcMap]);
+  }, [lastRealMes, receitaReal, tx, year, orcMap, gastoTree]);
 
   // ── Acompanhamento orçamentário (tabela) ──────────────────────
   const orcTable = useMemo(() => {
@@ -264,13 +260,15 @@ export default function Orcamento() {
       return s + (orcMap.receita[i] ?? 0);
     }, 0);
 
-    const despOpNode = DRILL_TREE.children[0];
-    const despOpRealMes = sumNodeMes(despOpNode, tx, year, m);
+    const despOpNode = findGastoNode(gastoTree.children, 'gastos-op');
+    const despOpRealMes = despOpNode ? sumNodeMes(despOpNode, tx, year, m) : 0;
     const despOpMeta    = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
     const despOpMetaAno = ALL_MES.reduce((s, i) => s + (orcMap.metaDespesa?.op?.[i] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12), 0);
 
-    // Custos reais no mês
-    const custoNode  = despOpNode.children?.[0]; // custos-diretos
+    // Custos reais no mês — encontra a categoria de nível "Custo" pelo nome,
+    // em vez de assumir que é sempre o primeiro filho (a ordem não é garantida).
+    const custoCatName = plano?.find(p => p.nivel === 'Custo')?.cat;
+    const custoNode  = custoCatName ? despOpNode?.children?.find(c => c.label === custoCatName) : null;
     const custoReal  = custoNode ? sumNodeMes(custoNode, tx, year, m) : 0;
     const custoMeta  = orcMap.metaCustoPct
       ? (recOrcMes * orcMap.metaCustoPct / 100)
@@ -291,7 +289,48 @@ export default function Orcamento() {
       { label: 'Desp. Operacionais', orcMes: despOpMeta, realMes: despOpRealMes, orcAno: despOpMetaAno, projAno: despOpRealMes * 12, above: false },
       { res: true, label: '= Resultado Líquido', orcMes: resMeta, realMes: resReal, orcAno: resMeta * 12, projAno: resReal * 12, above: true },
     ];
-  }, [lastRealMes, receitaReal, tx, year, orcMap]);
+  }, [lastRealMes, receitaReal, tx, year, orcMap, gastoTree, plano]);
+
+  // ── Alertas de estouro ─────────────────────────────────────────
+  // KPIs de despesa (não os de receita/margem) que já estão acima da meta do mês.
+  const kpiAlerts = useMemo(
+    () => kpiCards.filter(k => !k.good && k.higherIsBetter === false),
+    [kpiCards]
+  );
+
+  // Categorias/grupos com meta anual (definida em Metas por Categoria) cujo realizado
+  // até o último mês com dados já ultrapassa o ritmo esperado (meta ÷ 12 × meses decorridos).
+  const categoriaAlerts = useMemo(() => {
+    if (lastRealMes < 0) return [];
+    const mesesDecorridos = lastRealMes + 1;
+    const mesesAteAgora = ALL_MES.slice(0, mesesDecorridos);
+    const alerts = [];
+
+    function walk(nodes) {
+      nodes.forEach(node => {
+        const metaAnual = Number(orcMap.metaCat[node.id]) || 0;
+        if (metaAnual > 0) {
+          const metaRitmo = metaAnual * mesesDecorridos / 12;
+          const realizado = sumNode(node, tx, mesesAteAgora, year);
+          if (realizado > metaRitmo) {
+            alerts.push({
+              id: node.id,
+              label: node.label,
+              realizado,
+              metaRitmo,
+              excedente: realizado - metaRitmo,
+              pct: metaRitmo > 0 ? ((realizado - metaRitmo) / metaRitmo * 100) : 0,
+            });
+          }
+        }
+        if (node.children?.length) walk(node.children);
+      });
+    }
+    walk(gastoTree.children ?? []);
+    return alerts.sort((a, b) => b.excedente - a.excedente);
+  }, [orcMap.metaCat, tx, year, lastRealMes, gastoTree]);
+
+  const totalAlerts = kpiAlerts.length + categoriaAlerts.length;
 
   // ── Salvar metas no banco ─────────────────────────────────────
   async function saveMeta(tipo, referencia, mes, valor) {
@@ -365,6 +404,8 @@ export default function Orcamento() {
           receitaReal={receitaReal}
           year={year}
           actions={actions}
+          plano={plano}
+          tx={tx}
         />
       )}
 
@@ -381,6 +422,56 @@ export default function Orcamento() {
               Acesse a aba <strong>Metas</strong> para definir receita esperada, limites de gastos e cenários.
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Alertas de estouro ── */}
+      {totalAlerts > 0 && (
+        <div className="panel mb-3.5 border border-red-200 dark:border-red-900/40">
+          <div
+            className="panel-hdr bg-red-50 dark:bg-red-900/15"
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setAlertsCollapsed(v => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <Icon name="warning" size="text-[18px]" style={{ color: '#ef4444' }} />
+              <div>
+                <div className="font-inter font-semibold text-[13px] text-fin-red">
+                  {totalAlerts} alerta{totalAlerts !== 1 ? 's' : ''} de estouro de orçamento
+                </div>
+                <div className="text-[10px] text-text-3 mt-0.5">
+                  Comparado à meta de {MES12[lastRealMes]} {year} (indicadores) e ao ritmo esperado da meta anual (categorias)
+                </div>
+              </div>
+            </div>
+            <Icon
+              name={alertsCollapsed ? 'chevron_right' : 'expand_more'}
+              size="text-[18px]"
+              style={{ color: '#ef4444', flexShrink: 0 }}
+            />
+          </div>
+          {!alertsCollapsed && (
+            <div className="p-3 space-y-1.5">
+              {kpiAlerts.map(k => (
+                <div key={k.label} className="flex items-center justify-between gap-3 text-[11.5px] px-2.5 py-2 rounded bg-red-50/70 dark:bg-red-900/10">
+                  <span className="text-text-base font-medium">{k.label}</span>
+                  <span className="text-right">
+                    <span className="text-fin-red font-semibold">{k.real}</span>
+                    <span className="text-text-3"> vs meta {k.meta} · {k.delta}</span>
+                  </span>
+                </div>
+              ))}
+              {categoriaAlerts.map(a => (
+                <div key={a.id} className="flex items-center justify-between gap-3 text-[11.5px] px-2.5 py-2 rounded bg-red-50/70 dark:bg-red-900/10">
+                  <span className="text-text-base font-medium truncate">{a.label}</span>
+                  <span className="text-right whitespace-nowrap">
+                    <span className="text-fin-red font-semibold">{fmtBrl(a.realizado)}</span>
+                    <span className="text-text-3"> vs ritmo {fmtBrl(a.metaRitmo)} · +{a.pct.toFixed(0)}%</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
