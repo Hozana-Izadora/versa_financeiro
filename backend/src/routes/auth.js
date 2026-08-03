@@ -42,7 +42,7 @@ function clearRefreshCookie(res) {
 async function resolveUserClient(client, userId, clientId) {
   const result = await client.query(
     `SELECT u.id, u.email, u.display_name, u.is_superadmin,
-            c.id AS client_id, c.name AS client_name, c.slug,
+            c.id AS client_id, c.name AS client_name, c.slug, c.logo AS client_logo,
             r.permissions
        FROM admin.users   u
        JOIN admin.client_users cu ON cu.user_id = u.id
@@ -131,7 +131,7 @@ router.post('/login', async (req, res, next) => {
 
     // 3. Resolve available clients
     const clientsResult = await dbClient.query(
-      `SELECT c.id, c.name, c.slug
+      `SELECT c.id, c.name, c.slug, c.logo
          FROM admin.clients c
          JOIN admin.client_users cu ON cu.client_id = c.id
         WHERE cu.user_id = $1 AND c.active = true`,
@@ -162,7 +162,7 @@ router.post('/login', async (req, res, next) => {
           requireClientSelection: true,
           clients: [
             { id: '__admin__', name: 'Painel Administrativo' },
-            ...clients.map(c => ({ id: c.id, name: c.name })),
+            ...clients.map(c => ({ id: c.id, name: c.name, logo: c.logo })),
           ],
         });
       }
@@ -171,7 +171,7 @@ router.post('/login', async (req, res, next) => {
       } else {
         return res.status(200).json({
           requireClientSelection: true,
-          clients: clients.map(c => ({ id: c.id, name: c.name })),
+          clients: clients.map(c => ({ id: c.id, name: c.name, logo: c.logo })),
         });
       }
     }
@@ -221,6 +221,7 @@ router.post('/login', async (req, res, next) => {
         displayName: user.display_name,
         clientId:    selectedClient.id,
         clientName:  selectedClient.name,
+        clientLogo:  selectedClient.logo,
         permissions,
         ...(user.is_superadmin ? { isSuperAdmin: true } : {}),
       },
@@ -330,6 +331,7 @@ router.post('/refresh', async (req, res, next) => {
         displayName: row.display_name,
         clientId:    row.client_id,
         clientName:  row.client_name,
+        clientLogo:  row.client_logo,
         permissions: row.permissions ?? null,
         ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
       };

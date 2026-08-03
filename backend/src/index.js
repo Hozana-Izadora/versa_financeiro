@@ -33,7 +33,8 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   credentials: true,   // required for httpOnly refresh cookie in dev
 }));
-app.use(express.json());
+// Raised from the default 100kb to fit base64-encoded client logos (data URIs).
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
 // ── Public routes (no auth required) ─────────────────────────────────────────

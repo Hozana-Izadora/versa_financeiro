@@ -306,7 +306,7 @@ export default function Caixa() {
       month: MONTHS[m],
       'PMR — Recebimento': cicloSeries[i]?.pmr  ?? 0,
       'PMP — Pagamento':   cicloSeries[i]?.pmp  ?? 0,
-      'Ciclo de Caixa':    cicloSeries[i]?.ciclo ?? 0,
+      'Ciclo Financeiro':  cicloSeries[i]?.ciclo ?? 0,
       ...(cicloSeriesPrev ? {
         [`PMR ${compareYear}`]:   cicloSeriesPrev[i]?.pmr  ?? 0,
         [`PMP ${compareYear}`]:   cicloSeriesPrev[i]?.pmp  ?? 0,
@@ -423,7 +423,7 @@ export default function Caixa() {
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
           <YAxis {...axisProps} width={36} />
-          <RcTooltip content={<ChartTip formatter={v => `dia ${v ?? 'N/A'}`} />} />
+          <RcTooltip content={<ChartTip formatter={v => v != null ? `${v} dias` : 'N/A'} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="PMR — Recebimento" fill="rgba(109,191,69,.7)" radius={[4, 4, 0, 0]}>
             {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(109,191,69,1)' }} />}
@@ -431,8 +431,8 @@ export default function Caixa() {
           <Bar dataKey="PMP — Pagamento" fill="rgba(43,108,176,.7)" radius={[4, 4, 0, 0]}>
             {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(43,108,176,1)' }} />}
           </Bar>
-          <Line dataKey="Ciclo de Caixa" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
-            {showVCiclo && <LabelList dataKey="Ciclo de Caixa" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#E53E3E' }} />}
+          <Line dataKey="Ciclo Financeiro" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
+            {showVCiclo && <LabelList dataKey="Ciclo Financeiro" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#E53E3E' }} />}
           </Line>
           {cicloSeriesPrev && (
             <>
@@ -588,8 +588,8 @@ export default function Caixa() {
               <div className="panel-hdr">
                 <div>
                   <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                    Ciclo Financeiro — PMR, PMP e Ciclo de Caixa
-                    <InfoPopover title="Ciclo Financeiro" description={'PMR: dia médio de recebimento · PMP: dia médio de pagamento\nCiclo = PMP − PMR (positivo → recebe antes de pagar)'} />
+                    Ciclo Financeiro — PMR e PMP
+                    <InfoPopover title="Ciclo Financeiro" description={'PMR: prazo médio (em dias) entre a Data de Emissão e a Data de Vencimento das receitas operacionais — quanto tempo, em média, até receber.\nPMP: mesmo cálculo, só para os Custos Diretos (custo de fornecedor/compras) — quanto tempo, em média, até pagar.\n\nMédia ponderada pelo valor de cada lançamento. Só entram lançamentos com Data de Emissão e Vencimento preenchidas.\n\nCiclo = PMR − PMP\nPositivo → recebe depois de precisar pagar (precisa de capital de giro).\nNegativo → recebe antes de precisar pagar os fornecedores.'} />
                   </div>
                   <div className="text-[10px] text-text-3 mt-0.5">Prazos médios de recebimento e pagamento</div>
                 </div>

@@ -1,49 +1,67 @@
 /**
- * Cash timing metrics derived from existing transaction dates.
+ * PMR (Prazo Médio de Recebimento) e PMP (Prazo Médio de Pagamento).
  *
- * PMR (Prazo Médio de Recebimento): value-weighted average day of month
- *   when Entrada transactions are recorded.
- * PMP (Prazo Médio de Pagamento): same for Saída transactions.
- * Ciclo de Caixa: PMP − PMR
- *   Positive → you receive before you pay (healthy)
- *   Negative → you pay before you receive (cash pressure)
+ * PMR: média ponderada (pelo valor) do prazo — em dias — entre a Data de Emissão e a
+ * Data de Vencimento das receitas operacionais (nivel = 'Receita').
+ * Ex.: emitiu a nota hoje, cliente paga em 30 dias → prazo = 30.
  *
- * Without separate emissão/vencimento/liquidação fields, this uses the
- * transaction date as the settlement date and measures intra-month timing.
+ * PMP: mesmo cálculo, mas para as saídas de Custo Direto (nivel = 'Custo' — matéria-prima,
+ * serviços de terceiros: "custo fornecedor"/"compras"), não todas as despesas.
+ *
+ * Fórmula (igual à planilha de referência Ciclo_Financeiro_Exemplo.xlsx):
+ *   média ponderada = SOMA(prazo_i × valor_i) ÷ SOMA(valor_i)
+ * Cada título pesa conforme seu valor financeiro, não pela quantidade de títulos.
+ *
+ * Só entram no cálculo lançamentos com Data de Emissão E Data de Vencimento preenchidas
+ * (campos opcionais) — lançamentos sem essas datas são ignorados nesta métrica.
+ *
+ * Ciclo Financeiro = PMR − PMP.
+ *   Positivo → a empresa recebe, em média, depois de precisar pagar (precisa de capital de giro).
+ *   Negativo → a empresa recebe antes de precisar pagar os fornecedores.
  */
 
-function weightedAvgDay(txs) {
-  const total = txs.reduce((s, tx) => s + tx.valor, 0);
-  if (total === 0) return null;
-  const sum = txs.reduce((s, tx) => {
-    const day = new Date(tx.data + 'T12:00').getDate();
-    return s + day * tx.valor;
-  }, 0);
-  return +(sum / total).toFixed(1);
+function prazoDias(dataEmissao, dataVencimento) {
+  const emissao    = new Date(dataEmissao + 'T12:00');
+  const vencimento = new Date(dataVencimento + 'T12:00');
+  return Math.round((vencimento - emissao) / 86400000);
+}
+
+function prazoMedioPonderado(txs) {
+  const validos = txs.filter(tx => tx.dataEmissao && tx.dataVencimento);
+  const totalValor = validos.reduce((s, tx) => s + tx.valor, 0);
+  if (totalValor === 0) return null;
+  const somaPonderada = validos.reduce(
+    (s, tx) => s + prazoDias(tx.dataEmissao, tx.dataVencimento) * tx.valor,
+    0
+  );
+  return +(somaPonderada / totalValor).toFixed(1);
 }
 
 /**
- * Calculates PMR, PMP and Ciclo for a single month.
+ * Calcula PMR, PMP e Ciclo para um único mês.
+ * O mês considerado é o mês da Data de Emissão de cada título (não a data do movimento).
  * @returns {{ pmr: number|null, pmp: number|null, ciclo: number|null }}
  */
 export function calcCicloMonth(transactions, year, month) {
-  const txMonth = transactions.filter(tx => {
-    const d = new Date(tx.data + 'T12:00');
-    return d.getFullYear() === year
-      && d.getMonth() === month
-      && tx.mov !== 'Transferência';
+  const emitidosNoMes = transactions.filter(tx => {
+    if (!tx.dataEmissao) return false;
+    const d = new Date(tx.dataEmissao + 'T12:00');
+    return d.getFullYear() === year && d.getMonth() === month;
   });
 
-  const pmr   = weightedAvgDay(txMonth.filter(tx => tx.mov === 'Entrada'));
-  const pmp   = weightedAvgDay(txMonth.filter(tx => tx.mov === 'Saída'));
-  const ciclo = pmr != null && pmp != null ? +(pmp - pmr).toFixed(1) : null;
+  const receitasOperacionais = emitidosNoMes.filter(tx => tx.mov === 'Entrada' && tx.nivel === 'Receita');
+  const custosFornecedor     = emitidosNoMes.filter(tx => tx.mov === 'Saída'   && tx.nivel === 'Custo');
+
+  const pmr   = prazoMedioPonderado(receitasOperacionais);
+  const pmp   = prazoMedioPonderado(custosFornecedor);
+  const ciclo = pmr != null && pmp != null ? +(pmr - pmp).toFixed(1) : null;
 
   return { pmr, pmp, ciclo };
 }
 
 /**
  * Returns a series of { pmr, pmp, ciclo } for each month in visMonths.
- * Null entries indicate no transactions in that month.
+ * Null entries indicate no títulos com Emissão+Vencimento naquele mês.
  */
 export function calcCicloSeries(transactions, year, visMonths) {
   return visMonths.map(m => calcCicloMonth(transactions, year, m));
