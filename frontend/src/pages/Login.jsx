@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/ui/Icon.jsx';
+import logo from '../assets/logo.jpeg';
 
 const fadeSlide = {
   hidden:  { opacity: 0, y: 18 },
@@ -124,14 +125,10 @@ export default function Login() {
             transition={{ delay: 0.20, duration: 0.40 }}
             style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 44 }}
           >
-            <div style={{
-              width: 40, height: 40, borderRadius: 12,
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 6px 20px rgba(16,185,129,0.40)',
-            }}>
-              <Icon name="bar_chart" size="text-[20px]" style={{ color: '#fff' }} />
-            </div>
+            <img src={logo} alt="Versa Finanças" style={{
+              width: 48, height: 48, borderRadius: 12, objectFit: 'cover',
+              boxShadow: '0 6px 20px rgba(16,185,129,0.30)',
+            }} />
             <div>
               <div style={{ color: '#fff', fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, fontSize: 18, letterSpacing: '-0.3px' }}>
                 Versa Finanças
@@ -211,13 +208,7 @@ export default function Login() {
           style={{ textAlign: 'center', marginBottom: 36 }}
         >
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #10b981, #059669)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="bar_chart" size="text-[17px]" style={{ color: '#fff' }} />
-            </div>
+            <img src={logo} alt="Versa Finanças" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover' }} />
             <span style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif', fontWeight: 800, fontSize: 18, color: '#0d1117', letterSpacing: '-0.3px' }}>
               Versa Finanças
             </span>

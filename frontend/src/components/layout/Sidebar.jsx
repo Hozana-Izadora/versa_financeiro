@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import Icon from '../ui/Icon.jsx';
+import logo from '../../assets/logo.jpeg';
 
 const NAV_ITEMS = [
   { id: 'caixa',       icon: 'account_balance_wallet', label: 'Caixa',           section: 'Dashboard', isDashboard: true },
@@ -91,15 +92,12 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           minHeight: 64, flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-            {/* Logo icon */}
-            <div style={{
+            {/* Logo */}
+            <img src={logo} alt="Versa Finanças" style={{
               width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
-            }}>
-              <Icon name="bar_chart" size="text-[16px]" style={{ color: '#fff' }} />
-            </div>
+              objectFit: 'cover',
+              boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+            }} />
             {!collapsed && (
               <AnimatePresence>
                 <motion.div
@@ -141,8 +139,13 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
               flexShrink: 0,
             }}>
             <div style={{ fontSize: 8, letterSpacing: '1.2px', textTransform: 'uppercase', color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.40)' }}>Empresa</div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#fff' : '#0f172a', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user.clientName}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, overflow: 'hidden' }}>
+              {user.clientLogo && (
+                <img src={user.clientLogo} alt="" style={{ width: 18, height: 18, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+              )}
+              <div style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#fff' : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.clientName}
+              </div>
             </div>
           </motion.div>
         )}

@@ -7,7 +7,7 @@ import {
   ArrowLeftRight, AlertCircle, FolderOpen, CheckCircle2, Dices, ListX,
   Trash, RefreshCw, Check, History, SlidersHorizontal, XCircle, ArrowLeft,
   Eye, EyeOff, Mail, Lock, LogIn, Building2, ShieldCheck, UserPlus, Users,
-  MinusCircle, Target, Search, Columns3,
+  MinusCircle, Target, Search, Columns3, ExternalLink,
 } from 'lucide-react';
 
 const MAP = {
@@ -80,6 +80,7 @@ const MAP = {
   remove_circle_outline: MinusCircle,
   gps_not_fixed: Target,
   view_column: Columns3,
+  open_in_new: ExternalLink,
 };
 
 export default function Icon({ name, size = 'text-[18px]', className = '', style }) {

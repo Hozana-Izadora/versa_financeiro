@@ -2,11 +2,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/index.js';
 import Icon from '../components/ui/Icon.jsx';
+import logo from '../assets/logo.jpeg';
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const ACCENT = '#10b981';
 const ACCENT_DARK = '#059669';
+
+// Downscales an uploaded image client-side before it's sent as a base64 data URI —
+// keeps logos small enough to store inline in the clients table without a separate
+// file-storage/volume setup.
+function resizeImageToDataUrl(file, maxDim = 256, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo de imagem inválido'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const isPng = file.type === 'image/png';
+        resolve(canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const inputStyle = (dark) => ({
   width: '100%',
@@ -243,7 +270,24 @@ function CompaniesTab({ dark }) {
                   onMouseEnter={e => e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <td style={{ ...tdStyle, fontWeight: 600, color: dark ? '#f0f6fc' : '#0f172a' }}>{c.name}</td>
+                  <td style={{ ...tdStyle, fontWeight: 600, color: dark ? '#f0f6fc' : '#0f172a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      {c.logo
+                        ? <img src={c.logo} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: dark ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.08)' }} />
+                        : (
+                          <div style={{
+                            width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                            background: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: dark ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
+                          }}>
+                            <Icon name="business" size="text-[12px]" />
+                          </div>
+                        )
+                      }
+                      {c.name}
+                    </div>
+                  </td>
                   <td style={tdStyle}>
                     <code style={{
                       fontSize: 11.5, padding: '2px 6px', borderRadius: 4,
@@ -343,15 +387,25 @@ function CreateCompanyModal({ dark, onClose, onCreated }) {
 function EditCompanyModal({ dark, company, onClose, onSaved }) {
   const [name, setName]     = useState(company.name);
   const [active, setActive] = useState(company.active);
+  const [logo, setLogo]     = useState(company.logo || null);
   const [error, setError]   = useState('');
   const [saving, setSaving] = useState(false);
+  const [logoErr, setLogoErr] = useState('');
+
+  const handleLogoFile = async (file) => {
+    if (!file) return;
+    setLogoErr('');
+    if (!/^image\//.test(file.type)) { setLogoErr('Envie um arquivo de imagem.'); return; }
+    try { setLogo(await resizeImageToDataUrl(file)); }
+    catch (err) { setLogoErr(err.message); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSaving(true);
     try {
-      await api.adminUpdateClient(company.id, { name: name.trim(), active });
+      await api.adminUpdateClient(company.id, { name: name.trim(), active, logo });
       onSaved();
       onClose();
     } catch (err) { setError(err.message); }
@@ -362,6 +416,41 @@ function EditCompanyModal({ dark, company, onClose, onSaved }) {
     <Modal title="Editar Empresa" onClose={onClose} dark={dark}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Alert msg={error} />
+        <div>
+          <label style={labelStyle}>Logo</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {logo
+              ? <img src={logo} alt="" style={{ width: 52, height: 52, borderRadius: 10, objectFit: 'cover', border: dark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.10)' }} />
+              : (
+                <div style={{
+                  width: 52, height: 52, borderRadius: 10,
+                  background: dark ? 'rgba(255,255,255,0.05)' : '#f9fafb',
+                  border: dark ? '1px dashed rgba(255,255,255,0.15)' : '1px dashed rgba(0,0,0,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: dark ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
+                }}>
+                  <Icon name="business" size="text-[20px]" />
+                </div>
+              )
+            }
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ ...btnGhost(dark), display: 'inline-flex', width: 'fit-content' }}>
+                <Icon name="upload_file" size="text-[13px]" /> {logo ? 'Trocar imagem' : 'Enviar imagem'}
+                <input
+                  type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  style={{ display: 'none' }}
+                  onChange={e => handleLogoFile(e.target.files?.[0])}
+                />
+              </label>
+              {logo && (
+                <button type="button" onClick={() => setLogo(null)} style={{ ...btnGhost(dark), color: '#dc2626', width: 'fit-content' }}>
+                  <Icon name="delete" size="text-[13px]" /> Remover
+                </button>
+              )}
+            </div>
+          </div>
+          {logoErr && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{logoErr}</div>}
+        </div>
         <div>
           <label style={labelStyle}>Nome</label>
           <input style={inputStyle(dark)} value={name} required autoFocus onChange={e => setName(e.target.value)} />
@@ -1129,26 +1218,44 @@ export default function Admin({ standalone = false }) {
         background: '#fff',
         borderBottom: '1px solid rgba(0,0,0,0.08)',
         padding: '0 32px',
-        display: 'flex', gap: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0,
         flexShrink: 0,
       }}>
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: tab === t.id ? 600 : 500,
-              color: tab === t.id ? ACCENT_DARK : '#6b7280',
-              borderBottom: tab === t.id ? `2px solid ${ACCENT}` : '2px solid transparent',
-              display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'inherit',
-              transition: 'all .15s', marginBottom: -1,
-            }}
-          >
-            <Icon name={t.icon} size="text-[15px]" />
-            {t.label}
-          </button>
-        ))}
+        <div style={{ display: 'flex', gap: 0 }}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '12px 20px', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, fontWeight: tab === t.id ? 600 : 500,
+                color: tab === t.id ? ACCENT_DARK : '#6b7280',
+                borderBottom: tab === t.id ? `2px solid ${ACCENT}` : '2px solid transparent',
+                display: 'flex', alignItems: 'center', gap: 7, fontFamily: 'inherit',
+                transition: 'all .15s', marginBottom: -1,
+              }}
+            >
+              <Icon name={t.icon} size="text-[15px]" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => window.open('/Versa_Ops.html', '_blank', 'noopener,noreferrer')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 14px', borderRadius: 7,
+            background: 'rgba(16,185,129,0.08)',
+            border: `1px solid ${ACCENT}33`,
+            color: ACCENT_DARK,
+            fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.14)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.08)'; }}
+        >
+          <Icon name="open_in_new" size="text-[14px]" />
+          Versa Ops
+        </button>
       </div>
 
       {/* Page content */}
@@ -1172,13 +1279,7 @@ export default function Admin({ standalone = false }) {
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="admin_panel_settings" size="text-[16px]" style={{ color: '#fff' }} />
-            </div>
+            <img src={logo} alt="Versa Finanças" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
                 Versa Finanças
@@ -1190,6 +1291,22 @@ export default function Admin({ standalone = false }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <span style={{ color: 'rgba(255,255,255,0.42)', fontSize: 12 }}>{user?.email}</span>
+            <button
+              onClick={() => window.open('/Versa_Ops.html', '_blank', 'noopener,noreferrer')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 7,
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.75)',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.11)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+            >
+              <Icon name="open_in_new" size="text-[14px]" />
+              Versa Ops
+            </button>
             <button
               onClick={logout}
               title="Sair"

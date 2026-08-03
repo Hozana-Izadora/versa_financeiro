@@ -18,13 +18,28 @@ router.use('/roles', rolesRouter);
 router.get('/clients', async (_req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, slug, name, active, created_at
+      `SELECT id, slug, name, logo, active, created_at
          FROM admin.clients
         ORDER BY created_at DESC`
     );
     res.json(result.rows);
   } catch (err) { next(err); }
 });
+
+// Data URI validation for uploaded logos — kept small since it's stored inline in Postgres.
+const LOGO_DATA_URI_RE = /^data:image\/(png|jpe?g|webp|svg\+xml);base64,/;
+const LOGO_MAX_LENGTH  = 700_000; // ~500KB decoded
+
+function validateLogo(logo) {
+  if (logo === null) return null; // explicit clear
+  if (!LOGO_DATA_URI_RE.test(logo)) {
+    throw Object.assign(new Error('Logo inválida. Envie uma imagem PNG, JPEG, WEBP ou SVG.'), { status: 400 });
+  }
+  if (logo.length > LOGO_MAX_LENGTH) {
+    throw Object.assign(new Error('Logo muito grande. Envie uma imagem de até ~500KB.'), { status: 400 });
+  }
+  return logo;
+}
 
 // POST /api/admin/clients — provisions a new tenant schema
 router.post('/clients', async (req, res, next) => {
@@ -45,7 +60,7 @@ router.post('/clients', async (req, res, next) => {
     );
     const clientId = result.rows[0].id;
     const client = await pool.query(
-      `SELECT id, slug, name, active, created_at FROM admin.clients WHERE id = $1`,
+      `SELECT id, slug, name, logo, active, created_at FROM admin.clients WHERE id = $1`,
       [clientId]
     );
     res.status(201).json(client.rows[0]);
@@ -57,20 +72,26 @@ router.post('/clients', async (req, res, next) => {
   }
 });
 
-// PUT /api/admin/clients/:id — update name or active flag
+// PUT /api/admin/clients/:id — update name, active flag, or logo
 router.put('/clients/:id', async (req, res, next) => {
-  const { name, active } = req.body;
+  const { name, active, logo } = req.body;
   const sets = [];
   const params = [];
   let i = 1;
   if (name !== undefined) { sets.push(`name = $${i++}`); params.push(name.trim()); }
   if (active !== undefined) { sets.push(`active = $${i++}`); params.push(Boolean(active)); }
+  if (logo !== undefined) {
+    let validLogo;
+    try { validLogo = validateLogo(logo); }
+    catch (err) { return res.status(err.status || 400).json({ error: err.message }); }
+    sets.push(`logo = $${i++}`); params.push(validLogo);
+  }
   if (!sets.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
   params.push(req.params.id);
   try {
     const result = await pool.query(
       `UPDATE admin.clients SET ${sets.join(', ')} WHERE id = $${i}
-       RETURNING id, slug, name, active, created_at`,
+       RETURNING id, slug, name, logo, active, created_at`,
       params
     );
     if (!result.rowCount) return res.status(404).json({ error: 'Empresa não encontrada' });
