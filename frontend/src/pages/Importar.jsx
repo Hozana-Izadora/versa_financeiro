@@ -52,6 +52,70 @@ function fmtOp(op) {
   return { label: op, cls: 'text-text-3' };
 }
 
+// Declared at module level (not inside SaldosTab) so it keeps a stable component
+// identity across re-renders — defining it inline would make React remount the
+// <input> on every keystroke, dropping focus after a single character.
+function EntryForm({ form, setForm, onSave, onCancel, oldChave, yearOptions }) {
+  return (
+    <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-4 mb-3">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Tipo</div>
+          <select
+            value={form.tipo}
+            onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
+            className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="abertura">Saldo de Abertura</option>
+            <option value="mensal">Ajuste Mensal</option>
+          </select>
+        </div>
+        <div>
+          <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Ano</div>
+          <select
+            value={form.year}
+            onChange={e => setForm(f => ({ ...f, year: parseInt(e.target.value) }))}
+            className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        {form.tipo === 'mensal' && (
+          <div>
+            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Mês</div>
+            <select
+              value={form.month}
+              onChange={e => setForm(f => ({ ...f, month: parseInt(e.target.value) }))}
+              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            </select>
+          </div>
+        )}
+        <div>
+          <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Valor (R$)</div>
+          <input
+            type="number" step="0.01"
+            value={form.valor}
+            onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
+            placeholder="0,00"
+            className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+            style={{ width: 140, fontFamily: 'Geist Mono, monospace' }}
+          />
+        </div>
+        <div className="flex gap-1.5 pb-0.5">
+          <button className="btn btn-green btn-sm" onClick={() => onSave(form, oldChave)}>
+            <Icon name="check" size="text-[13px]" /> Salvar
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── SaldosTab ────────────────────────────────────────────────────────────────
 function SaldosTab({ actions }) {
   const [entries, setEntries]       = useState([]);
@@ -123,67 +187,6 @@ function SaldosTab({ actions }) {
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
 
-  function EntryForm({ form, setForm, onSave, onCancel, oldChave }) {
-    return (
-      <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-4 mb-3">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div>
-            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Tipo</div>
-            <select
-              value={form.tipo}
-              onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-            >
-              <option value="abertura">Saldo de Abertura</option>
-              <option value="mensal">Ajuste Mensal</option>
-            </select>
-          </div>
-          <div>
-            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Ano</div>
-            <select
-              value={form.year}
-              onChange={e => setForm(f => ({ ...f, year: parseInt(e.target.value) }))}
-              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-            >
-              {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          {form.tipo === 'mensal' && (
-            <div>
-              <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Mês</div>
-              <select
-                value={form.month}
-                onChange={e => setForm(f => ({ ...f, month: parseInt(e.target.value) }))}
-                className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-            </div>
-          )}
-          <div>
-            <div className="text-[10px] text-text-3 uppercase tracking-wider mb-1">Valor (R$)</div>
-            <input
-              type="number" step="0.01"
-              value={form.valor}
-              onChange={e => setForm(f => ({ ...f, valor: e.target.value }))}
-              placeholder="0,00"
-              className="text-[12px] border border-slate-200 dark:border-slate-600 rounded-md px-2.5 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-              style={{ width: 140, fontFamily: 'Geist Mono, monospace' }}
-            />
-          </div>
-          <div className="flex gap-1.5 pb-0.5">
-            <button className="btn btn-green btn-sm" onClick={() => onSave(form, oldChave)}>
-              <Icon name="check" size="text-[13px]" /> Salvar
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={onCancel}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
       {/* Header */}
@@ -207,6 +210,7 @@ function SaldosTab({ actions }) {
           onSave={(f) => saveEntry(f, null)}
           onCancel={() => setAddForm(null)}
           oldChave={null}
+          yearOptions={yearOptions}
         />
       )}
 
@@ -285,6 +289,7 @@ function SaldosTab({ actions }) {
                             onSave={(f) => saveEntry(f, editRow.oldChave)}
                             onCancel={() => setEditRow(null)}
                             oldChave={editRow.oldChave}
+                            yearOptions={yearOptions}
                           />
                         </td>
                       </tr>
