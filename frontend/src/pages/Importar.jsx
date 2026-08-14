@@ -976,7 +976,9 @@ function PlanoImportTab({ actions }) {
                         onChange={e => updateItem(item.tipo, 'cat', e.target.value)}
                         className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1.5 py-1 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent w-full"
                       >
-                        {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                        {/* Include the file's own value even when it's outside the default list,
+                            so a client-specific category (ex: "FATURAMENTO") isn't blanked out. */}
+                        {(CATS.includes(item.cat) ? CATS : [item.cat, ...CATS]).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     )}
                   </td>

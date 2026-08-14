@@ -81,6 +81,26 @@ function classifyCategory(tipo, primaryMov) {
   return primaryMov === 'Entrada' ? DEFAULT_ENTRADA_PLANO : DEFAULT_SAIDA_PLANO;
 }
 
+/**
+ * Detects an explicit chart-of-accounts layout (Tipo/Grupo/Categoria/Nível columns)
+ * as opposed to a plain transaction listing that only has a free-text "Categoria"
+ * column and needs keyword-based auto-classification.
+ *
+ * Header names here are the client-facing ones, which are swapped relative to the
+ * internal field names (see Plano.jsx/Lancamentos.jsx): the file's "Categoria" column
+ * is the specific leaf item — internal `tipo` — and its "Tipo" column is the broad
+ * top-level grouping — internal `cat`.
+ */
+function resolvePlanoColMap(headers) {
+  const find = (aliases) => headers.find(h => aliases.some(a => h.toLowerCase().includes(a)));
+  return {
+    tipo:  find(['categoria']),
+    cat:   find(['tipo']),
+    grp:   find(['grupo', 'subgrupo']),
+    nivel: find(['nível', 'nivel']),
+  };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseValor(raw) {
@@ -497,11 +517,15 @@ router.delete('/history', requirePermission('importar', 'write'), async (req, re
 /**
  * POST /api/import/plano-preview
  *
- * Reads an xlsx/csv file and extracts unique categories for plano creation.
- * Returns suggested plano items (with auto-classification) and marks which
+ * Reads an xlsx/csv file and extracts plano items for creation. Marks which
  * tipos already exist in the current plano.
  *
- * Response: { items: [{ tipo, cat, grp, nivel, primaryMov, count, exists }] }
+ * If the file already has explicit Tipo/Grupo/Categoria/Nível columns (a real
+ * chart-of-accounts export), those values are used as-is — no guessing. Only
+ * a plain transaction listing (just a free-text "Categoria" column, no Nível)
+ * falls back to keyword-based auto-classification.
+ *
+ * Response: { items: [{ tipo, cat, grp, nivel, primaryMov?, count, exists }] }
  */
 router.post('/plano-preview', requirePermission('importar', 'write'), upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
@@ -515,34 +539,57 @@ router.post('/plano-preview', requirePermission('importar', 'write'), upload.sin
     if (!rawRows.length) return res.status(400).json({ error: 'Arquivo sem dados' });
 
     const headers = Object.keys(rawRows[0]);
-    const cm = resolveColMap(headers, {});
+    const pcm = resolvePlanoColMap(headers);
 
-    // Aggregate categories: { tipo -> { entradas, saidas } }
-    const catMap = new Map();
-    for (const row of rawRows) {
-      const rawCat = cm.categoria ? row[cm.categoria] : '';
-      const cat = String(rawCat ?? '').trim();
-      if (!cat || TRANSFER_RE.test(cat)) continue;
+    let items;
 
-      const rawMov = cm.movimento ? row[cm.movimento] : '';
-      const mov = parseMov(rawMov);
+    if (pcm.tipo && pcm.cat && pcm.nivel) {
+      // Explicit chart of accounts — trust the file's own classification.
+      const seen = new Map();
+      for (const row of rawRows) {
+        const tipo = String(row[pcm.tipo] ?? '').trim();
+        if (!tipo) continue;
+        if (seen.has(tipo)) { seen.get(tipo).count++; continue; }
+        seen.set(tipo, {
+          tipo,
+          cat:    String(row[pcm.cat]   ?? '').trim(),
+          grp:    pcm.grp ? String(row[pcm.grp] ?? '').trim() : '',
+          nivel:  String(row[pcm.nivel] ?? '').trim(),
+          count:  1,
+          exists: existingTipos.has(tipo.toLowerCase()),
+        });
+      }
+      items = [...seen.values()];
+    } else {
+      // Plain transaction listing — only a loose "Categoria" column, no hierarchy.
+      // Aggregate categories: { tipo -> { entradas, saidas } }
+      const cm = resolveColMap(headers, {});
+      const catMap = new Map();
+      for (const row of rawRows) {
+        const rawCat = cm.categoria ? row[cm.categoria] : '';
+        const cat = String(rawCat ?? '').trim();
+        if (!cat || TRANSFER_RE.test(cat)) continue;
 
-      if (!catMap.has(cat)) catMap.set(cat, { entradas: 0, saidas: 0 });
-      const entry = catMap.get(cat);
-      if (mov === 'Entrada') entry.entradas++; else entry.saidas++;
+        const rawMov = cm.movimento ? row[cm.movimento] : '';
+        const mov = parseMov(rawMov);
+
+        if (!catMap.has(cat)) catMap.set(cat, { entradas: 0, saidas: 0 });
+        const entry = catMap.get(cat);
+        if (mov === 'Entrada') entry.entradas++; else entry.saidas++;
+      }
+
+      items = [...catMap.entries()].map(([tipo, { entradas, saidas }]) => {
+        const primaryMov = entradas >= saidas ? 'Entrada' : 'Saída';
+        const suggestion = classifyCategory(tipo, primaryMov);
+        return {
+          tipo,
+          ...suggestion,
+          primaryMov,
+          count: entradas + saidas,
+          exists: existingTipos.has(tipo.toLowerCase()),
+        };
+      });
     }
-
-    const items = [...catMap.entries()].map(([tipo, { entradas, saidas }]) => {
-      const primaryMov = entradas >= saidas ? 'Entrada' : 'Saída';
-      const suggestion = classifyCategory(tipo, primaryMov);
-      return {
-        tipo,
-        ...suggestion,
-        primaryMov,
-        count: entradas + saidas,
-        exists: existingTipos.has(tipo.toLowerCase()),
-      };
-    });
 
     // Sort: new items first, then by cat+grp+tipo
     items.sort((a, b) => {
