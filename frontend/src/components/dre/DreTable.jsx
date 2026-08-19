@@ -1,25 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { fmt, fmtPct, pct, MONTHS } from '../../utils/formatters.js';
+import { fmt, fmtSigned, fmtPct, pct, MONTHS } from '../../utils/formatters.js';
 import Icon from '../ui/Icon.jsx';
 
 function CellValue({ v, refV, isPos, showPct }) {
   const cls = v === 0 ? 'cv-neu' : isPos ? 'cv-pos' : 'cv-neg';
-  const p = refV > 0 ? pct(v, refV) : 0;
   return (
     <td className={cls}>
       {v === 0 ? '—' : fmt(v)}
-      {showPct && <span className="cv-pct">{p.toFixed(0)}%</span>}
+      {showPct && refV > 0 && <span className="cv-pct">{fmtPct(pct(v, refV))}</span>}
     </td>
   );
 }
 
 function TotalCell({ v, isPos, showPct, refV }) {
   const cls = v === 0 ? 'cv-neu' : isPos ? 'cv-pos' : 'cv-neg';
-  const p = refV > 0 ? pct(v, refV) : 0;
   return (
     <td className={cls}>
       {v === 0 ? '—' : fmt(v)}
-      {showPct && refV > 0 && <span className="cv-pct">{p.toFixed(0)}%</span>}
+      {showPct && refV > 0 && <span className="cv-pct">{fmtPct(pct(v, refV))}</span>}
     </td>
   );
 }
@@ -57,8 +55,12 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
       })
     : rows;
 
+  // max-height + overflow-y here (not just overflow-x) is what makes the sticky
+  // <thead> actually stick — an ancestor with only overflow-x set still becomes
+  // the containing block for sticky descendants, but without its own bounded
+  // vertical scroll the header has nothing to stick against.
   return (
-    <div className="overflow-x-auto max-w-full">
+    <div className="overflow-x-auto max-w-full" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
       <table className="dre-tbl">
         <thead>
           <tr>
@@ -93,9 +95,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                     {row.label}
                   </td>
                   {row.monthValues.map((v, mi) => (
-                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} />
+                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} showPct={showPct} />
                   ))}
-                  <TotalCell v={row.total} isPos={row.isPos} />
+                  <TotalCell v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0} />
                 </tr>
               );
             }
@@ -106,9 +108,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-item" onClick={() => onDrillGroup?.(row.label, row.movFilter)}>
                   <td style={{ paddingLeft: '32px' }}>└ {row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} />
+                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} showPct={showPct} />
                   ))}
-                  <TotalCell v={row.total} isPos={row.isPos} />
+                  <TotalCell v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0} />
                 </tr>
               );
             }
@@ -119,22 +121,32 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-item" onClick={() => onDrillItem?.(row.label, row.movFilter)}>
                   <td style={{ paddingLeft: '52px', color: '#94a3b8' }}>· {row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} />
+                    <CellValue key={mi} v={v} refV={row.refValues?.[mi] || 0} isPos={row.isPos} showPct={showPct} />
                   ))}
-                  <TotalCell v={row.total} isPos={row.isPos} />
+                  <TotalCell v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0} />
                 </tr>
               );
             }
 
             if (row.type === 'subtotal') {
               const cls = row.isPos ? 'cv-pos' : 'cv-neg';
+              const pRef = row.refValues;
               return (
                 <tr key={i} className="dr-subtotal">
                   <td style={{ paddingLeft: '8px' }}>{row.label}</td>
-                  {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={cls}>{row.isPos ? fmt(v) : `(${fmt(v)})`}</td>
-                  ))}
-                  <td className={cls}>{row.isPos ? fmt(row.total) : `(${fmt(row.total)})`}</td>
+                  {row.monthValues.map((v, mi) => {
+                    const refV = pRef?.[mi] || 0;
+                    return (
+                      <td key={mi} className={cls}>
+                        {row.isPos ? fmt(v) : `(${fmt(v)})`}
+                        {showPct && refV > 0 && <span className="cv-pct">{fmtPct(pct(v, refV))}</span>}
+                      </td>
+                    );
+                  })}
+                  <td className={cls}>
+                    {row.isPos ? fmt(row.total) : `(${fmt(row.total)})`}
+                    {showPct && row.totRef > 0 && <span className="cv-pct">{fmtPct(pct(row.total, row.totRef))}</span>}
+                  </td>
                 </tr>
               );
             }
@@ -145,14 +157,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
                     <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>
-                      {fmt(v)}
+                      {fmtSigned(v)}
                       {row.showPct && showPct && row.refValues?.[mi] > 0 && (
                         <span className="cv-pct">{fmtPct(pct(v, row.refValues[mi]))}</span>
                       )}
                     </td>
                   ))}
                   <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>
-                    {fmt(row.total)}
+                    {fmtSigned(row.total)}
                     {row.showPct && showPct && row.totRef > 0 && (
                       <span className="cv-pct">{fmtPct(pct(row.total, row.totRef))}</span>
                     )}
@@ -166,9 +178,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-saldo">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmt(v)}</td>
+                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(v)}</td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmt(row.total)}</td>
+                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(row.total)}</td>
                 </tr>
               );
             }
@@ -178,9 +190,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-saldo-acum">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmt(v)}</td>
+                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(v)}</td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmt(row.total)}</td>
+                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(row.total)}</td>
                 </tr>
               );
             }
@@ -191,14 +203,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
                     <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>
-                      {fmt(v)}
+                      {fmtSigned(v)}
                       {row.showPct && showPct && row.refValues?.[mi] > 0 && (
                         <span className="cv-pct">{fmtPct(pct(v, row.refValues[mi]))}</span>
                       )}
                     </td>
                   ))}
                   <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>
-                    {fmt(row.total)}
+                    {fmtSigned(row.total)}
                     {row.showPct && showPct && row.totRef > 0 && (
                       <span className="cv-pct">{fmtPct(pct(row.total, row.totRef))}</span>
                     )}

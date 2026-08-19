@@ -38,6 +38,15 @@ function clearRefreshCookie(res) {
   res.clearCookie('refresh_token', { path: '/api/auth' });
 }
 
+// Verifies the Bearer access token without requiring a client context —
+// used by routes that only need to know WHO is asking (my-clients, switch-client).
+function getBearerPayload(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try { return jwt.verify(authHeader.slice(7), process.env.JWT_SECRET); }
+  catch { return null; }
+}
+
 // Reads user + client info (including role permissions) for building a regular token
 async function resolveUserClient(client, userId, clientId) {
   const result = await client.query(
@@ -224,6 +233,93 @@ router.post('/login', async (req, res, next) => {
         clientLogo:  selectedClient.logo,
         permissions,
         ...(user.is_superadmin ? { isSuperAdmin: true } : {}),
+      },
+    });
+  } catch (err) {
+    next(err);
+  } finally {
+    dbClient?.release();
+  }
+});
+
+// ── GET /api/auth/my-clients ───────────────────────────────────────────────────
+// Active clients the current user is associated with — feeds the "switch company"
+// dropdown so it doesn't need to re-run the whole login flow.
+router.get('/my-clients', async (req, res, next) => {
+  const payload = getBearerPayload(req);
+  if (!payload) return res.status(401).json({ error: 'Autenticação necessária' });
+
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.name, c.slug, c.logo
+         FROM admin.clients c
+         JOIN admin.client_users cu ON cu.client_id = c.id
+        WHERE cu.user_id = $1 AND c.active = true
+        ORDER BY c.name`,
+      [payload.sub]
+    );
+    res.json(result.rows);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/auth/switch-client ───────────────────────────────────────────────
+// Re-issues tokens scoped to another client the user already has access to,
+// without re-entering credentials — used by the "switch company" dropdown.
+router.post('/switch-client', async (req, res, next) => {
+  const payload = getBearerPayload(req);
+  if (!payload) return res.status(401).json({ error: 'Autenticação necessária' });
+
+  const { clientId } = req.body;
+  if (!clientId) return res.status(400).json({ error: 'clientId é obrigatório' });
+
+  let dbClient;
+  try {
+    dbClient = await pool.connect();
+
+    const row = await resolveUserClient(dbClient, payload.sub, clientId);
+    if (!row) return res.status(403).json({ error: 'Acesso negado a este cliente' });
+
+    // Revoke whichever refresh token the browser is currently holding — it belongs
+    // to the client session being switched away from and must not stay valid.
+    const rawOldToken = req.cookies?.refresh_token;
+    if (rawOldToken) {
+      await dbClient.query(
+        `UPDATE admin.refresh_tokens SET revoked = true WHERE token_hash = $1`,
+        [hashRefreshToken(rawOldToken)]
+      );
+    }
+
+    const rawRefresh  = generateRefreshToken();
+    const refreshHash = hashRefreshToken(rawRefresh);
+    const refreshExp  = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+    await dbClient.query(
+      `INSERT INTO admin.refresh_tokens (user_id, client_id, token_hash, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [payload.sub, clientId, refreshHash, refreshExp]
+    );
+
+    const accessToken = generateAccessToken({
+      sub:         row.id,
+      clientId:    row.client_id,
+      email:       row.email,
+      displayName: row.display_name,
+      ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
+    });
+
+    setRefreshCookie(res, rawRefresh);
+
+    res.json({
+      accessToken,
+      user: {
+        id:          row.id,
+        email:       row.email,
+        displayName: row.display_name,
+        clientId:    row.client_id,
+        clientName:  row.client_name,
+        clientLogo:  row.client_logo,
+        permissions: row.permissions ?? null,
+        ...(row.is_superadmin ? { isSuperAdmin: true } : {}),
       },
     });
   } catch (err) {

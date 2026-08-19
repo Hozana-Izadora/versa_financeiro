@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
   Legend, ResponsiveContainer, ReferenceLine, Cell,
@@ -68,6 +68,16 @@ export default function Orcamento() {
   const [saving, setSaving]         = useState(false);
   const [alertsCollapsed, setAlertsCollapsed] = useState(false);
 
+  // O orçamento é sempre do ano selecionado no filtro — recarrega ao trocar o "Ano",
+  // deixando o sistema pronto para consultar o histórico de anos anteriores.
+  useEffect(() => {
+    let cancelled = false;
+    api.getOrcamento(year).then(orc => {
+      if (!cancelled) actions.dispatch({ type: 'SET_ORCAMENTO', payload: orc });
+    });
+    return () => { cancelled = true; };
+  }, [year]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const gc = darkMode ? '#1e2d42' : 'rgba(0,0,0,0.06)';
   const tc = darkMode ? '#8aa3be' : '#94a3b8';
   const axisProps = { tick: { fill: tc, fontSize: 10 }, axisLine: false, tickLine: false };
@@ -90,13 +100,23 @@ export default function Orcamento() {
         if (!cenarios[e.referencia]) cenarios[e.referencia] = {};
         cenarios[e.referencia][e.mes] = e.valor;
       }
-      if (e.tipo === 'meta_cat')       metaCat[e.referencia] = e.valor;
+      if (e.tipo === 'meta_cat')       metaCat[e.referencia] = (metaCat[e.referencia] || 0) + e.valor;
       if (e.tipo === 'meta_despesa') {
         if (!metaDespesa[e.referencia]) metaDespesa[e.referencia] = {};
         metaDespesa[e.referencia][e.mes] = e.valor;
       }
       if (e.tipo === 'meta_custo_pct') metaCustoPct = e.valor;
       if (e.tipo === 'cenario_delta')  cenarioDelta[e.referencia] = e.valor;
+    }
+
+    // Metas de categoria em modo "%" (Custos Diretos com percentual livre por categoria):
+    // converte para R$ usando a meta de receita do mês e soma ao total anual da categoria.
+    // Feito num 2º passe porque a ordenação do backend pode trazer meta_cat_pct antes de receita.
+    for (const e of orcamento) {
+      if (e.tipo === 'meta_cat_pct' && e.mes >= 0 && e.mes <= 11) {
+        const rec = receita[e.mes] || 0;
+        metaCat[e.referencia] = (metaCat[e.referencia] || 0) + (rec * e.valor / 100);
+      }
     }
 
     // Compute cenario projections from meta × delta when delta entries exist

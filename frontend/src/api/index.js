@@ -123,6 +123,10 @@ export const api = {
   getPreferences: ()            => req('/api/preferences'),
   setPreference:  (key, value)  => req(`/api/preferences/${encodeURIComponent(key)}`, { method: 'PUT', ...json({ value }) }),
 
+  // Auth — switch between companies without a full re-login
+  myClients:    ()          => req('/api/auth/my-clients'),
+  switchClient: (clientId)  => req('/api/auth/switch-client', { method: 'POST', ...json({ clientId }) }),
+
   // Roles (funções de acesso)
   adminListRoles:   (clientId)       => req(clientId ? `/api/admin/roles?clientId=${clientId}` : '/api/admin/roles'),
   adminCreateRole:  (data)           => req('/api/admin/roles',                            { method: 'POST',   ...json(data) }),

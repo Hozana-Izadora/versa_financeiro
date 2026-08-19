@@ -98,7 +98,8 @@
     color: #6b7280 !important;
   }
   .dr-section td:first-child { background: #f8fafc !important; }
-  .dr-group td:first-child { padding-left: 24px; color: #374151; font-size: 12px; font-weight: 600; }
+  .dr-group td { font-weight: 700; }
+  .dr-group td:first-child { padding-left: 24px; color: #374151; font-size: 12px; }
   .dr-item { cursor: pointer; }
   .dr-item:hover td { background: rgba(16,185,129,0.04) !important; }
   .dr-subtotal td {

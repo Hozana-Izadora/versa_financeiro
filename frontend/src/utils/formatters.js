@@ -4,6 +4,12 @@ export function fmt(v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(v));
 }
 
+// Like fmt(), but keeps the minus sign for genuinely negative totals (Margem, Lucro
+// Líquido, Saldo) — fmt() alone strips it, leaving only color to signal direction.
+export function fmtSigned(v) {
+  return v < 0 ? `-${fmt(v)}` : fmt(v);
+}
+
 export function fmtK(v) {
   const a = Math.abs(v);
   if (a >= 1e6) return `R$${(v / 1e6).toFixed(1)}M`;
@@ -36,6 +42,28 @@ export const COLOR_VAR = {
   blue: '#3b82f6',
   orange: '#f97316',
 };
+
+/**
+ * Cost-center / business-unit filter — reuses the free-form `extra` JSON field
+ * (already used for per-client custom import columns) rather than a dedicated
+ * column. `filterState.costCenterField` names WHICH extra key holds this value
+ * (user-designated, since `extra` keys vary per client); `filterState.costCenter`
+ * is the selected value ('all' = no filtering).
+ */
+export function matchesCostCenter(r, filterState) {
+  const { costCenter, costCenterField } = filterState;
+  if (!costCenter || costCenter === 'all') return true;
+  if (!costCenterField) return false;
+  return (r.extra?.[costCenterField] ?? '') === costCenter;
+}
+
+/** Distinct keys found across every transaction's `extra` object — candidates
+ *  for the user to designate as the cost-center field. */
+export function getExtraFieldKeys(transactions) {
+  const keys = new Set();
+  transactions.forEach(r => { if (r.extra) Object.keys(r.extra).forEach(k => keys.add(k)); });
+  return [...keys].sort();
+}
 
 export function getAvailableMonths(transactions, year) {
   const ms = new Set(

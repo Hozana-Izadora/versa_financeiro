@@ -1,4 +1,4 @@
-import { MONTHS } from './formatters.js';
+import { MONTHS, matchesCostCenter } from './formatters.js';
 
 export function sumMonth(tx, year, month, movFilter, tipoFilter, groupFilter) {
   return tx.filter(r => {
@@ -12,17 +12,17 @@ export function sumMonth(tx, year, month, movFilter, tipoFilter, groupFilter) {
 }
 
 export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais) {
-  const { year, group: groupFilter = 'all' } = filterState;
+  const { year } = filterState;
 
   // Single pass over tx to build aggregation maps — O(n) instead of O(n × tipos × months)
   const byTipoMov = new Map(); // `${m}|${mov}|${tipo}` → sum
   const byMov     = new Map(); // `${m}|${mov}`         → sum
-  // Raw transactions kept for unclassified drill-down (filtered to year+group)
+  // Raw transactions kept for unclassified drill-down (filtered to year+cost center)
   const txFiltered = [];
   for (const r of tx) {
     const d = new Date(r.data + 'T12:00');
     if (d.getFullYear() !== year) continue;
-    if (groupFilter !== 'all' && r.grp !== groupFilter) continue;
+    if (!matchesCostCenter(r, filterState)) continue;
     txFiltered.push({ ...r, _month: d.getMonth() });
     const m = d.getMonth();
     const kMov = `${m}|${r.mov}`;
@@ -131,8 +131,9 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const mAcum = visMonths.map((_, i) => { saldoAcum += mSaldo[i]; return saldoAcum; });
 
   // Totals
-  const totRec     = mRec.reduce((a, b) => a + b, 0);
-  const totRecOp   = mRecOp.reduce((a, b) => a + b, 0);
+  const totRec       = mRec.reduce((a, b) => a + b, 0);
+  const totRecOp     = mRecOp.reduce((a, b) => a + b, 0);
+  const totAllSaidas = mAllSaidas.reduce((a, b) => a + b, 0);
   const totCost    = mCost.reduce((a, b) => a + b, 0);
   const totDespOp  = mDespOp.reduce((a, b) => a + b, 0);
   const totDespNop = mDespNop.reduce((a, b) => a + b, 0);
@@ -169,11 +170,13 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
       const isPos = movFilter === 'Entrada';
       const gid = 'cat-' + cat.replace(/\s/g, '-');
+      const rowRef    = isPos ? mRecOp   : totalSaidas;
+      const rowTotRef = isPos ? totRecOp : totAllSaidas;
 
       rows.push({
         type: 'group', label: cat, gid, cat,
         monthValues: catMonths, total: catTot, isPos,
-        refValues: isPos ? mRecOp : totalSaidas,
+        refValues: rowRef, totRef: rowTotRef,
       });
 
       Object.entries(gs).forEach(([grp, tipos]) => {
@@ -183,7 +186,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'subgroup', label: grp, parentGid: gid, cat,
           monthValues: grpMonths, total: grpTot, isPos, movFilter,
-          refValues: isPos ? mRecOp : totalSaidas,
+          refValues: rowRef, totRef: rowTotRef,
         });
         tipos.forEach(tipo => {
           const tipoMonths = visMonths.map(m => sm(m, movFilter, tipo));
@@ -192,7 +195,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
           rows.push({
             type: 'item', label: tipo, parentGid: gid, cat,
             monthValues: tipoMonths, total: tipoTot, isPos, movFilter,
-            refValues: isPos ? mRecOp : totalSaidas,
+            refValues: rowRef, totRef: rowTotRef,
           });
         });
       });
@@ -206,7 +209,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     rows.push({
       type: 'group', label: 'Entradas não classificadas', gid: 'naoclass-ent',
       monthValues: mEntNaoClass, total: totEntNaoClass, isPos: true,
-      refValues: mRecOp,
+      refValues: mRecOp, totRef: totRecOp,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Receita / Entrada Não Op.
@@ -234,38 +237,38 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-ent',
           monthValues: mv, total, isPos: true,
-          refValues: mRecOp, movFilter: 'Entrada',
+          refValues: mRecOp, totRef: totRecOp, movFilter: 'Entrada',
         });
       });
   }
-  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true });
+  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (custoCats.length) addSection(custoLabel);
   buildSection(custoCats, 'Saída', 'Custo');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
   rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (despOpCats.length) addSection(despOpLabel);
   buildSection(despOpCats, 'Saída', 'Despesa Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
   rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (entNopCats.length) addSection(entNopLabel);
   buildSection(entNopCats, 'Entrada', 'Entrada Não Operacional');
   if (totEntNop > 0) {
-    rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true });
+    rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true, refValues: mRecOp, totRef: totRecOp });
   }
 
   if (despNopCats.length) addSection(despNopLabel);
   buildSection(despNopCats, 'Saída', 'Despesa Não Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
 
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
   if (totSaidaNaoClass > 0) {
     rows.push({
       type: 'group', label: 'Saídas não classificadas', gid: 'naoclass-saida',
       monthValues: mSaidaNaoClass, total: totSaidaNaoClass, isPos: false,
-      refValues: mAllSaidas,
+      refValues: mAllSaidas, totRef: totAllSaidas,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Custo / Despesa Operacional / Despesa Não Op.
@@ -293,7 +296,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-saida',
           monthValues: mv, total, isPos: false,
-          refValues: mAllSaidas, movFilter: 'Saída',
+          refValues: mAllSaidas, totRef: totAllSaidas, movFilter: 'Saída',
         });
       });
   }
