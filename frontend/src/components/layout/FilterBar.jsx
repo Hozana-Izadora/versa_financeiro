@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useApp } from '../../context/AppContext.jsx';
-import { MONTHS, getYears, getAvailableMonths } from '../../utils/formatters.js';
+import { MONTHS, getYears, getAvailableMonths, getExtraFieldKeys } from '../../utils/formatters.js';
+import Icon from '../ui/Icon.jsx';
 
 export default function FilterBar() {
   const { state, actions, dispatch } = useApp();
@@ -15,7 +16,52 @@ export default function FilterBar() {
     dispatch({ type: 'SET_FILTER', payload: { availableMonths: avail } });
   }, [filterState.year, currentPage, transactions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const allGroups = [...new Set(tx.map(r => r.grp))].sort();
+  const costCenterValues = filterState.costCenterField
+    ? [...new Set(tx.map(r => r.extra?.[filterState.costCenterField]).filter(Boolean))].sort()
+    : [];
+
+  function openCostCenterConfig() {
+    const keys = getExtraFieldKeys(tx);
+    let selected = filterState.costCenterField || '';
+
+    actions.openModal(
+      <div>
+        <div className="font-inter font-bold text-base mb-4 flex items-center gap-2">
+          <Icon name="tune" size="text-[18px]" className="text-accent" /> Configurar Centro de Custo
+        </div>
+        {keys.length === 0 ? (
+          <div className="text-[13px] text-text-2 mb-4">
+            Nenhum campo extra encontrado nos lançamentos ainda. Cadastre um campo adicional
+            (ex: "Centro de Custo" ou "Unidade de Negócio") ao importar dados ou editar um
+            lançamento — depois volte aqui para selecioná-lo como filtro.
+          </div>
+        ) : (
+          <div className="field">
+            <label>Campo que representa Centro de Custo / Unidade de Negócio</label>
+            <select defaultValue={selected} onChange={e => { selected = e.target.value; }}>
+              <option value="">— Nenhum —</option>
+              {keys.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="flex gap-2 mt-4">
+          <button
+            className="btn btn-primary flex-1"
+            onClick={async () => {
+              try {
+                await actions.setCostCenterField(selected || null);
+                actions.closeModal();
+                actions.notify('Centro de Custo configurado!', 'ns');
+              } catch (e) { actions.notify(e.message, 'ne'); }
+            }}
+          >
+            Salvar
+          </button>
+          <button className="btn btn-ghost" onClick={actions.closeModal}>Cancelar</button>
+        </div>
+      </div>
+    );
+  }
 
   function toggleMonth(m) {
     const next = new Set(filterState.months);
@@ -55,8 +101,8 @@ export default function FilterBar() {
         </select>
       </div>
 
-      {/* Compare year selector */}
-      {years.length > 1 && (
+      {/* Compare year selector — o Orçamento é sempre do ano selecionado, sem comparação entre anos */}
+      {years.length > 1 && currentPage !== 'orcamento' && (
         <div className="flex items-center gap-2">
           <span className="text-[9.5px] uppercase tracking-[0.12em] text-text-3 font-semibold">vs</span>
           <select
@@ -137,17 +183,29 @@ export default function FilterBar() {
       {/* Divider */}
       <div style={{ width: 1, height: 20, background: 'rgba(0,0,0,0.08)' }} />
 
-      {/* Group filter */}
+      {/* Cost center / business unit filter */}
       <div className="flex items-center gap-2">
-        <span className="text-[9.5px] uppercase tracking-[0.12em] text-text-3 font-semibold">Grupo</span>
-        <select
-          value={filterState.group}
-          onChange={e => actions.applyFilter({ group: e.target.value })}
-          style={{ fontSize: 12, paddingTop: 5, paddingBottom: 5 }}
+        <span className="text-[9.5px] uppercase tracking-[0.12em] text-text-3 font-semibold">Centro de Custo</span>
+        {filterState.costCenterField ? (
+          <select
+            value={filterState.costCenter}
+            onChange={e => actions.applyFilter({ costCenter: e.target.value })}
+            style={{ fontSize: 12, paddingTop: 5, paddingBottom: 5 }}
+          >
+            <option value="all">Todos</option>
+            {costCenterValues.map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        ) : (
+          <span className="text-[11px] text-text-3 italic">não configurado</span>
+        )}
+        <button
+          type="button"
+          title="Configurar campo de Centro de Custo"
+          onClick={openCostCenterConfig}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', display: 'flex', padding: 2 }}
         >
-          <option value="all">Todos</option>
-          {allGroups.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
+          <Icon name="tune" size="text-[14px]" />
+        </button>
       </div>
     </motion.div>
   );

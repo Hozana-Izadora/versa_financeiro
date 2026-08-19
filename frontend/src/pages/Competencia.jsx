@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
-import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths, linearTrend } from '../utils/formatters.js';
+import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths, linearTrend, matchesCostCenter } from '../utils/formatters.js';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
@@ -115,7 +115,7 @@ export default function Competencia() {
     const d = new Date(r.data + 'T12:00');
     return d.getFullYear() === filterState.year &&
       (filterState.months.size === 0 || filterState.months.has(d.getMonth())) &&
-      (filterState.group === 'all' || r.grp === filterState.group);
+      matchesCostCenter(r, filterState);
   }), [tx, filterState]);
 
   const visMonths = useMemo(() => {
@@ -137,9 +137,9 @@ export default function Competencia() {
       const d = new Date(r.data + 'T12:00');
       return d.getFullYear() === compareYear &&
         (filterState.months.size === 0 || filterState.months.has(d.getMonth())) &&
-        (filterState.group === 'all' || r.grp === filterState.group);
+        matchesCostCenter(r, filterState);
     });
-  }, [tx, compareYear, filterState.months, filterState.group]);
+  }, [tx, compareYear, filterState.months, filterState.costCenter, filterState.costCenterField]);
 
   const drePrev = useMemo(() => {
     if (!filteredTxPrev) return null;

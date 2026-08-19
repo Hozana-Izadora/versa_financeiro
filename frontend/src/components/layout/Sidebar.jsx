@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AppContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
+import { api } from '../../api/index.js';
 import Icon from '../ui/Icon.jsx';
 import logo from '../../assets/logo.jpeg';
 
@@ -31,10 +32,44 @@ const navItemVariants = {
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { state, actions } = useApp();
-  const { user, logout } = useAuth();
+  const { user, logout, switchClient } = useAuth();
   const { can } = usePermissions();
   const { currentPage, transactions, darkMode } = state;
   const txCount = transactions.caixa.length + transactions.competencia.length;
+
+  // ── Company switcher ────────────────────────────────────────────────
+  const [myClients, setMyClients]   = useState([]);
+  const [switching, setSwitching]   = useState(false);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef();
+
+  useEffect(() => {
+    if (!user?.clientId) return;
+    api.myClients().then(setMyClients).catch(() => {});
+  }, [user?.clientId]);
+
+  useEffect(() => {
+    if (!switcherOpen) return;
+    function onDown(e) { if (switcherRef.current && !switcherRef.current.contains(e.target)) setSwitcherOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [switcherOpen]);
+
+  async function handleSwitchClient(clientId) {
+    if (clientId === user.clientId) { setSwitcherOpen(false); return; }
+    setSwitching(true);
+    try {
+      await switchClient(clientId);
+      actions.setPage('caixa');
+      await actions.refreshAll();
+      actions.notify('Empresa alterada com sucesso.', 'ns');
+    } catch (err) {
+      actions.notify('Erro ao trocar de empresa: ' + err.message, 'ne');
+    } finally {
+      setSwitching(false);
+      setSwitcherOpen(false);
+    }
+  }
   const visibleItems = NAV_ITEMS.filter(i => {
     if (i.adminOnly) return Boolean(user?.isSuperAdmin);
     return can(i.id);
@@ -124,29 +159,96 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           </button>
         </div>
 
-        {/* Company badge */}
+        {/* Company badge — becomes a switcher when the user has access to more than one */}
         {user?.clientName && !collapsed && (
           <motion.div
+            ref={switcherRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15, duration: 0.25 }}
             style={{
+              position: 'relative',
               margin: '10px 12px 0',
               borderRadius: 8,
               padding: '8px 11px',
               background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
               border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)',
               flexShrink: 0,
-            }}>
-            <div style={{ fontSize: 8, letterSpacing: '1.2px', textTransform: 'uppercase', color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.40)' }}>Empresa</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, overflow: 'hidden' }}>
-              {user.clientLogo && (
-                <img src={user.clientLogo} alt="" style={{ width: 18, height: 18, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+              cursor: myClients.length > 1 ? 'pointer' : 'default',
+              opacity: switching ? 0.6 : 1,
+              pointerEvents: switching ? 'none' : 'auto',
+            }}
+            onClick={() => myClients.length > 1 && setSwitcherOpen(v => !v)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+              <div style={{ fontSize: 8, letterSpacing: '1.2px', textTransform: 'uppercase', color: darkMode ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.40)' }}>Empresa</div>
+              {myClients.length > 1 && (
+                <Icon
+                  name="chevron_right"
+                  size="text-[11px]"
+                  className="transition-transform duration-150"
+                  style={{ color: darkMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)', transform: switcherOpen ? 'rotate(-90deg)' : 'rotate(90deg)' }}
+                />
               )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3, overflow: 'hidden' }}>
+              {switching
+                ? <Icon name="autorenew" size="text-[14px]" style={{ animation: 'spin 1s linear infinite', color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }} />
+                : user.clientLogo && (
+                  <img src={user.clientLogo} alt="" style={{ width: 18, height: 18, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+                )
+              }
               <div style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#fff' : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user.clientName}
+                {switching ? 'Trocando…' : user.clientName}
               </div>
             </div>
+
+            {/* Dropdown list */}
+            <AnimatePresence>
+              {switcherOpen && myClients.length > 1 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                    background: darkMode ? '#21262d' : '#fff',
+                    border: darkMode ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.10)',
+                    borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                    padding: 4,
+                    zIndex: 200,
+                    maxHeight: 260,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {myClients.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleSwitchClient(c.id)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 8px', borderRadius: 6, border: 'none', textAlign: 'left',
+                        cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
+                        background: c.id === user.clientId ? (darkMode ? 'rgba(16,185,129,0.14)' : 'rgba(16,185,129,0.10)') : 'transparent',
+                        color: darkMode ? '#e6edf3' : '#0f172a',
+                      }}
+                      onMouseEnter={e => { if (c.id !== user.clientId) e.currentTarget.style.background = darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'; }}
+                      onMouseLeave={e => { if (c.id !== user.clientId) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {c.logo
+                        ? <img src={c.logo} alt="" style={{ width: 18, height: 18, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
+                        : <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, background: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }} />
+                      }
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                      {c.id === user.clientId && <Icon name="check" size="text-[13px]" style={{ color: '#10b981', flexShrink: 0 }} />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 

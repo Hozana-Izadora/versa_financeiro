@@ -18,7 +18,8 @@ const initialState = {
   filterState: {
     year: new Date().getFullYear(),
     months: new Set(),
-    group: 'all',
+    costCenter: 'all',
+    costCenterField: null, // which `extra` key holds the cost-center value — user-designated
     availableMonths: [],
     compareYear: null,
   },
@@ -44,7 +45,7 @@ function reducer(state, action) {
       return {
         ...state,
         currentPage: action.payload,
-        filterState: { ...state.filterState, months: new Set(), group: 'all' },
+        filterState: { ...state.filterState, months: new Set(), costCenter: 'all' },
       };
     case 'SET_FILTER':
       return { ...state, filterState: { ...state.filterState, ...action.payload } };
@@ -103,11 +104,12 @@ export function AppProvider({ children }) {
   const refreshAll = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const [tx, planoData, saldos, history] = await Promise.all([
+      const [tx, planoData, saldos, history, prefs] = await Promise.all([
         api.getTransactions(),
         api.getPlano(),
         api.getSaldos(),
         api.getImportHistory(),
+        api.getPreferences().catch(() => ({})),
       ]);
       dispatch({ type: 'SET_TRANSACTIONS', payload: tx });
       dispatch({ type: 'SET_PLANO', payload: planoData });
@@ -118,7 +120,7 @@ export function AppProvider({ children }) {
       const years = getYears(tx);
       const year = years[0] || new Date().getFullYear();
       const avail = getAvailableMonths(txForPage, year);
-      dispatch({ type: 'SET_FILTER', payload: { year, availableMonths: avail } });
+      dispatch({ type: 'SET_FILTER', payload: { year, availableMonths: avail, costCenterField: prefs.costCenterField ?? null } });
 
       const orc = await api.getOrcamento(year);
       dispatch({ type: 'SET_ORCAMENTO', payload: orc });
@@ -126,6 +128,12 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, [state.currentPage]);
+
+  // Persists which `extra` key is the designated cost-center field, and applies it immediately.
+  const setCostCenterField = useCallback(async (fieldKey) => {
+    dispatch({ type: 'SET_FILTER', payload: { costCenterField: fieldKey, costCenter: 'all' } });
+    await api.setPreference('costCenterField', fieldKey);
+  }, []);
 
   const toggleDark = useCallback(() => {
     dispatch({ type: 'TOGGLE_DARK' });
@@ -139,6 +147,7 @@ export function AppProvider({ children }) {
     applyFilter,
     refreshAll,
     refreshTransactions,
+    setCostCenterField,
     toggleDark,
     dispatch,
   };

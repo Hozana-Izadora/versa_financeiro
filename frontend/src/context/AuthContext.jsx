@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { authBridge } from '../api/index.js';
+import { authBridge, api } from '../api/index.js';
 
 const AuthContext = createContext(null);
 
@@ -86,8 +86,16 @@ export function AuthProvider({ children }) {
     clearAuth();
   }, [clearAuth]);
 
+  // Re-issues tokens for another client the user already has access to —
+  // no password re-entry, unlike a full login.
+  const switchClient = useCallback(async (clientId) => {
+    const data = await api.switchClient(clientId);
+    setAuth(data.accessToken, data.user);
+    return data;
+  }, [setAuth]);
+
   return (
-    <AuthContext.Provider value={{ accessToken, user, bootstrapping, login, logout }}>
+    <AuthContext.Provider value={{ accessToken, user, bootstrapping, login, logout, switchClient }}>
       {children}
     </AuthContext.Provider>
   );

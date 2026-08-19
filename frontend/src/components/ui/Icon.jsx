@@ -7,7 +7,7 @@ import {
   ArrowLeftRight, AlertCircle, FolderOpen, CheckCircle2, Dices, ListX,
   Trash, RefreshCw, Check, History, SlidersHorizontal, XCircle, ArrowLeft,
   Eye, EyeOff, Mail, Lock, LogIn, Building2, ShieldCheck, UserPlus, Users,
-  MinusCircle, Target, Search, Columns3, ExternalLink,
+  MinusCircle, Target, Search, Columns3, ExternalLink, Copy,
 } from 'lucide-react';
 
 const MAP = {
@@ -81,6 +81,7 @@ const MAP = {
   gps_not_fixed: Target,
   view_column: Columns3,
   open_in_new: ExternalLink,
+  content_copy: Copy,
 };
 
 export default function Icon({ name, size = 'text-[18px]', className = '', style }) {
