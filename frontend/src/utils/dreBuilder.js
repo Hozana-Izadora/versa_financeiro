@@ -11,8 +11,13 @@ export function sumMonth(tx, year, month, movFilter, tipoFilter, groupFilter) {
   }).reduce((s, r) => s + r.valor, 0);
 }
 
-export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais) {
+export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais, allTx) {
   const { year } = filterState;
+  // `tx` chega aqui já filtrado pelo ano selecionado (feito pela página chamadora),
+  // então não tem como calcular o saldo acumulado herdado de anos anteriores só com
+  // ele. `allTx` (opcional) é o histórico completo, sem esse filtro, usado só para o
+  // saldo de abertura/acumulado — o resto do cálculo continua igual, baseado em `tx`.
+  const historyTx = allTx || tx;
 
   // Single pass over tx to build aggregation maps — O(n) instead of O(n × tipos × months)
   const byTipoMov = new Map(); // `${m}|${mov}|${tipo}` → sum
@@ -122,13 +127,50 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // ── FIX 2: saldo = ALL entries − ALL exits (was: entries − classified only) ─
   const mSaldo = visMonths.map((_, i) => mRec[i] - mAllSaidas[i]);
 
-  // ── FIX 3: mAcum pre-period now consistent — both legs use all movements ────
-  // (pre-period already used all movements; now mSaldo also does → no more break)
-  let saldoAcum = Number(saldosIniciais[`${year}-abertura`]) || 0;
+  // ── Saldo de abertura do ano, com acumulado passando de um ano para o outro ─
+  // Um "Ajuste Mensal" (chave "YYYY-MM") é uma correção manual somada ao acumulado
+  // naquele mês — estava sendo salvo mas nunca lido em lugar nenhum.
+  // A "Abertura" de um ano (chave "YYYY-abertura"), quando definida, é sempre
+  // autoritativa; quando não definida, o ano herda o saldo final do ano anterior
+  // (recursivamente), em vez de sempre recomeçar do zero.
+  let earliestTxYear = year;
+  for (const r of historyTx) {
+    const y = new Date(r.data + 'T12:00').getFullYear();
+    if (y < earliestTxYear) earliestTxYear = y;
+  }
+
+  function ajusteMensal(y, mesIdx0) {
+    const key = `${y}-${String(mesIdx0 + 1).padStart(2, '0')}`;
+    return saldosIniciais[key] != null ? (Number(saldosIniciais[key]) || 0) : 0;
+  }
+
+  function movimentoAno(y) {
+    let net = 0;
+    for (const r of historyTx) {
+      const d = new Date(r.data + 'T12:00');
+      if (d.getFullYear() !== y) continue;
+      net += r.mov === 'Entrada' ? r.valor : -r.valor;
+    }
+    for (let m = 0; m < 12; m++) net += ajusteMensal(y, m);
+    return net;
+  }
+
+  function saldoAbertura(y) {
+    const explicita = saldosIniciais[`${y}-abertura`];
+    if (explicita != null) return Number(explicita) || 0;
+    if (y <= earliestTxYear) return 0;
+    return saldoAbertura(y - 1) + movimentoAno(y - 1);
+  }
+
+  let saldoAcum = saldoAbertura(year);
   for (let m = 0; m < (visMonths[0] ?? 0); m++) {
     saldoAcum += (byMov.get(`${m}|Entrada`) ?? 0) - (byMov.get(`${m}|Saída`) ?? 0);
+    saldoAcum += ajusteMensal(year, m);
   }
-  const mAcum = visMonths.map((_, i) => { saldoAcum += mSaldo[i]; return saldoAcum; });
+  const mAcum = visMonths.map((m, i) => {
+    saldoAcum += mSaldo[i] + ajusteMensal(year, m);
+    return saldoAcum;
+  });
 
   // Totals
   const totRec       = mRec.reduce((a, b) => a + b, 0);
@@ -153,8 +195,6 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   }
 
   function buildSection(cats, movFilter, nivel) {
-    // totalSaidas for % reference includes unclassified exits
-    const totalSaidas = visMonths.map((_, i) => mAllSaidas[i]);
     const g = groupedByNivel[nivel];
 
     cats.forEach(cat => {
@@ -170,8 +210,10 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
       const isPos = movFilter === 'Entrada';
       const gid = 'cat-' + cat.replace(/\s/g, '-');
-      const rowRef    = isPos ? mRecOp   : totalSaidas;
-      const rowTotRef = isPos ? totRecOp : totAllSaidas;
+      // % reference is always Receita Operacional — matches the dashboard, where every
+      // KPI (custos, despesas, margens) is expressed as a % of revenue, not of total exits.
+      const rowRef    = mRecOp;
+      const rowTotRef = totRecOp;
 
       rows.push({
         type: 'group', label: cat, gid, cat,
@@ -183,8 +225,9 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         const grpMonths = visMonths.map(m => tipos.reduce((s, t) => s + sm(m, movFilter, t), 0));
         const grpTot = grpMonths.reduce((a, b) => a + b, 0);
         if (grpTot === 0) return;
+        const sid = gid + '::' + grp;
         rows.push({
-          type: 'subgroup', label: grp, parentGid: gid, cat,
+          type: 'subgroup', label: grp, parentGid: gid, sid, cat,
           monthValues: grpMonths, total: grpTot, isPos, movFilter,
           refValues: rowRef, totRef: rowTotRef,
         });
@@ -193,7 +236,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
           const tipoTot = tipoMonths.reduce((a, b) => a + b, 0);
           if (tipoTot === 0) return;
           rows.push({
-            type: 'item', label: tipo, parentGid: gid, cat,
+            type: 'item', label: tipo, parentGid: gid, parentSid: sid, cat, grp,
             monthValues: tipoMonths, total: tipoTot, isPos, movFilter,
             refValues: rowRef, totRef: rowTotRef,
           });
@@ -245,12 +288,12 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   if (custoCats.length) addSection(custoLabel);
   buildSection(custoCats, 'Saída', 'Custo');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false, refValues: mRecOp, totRef: totRecOp });
   rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (despOpCats.length) addSection(despOpLabel);
   buildSection(despOpCats, 'Saída', 'Despesa Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false, refValues: mRecOp, totRef: totRecOp });
   rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
 
   if (entNopCats.length) addSection(entNopLabel);
@@ -261,14 +304,14 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   if (despNopCats.length) addSection(despNopLabel);
   buildSection(despNopCats, 'Saída', 'Despesa Não Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false, refValues: mAllSaidas, totRef: totAllSaidas });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false, refValues: mRecOp, totRef: totRecOp });
 
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
   if (totSaidaNaoClass > 0) {
     rows.push({
       type: 'group', label: 'Saídas não classificadas', gid: 'naoclass-saida',
       monthValues: mSaidaNaoClass, total: totSaidaNaoClass, isPos: false,
-      refValues: mAllSaidas, totRef: totAllSaidas,
+      refValues: mRecOp, totRef: totRecOp,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Custo / Despesa Operacional / Despesa Não Op.
@@ -296,7 +339,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-saida',
           monthValues: mv, total, isPos: false,
-          refValues: mAllSaidas, totRef: totAllSaidas, movFilter: 'Saída',
+          refValues: mRecOp, totRef: totRecOp, movFilter: 'Saída',
         });
       });
   }

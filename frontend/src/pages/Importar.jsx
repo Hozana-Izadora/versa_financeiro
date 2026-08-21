@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { MONTHS, fmt } from '../utils/formatters.js';
+import { confirmDialog } from '../utils/alerts.js';
 import Icon from '../components/ui/Icon.jsx';
 
 const COLUMN_ALIASES = [
@@ -172,7 +173,7 @@ function SaldosTab({ actions }) {
   }
 
   async function deleteEntry(chave) {
-    if (!confirm(`Remover saldo "${chaveLabel(chave)}"?`)) return;
+    if (!await confirmDialog(`Remover saldo "${chaveLabel(chave)}"?`, { danger: true, confirmText: 'Remover' })) return;
     try {
       const updated = await api.deleteSaldoEntry(chave);
       setEntries(updated);

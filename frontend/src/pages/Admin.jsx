@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api/index.js';
+import { confirmDialog, alertError } from '../utils/alerts.js';
 import Icon from '../components/ui/Icon.jsx';
 import logo from '../assets/logo.jpeg';
 
@@ -200,6 +201,7 @@ function CompaniesTab({ dark }) {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modal, setModal]         = useState(null); // 'create' | { type:'edit', company }
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -209,6 +211,23 @@ function CompaniesTab({ dark }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // "Excluir" não apaga do banco — só marca a empresa como inativa, o que já basta
+  // para tirá-la da lista (e do login/seletor de empresas dos usuários dela).
+  async function handleDeactivate(c) {
+    const ok = await confirmDialog(
+      `Ela não será apagada — só ficará inativa e sairá desta lista. Pode ser reativada depois em Editar.`,
+      { title: `Excluir a empresa "${c.name}"?`, danger: true, confirmText: 'Excluir' }
+    );
+    if (!ok) return;
+    try {
+      await api.adminUpdateClient(c.id, { active: false });
+      load();
+    } catch (e) { alertError(e.message); }
+  }
+
+  const visibleCompanies = showInactive ? companies : companies.filter(c => c.active);
+  const inactiveCount = companies.length - companies.filter(c => c.active).length;
 
   const thStyle = {
     padding: '10px 14px', fontSize: 10.5, fontWeight: 700,
@@ -230,13 +249,21 @@ function CompaniesTab({ dark }) {
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: dark ? '#f0f6fc' : '#0f172a' }}>Empresas</div>
           <div style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.4)' : '#9ca3af', marginTop: 2 }}>
-            {companies.length} empresa{companies.length !== 1 ? 's' : ''} cadastrada{companies.length !== 1 ? 's' : ''}
+            {visibleCompanies.length} empresa{visibleCompanies.length !== 1 ? 's' : ''} cadastrada{visibleCompanies.length !== 1 ? 's' : ''}
           </div>
         </div>
-        <button style={btnPrimary} onClick={() => setModal('create')}>
-          <Icon name="add" size="text-[15px]" />
-          Nova Empresa
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {inactiveCount > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: dark ? 'rgba(255,255,255,0.5)' : '#6b7280', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
+              Mostrar excluídas ({inactiveCount})
+            </label>
+          )}
+          <button style={btnPrimary} onClick={() => setModal('create')}>
+            <Icon name="add" size="text-[15px]" />
+            Nova Empresa
+          </button>
+        </div>
       </div>
 
       <div style={{
@@ -249,7 +276,7 @@ function CompaniesTab({ dark }) {
           <div style={{ padding: 32, textAlign: 'center', color: dark ? 'rgba(255,255,255,0.3)' : '#9ca3af', fontSize: 13 }}>
             Carregando…
           </div>
-        ) : companies.length === 0 ? (
+        ) : visibleCompanies.length === 0 ? (
           <div style={{ padding: 48, textAlign: 'center', color: dark ? 'rgba(255,255,255,0.3)' : '#9ca3af', fontSize: 13 }}>
             Nenhuma empresa cadastrada.
           </div>
@@ -265,7 +292,7 @@ function CompaniesTab({ dark }) {
               </tr>
             </thead>
             <tbody>
-              {companies.map(c => (
+              {visibleCompanies.map(c => (
                 <tr key={c.id} style={{ transition: 'background .1s' }}
                   onMouseEnter={e => e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -304,6 +331,11 @@ function CompaniesTab({ dark }) {
                       <button style={btnGhost(dark)} onClick={() => setModal({ type: 'edit', company: c })}>
                         <Icon name="edit" size="text-[13px]" /> Editar
                       </button>
+                      {c.active && (
+                        <button style={btnDanger} onClick={() => handleDeactivate(c)}>
+                          <Icon name="delete" size="text-[13px]" /> Excluir
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -480,10 +512,12 @@ function EditCompanyModal({ dark, company, onClose, onSaved }) {
 // ── Users tab ─────────────────────────────────────────────────────────────────
 
 function UsersTab({ dark }) {
+  const { user: currentUser } = useAuth();
   const [users, setUsers]       = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [modal, setModal]       = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -497,6 +531,23 @@ function UsersTab({ dark }) {
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // "Excluir" não apaga do banco — só marca o usuário como inativo, o que já basta
+  // para bloquear o login dele e tirá-lo desta lista.
+  async function handleDeactivate(u) {
+    const ok = await confirmDialog(
+      'Ele não será apagado — só ficará inativo e sairá desta lista. Pode ser reativado depois em Editar.',
+      { title: `Excluir o usuário "${u.display_name || u.email}"?`, danger: true, confirmText: 'Excluir' }
+    );
+    if (!ok) return;
+    try {
+      await api.adminUpdateUser(u.id, { active: false });
+      loadUsers();
+    } catch (e) { alertError(e.message); }
+  }
+
+  const visibleUsers = showInactive ? users : users.filter(u => u.active);
+  const inactiveCount = users.length - users.filter(u => u.active).length;
 
   const thStyle = {
     padding: '10px 14px', fontSize: 10.5, fontWeight: 700,
@@ -519,13 +570,21 @@ function UsersTab({ dark }) {
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: dark ? '#f0f6fc' : '#0f172a' }}>Usuários</div>
           <div style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.4)' : '#9ca3af', marginTop: 2 }}>
-            {users.length} usuário{users.length !== 1 ? 's' : ''} cadastrado{users.length !== 1 ? 's' : ''}
+            {visibleUsers.length} usuário{visibleUsers.length !== 1 ? 's' : ''} cadastrado{visibleUsers.length !== 1 ? 's' : ''}
           </div>
         </div>
-        <button style={btnPrimary} onClick={() => setModal('create')}>
-          <Icon name="person_add" size="text-[15px]" />
-          Novo Usuário
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {inactiveCount > 0 && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: dark ? 'rgba(255,255,255,0.5)' : '#6b7280', cursor: 'pointer' }}>
+              <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
+              Mostrar excluídos ({inactiveCount})
+            </label>
+          )}
+          <button style={btnPrimary} onClick={() => setModal('create')}>
+            <Icon name="person_add" size="text-[15px]" />
+            Novo Usuário
+          </button>
+        </div>
       </div>
 
       <div style={{
@@ -536,7 +595,7 @@ function UsersTab({ dark }) {
       }}>
         {loading ? (
           <div style={{ padding: 32, textAlign: 'center', color: dark ? 'rgba(255,255,255,0.3)' : '#9ca3af', fontSize: 13 }}>Carregando…</div>
-        ) : users.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div style={{ padding: 48, textAlign: 'center', color: dark ? 'rgba(255,255,255,0.3)' : '#9ca3af', fontSize: 13 }}>Nenhum usuário cadastrado.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -551,7 +610,7 @@ function UsersTab({ dark }) {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {visibleUsers.map(u => (
                 <tr key={u.id} style={{ transition: 'background .1s' }}
                   onMouseEnter={e => e.currentTarget.style.background = dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -611,6 +670,11 @@ function UsersTab({ dark }) {
                       <button style={btnGhost(dark)} onClick={() => setModal({ type: 'clients', user: u })}>
                         <Icon name="business" size="text-[13px]" /> Empresas
                       </button>
+                      {u.active && u.id !== currentUser?.id && (
+                        <button style={btnDanger} onClick={() => handleDeactivate(u)}>
+                          <Icon name="delete" size="text-[13px]" /> Excluir
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1109,9 +1173,10 @@ function PermissionsTab({ dark }) {
   useEffect(() => { loadRoles(); }, [loadRoles]);
 
   const handleDelete = async (roleId) => {
-    if (!window.confirm('Deseja excluir esta função? Usuários com ela voltarão a ter acesso total.')) return;
+    const ok = await confirmDialog('Usuários com ela voltarão a ter acesso total.', { title: 'Deseja excluir esta função?', danger: true, confirmText: 'Excluir' });
+    if (!ok) return;
     try { await api.adminDeleteRole(roleId); loadRoles(); }
-    catch (err) { window.alert(err.message); }
+    catch (err) { alertError(err.message); }
   };
 
   const thStyle = {

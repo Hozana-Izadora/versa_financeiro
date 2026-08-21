@@ -6,6 +6,7 @@ import {
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { DRILL_TREE, buildDrillTree, sumNode } from '../utils/drillHierarchy.js';
+import { getAvailableMonths } from '../utils/formatters.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import MetasTab from '../components/orcamento/MetasTab.jsx';
@@ -33,11 +34,6 @@ function fmtBrl(v) {
 function fmtK(v) { return v == null ? '' : 'R$' + (v / 1000).toFixed(0) + 'K'; }
 function fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
 
-// Soma transações de um node para o ano inteiro (todos os 12 meses)
-function sumNodeYear(node, tx, year) {
-  return sumNode(node, tx, ALL_MES, year);
-}
-
 // Soma transações de um node para um mês específico
 function sumNodeMes(node, tx, year, mes) {
   return sumNode(node, tx, [mes], year);
@@ -63,10 +59,10 @@ export default function Orcamento() {
 
   const [tab, setTab]               = useState('acompanhamento'); // 'acompanhamento' | 'metas'
   const [scenario, setScenario]     = useState(1);
-  const [gastoStack, setGastoStack] = useState(['root']);
   const [modalChart, setModalChart] = useState(null);
   const [saving, setSaving]         = useState(false);
   const [alertsCollapsed, setAlertsCollapsed] = useState(false);
+  const [grupoChartMode, setGrupoChartMode] = useState('valor'); // 'valor' | 'pct' — Gastos por Grupo
 
   // O orçamento é sempre do ano selecionado no filtro — recarrega ao trocar o "Ano",
   // deixando o sistema pronto para consultar o histórico de anos anteriores.
@@ -85,11 +81,12 @@ export default function Orcamento() {
 
   // ── Parse orcamento entries into lookup maps ──────────────────
   const orcMap = useMemo(() => {
-    const receita      = {};   // mes → valor
-    const cenarios     = {};   // key → { mes → valor }
-    const metaCat      = {};   // nodeId → valor (annual)
-    const metaDespesa  = {};   // 'op'|'nop' → { mes → valor }
-    const cenarioDelta = {};   // 'pessimista'|'otimista'|'muito_otimista' → %
+    const receita        = {};   // mes → valor
+    const cenarios       = {};   // key → { mes → valor }
+    const metaCat        = {};   // nodeId → valor (soma anual, todos os meses)
+    const metaCatMonthly = {};   // nodeId → { mes → valor } — permite somar só os meses do filtro
+    const metaDespesa    = {};   // 'op'|'nop' → { mes → valor }
+    const cenarioDelta   = {};   // 'pessimista'|'otimista'|'muito_otimista' → %
     let breakeven      = 0;
     let metaCustoPct   = null;
 
@@ -100,7 +97,13 @@ export default function Orcamento() {
         if (!cenarios[e.referencia]) cenarios[e.referencia] = {};
         cenarios[e.referencia][e.mes] = e.valor;
       }
-      if (e.tipo === 'meta_cat')       metaCat[e.referencia] = (metaCat[e.referencia] || 0) + e.valor;
+      if (e.tipo === 'meta_cat') {
+        metaCat[e.referencia] = (metaCat[e.referencia] || 0) + e.valor;
+        if (e.mes >= 0 && e.mes <= 11) {
+          if (!metaCatMonthly[e.referencia]) metaCatMonthly[e.referencia] = {};
+          metaCatMonthly[e.referencia][e.mes] = (metaCatMonthly[e.referencia][e.mes] || 0) + e.valor;
+        }
+      }
       if (e.tipo === 'meta_despesa') {
         if (!metaDespesa[e.referencia]) metaDespesa[e.referencia] = {};
         metaDespesa[e.referencia][e.mes] = e.valor;
@@ -115,7 +118,10 @@ export default function Orcamento() {
     for (const e of orcamento) {
       if (e.tipo === 'meta_cat_pct' && e.mes >= 0 && e.mes <= 11) {
         const rec = receita[e.mes] || 0;
-        metaCat[e.referencia] = (metaCat[e.referencia] || 0) + (rec * e.valor / 100);
+        const valorMes = rec * e.valor / 100;
+        metaCat[e.referencia] = (metaCat[e.referencia] || 0) + valorMes;
+        if (!metaCatMonthly[e.referencia]) metaCatMonthly[e.referencia] = {};
+        metaCatMonthly[e.referencia][e.mes] = (metaCatMonthly[e.referencia][e.mes] || 0) + valorMes;
       }
     }
 
@@ -136,8 +142,16 @@ export default function Orcamento() {
       }
     }
 
-    return { receita, cenarios, metaCat, metaDespesa, metaCustoPct, cenarioDelta, breakeven };
+    return { receita, cenarios, metaCat, metaCatMonthly, metaDespesa, metaCustoPct, cenarioDelta, breakeven };
   }, [orcamento]);
+
+  // Meta de uma categoria/grupo somada apenas nos meses informados — usado para comparar
+  // "Meta" e "Realizado" no mesmo período selecionado no filtro de datas.
+  function metaCatSum(nodeId, months) {
+    const byMonth = orcMap.metaCatMonthly[nodeId];
+    if (!byMonth) return 0;
+    return months.reduce((s, m) => s + (byMonth[m] || 0), 0);
+  }
 
   // ── Actuals from transactions ─────────────────────────────────
   const receitaReal = useMemo(() => receitaRealPorMes(tx, year), [tx, year]);
@@ -147,6 +161,27 @@ export default function Orcamento() {
     for (let m = 11; m >= 0; m--) if (receitaReal[m] != null) return m;
     return -1;
   }, [receitaReal]);
+
+  // Meses considerados no orçamento — segue o mesmo filtro "Período" usado em Caixa/
+  // Competência: só os meses marcados, ou todos os meses com dados quando nenhum está
+  // selecionado ("Todos").
+  const visMonths = useMemo(() => {
+    if (filterState.months.size > 0) return [...filterState.months].sort((a, b) => a - b);
+    const avail = getAvailableMonths(tx, year);
+    return avail.length ? avail : ALL_MES;
+  }, [tx, year, filterState.months]);
+
+  // Rótulo curto do período ativo, para deixar visível que os gráficos/comparativos
+  // abaixo seguem o filtro "Período" selecionado (não é sempre o ano todo).
+  const periodoLabel = useMemo(() => {
+    if (filterState.months.size === 0) return `Ano todo ${year}`;
+    const sorted = [...filterState.months].sort((a, b) => a - b);
+    if (sorted.length === 1) return `${MES12[sorted[0]]} ${year}`;
+    const isContiguous = sorted.every((m, i) => i === 0 || m === sorted[i - 1] + 1);
+    return isContiguous
+      ? `${MES12[sorted[0]]}–${MES12[sorted[sorted.length - 1]]} ${year}`
+      : `${sorted.length} meses · ${year}`;
+  }, [filterState.months, year]);
 
   // ── Chart data ────────────────────────────────────────────────
   const sc = SCENARIO_DEFS[scenario];
@@ -173,38 +208,74 @@ export default function Orcamento() {
     return null;
   }
 
-  // ── Gastos drill-down ─────────────────────────────────────────
-  const gastoItems = useMemo(() => {
-    const nodeKey = gastoStack[gastoStack.length - 1];
-    const nodes = nodeKey === 'root'
-      ? gastoTree.children
-      : (findGastoNode(gastoTree.children, nodeKey)?.children ?? []);
-    return nodes.map(node => ({
-      node,
-      real: sumNodeYear(node, tx, year) / 1000,
-      meta: (orcMap.metaCat[node.id] ?? 0) / 1000,
-      hasChildren: !!(node.children?.length),
-    }));
-  }, [gastoStack, tx, year, orcMap, gastoTree]);
+  // Meta de qualquer nó da árvore (macro, categoria ou grupo), somando recursivamente até
+  // as folhas — em "Metas por Categoria" só o nível mais detalhado (folha) tem valor
+  // próprio; um nó com filhos nunca tem entrada direta, então ler orcMap.metaCat[node.id]
+  // só funciona quando o nó já é a própria folha. Usado tanto para a meta anual (KPIs,
+  // fallback de Desp. Operacionais/Não Operacionais, alertas) quanto, na versão por
+  // período, para o gráfico "Gastos por Grupo".
+  function nodeMetaAnual(node) {
+    if (!node) return 0;
+    if (node.children?.length) return node.children.reduce((s, c) => s + nodeMetaAnual(c), 0);
+    return Number(orcMap.metaCat[node.id]) || 0;
+  }
+  function nodeMetaPeriodo(node, months) {
+    if (!node) return 0;
+    if (node.children?.length) return node.children.reduce((s, c) => s + nodeMetaPeriodo(c, months), 0);
+    return metaCatSum(node.id, months);
+  }
 
-  const gastoLabel = useMemo(() => {
-    const key = gastoStack[gastoStack.length - 1];
-    if (key === 'root') return 'Todos os Grupos';
-    return findGastoNode(gastoTree.children, key)?.label ?? '';
-  }, [gastoStack, gastoTree]);
+  // Receita do período selecionado — base para o modo "%" do gráfico por Grupo.
+  // Meta é comparada contra a receita orçada (o que era esperado); Realizado contra a
+  // receita realizada (o que efetivamente entrou) — cada barra normalizada pela sua
+  // própria referência, mesmo critério já usado no restante do sistema (DRE, KPIs).
+  const receitaOrcadaPeriodo = useMemo(
+    () => visMonths.reduce((s, m) => s + (orcMap.receita[m] || 0), 0),
+    [visMonths, orcMap]
+  );
+  const receitaRealPeriodo = useMemo(
+    () => visMonths.reduce((s, m) => s + (receitaReal[m] || 0), 0),
+    [visMonths, receitaReal]
+  );
 
-  const gastoData = useMemo(() => gastoItems.map(i => ({
-    name: i.node.label,
-    Meta:      +i.meta.toFixed(1),
-    Realizado: +i.real.toFixed(1),
-    _excede:   i.real > i.meta && i.meta > 0,
-    _hasChildren: i.hasChildren,
-  })), [gastoItems]);
+  // ── Comparativo Orçado x Realizado por Grupo ───────────────────
+  // Achata toda a árvore (Custos Diretos + Despesas Op. + Despesas Não Op.) direto no
+  // nível de Grupo (ex: "Despesa com Pessoal", "Estrutura", "Impostos") — sem precisar
+  // navegar por Categoria primeiro, já que é esse o nível que interessa comparar.
+  const grupoComparativo = useMemo(() => {
+    const list = [];
+    (gastoTree.children ?? []).forEach(macro => {
+      (macro.children ?? []).forEach(cat => {
+        (cat.children ?? []).forEach(grp => {
+          const real = sumNode(grp, tx, visMonths, year);
+          const meta = nodeMetaPeriodo(grp, visMonths);
+          if (real > 0 || meta > 0) {
+            list.push({
+              name: grp.label,
+              metaValor: meta, realizadoValor: real,
+              metaPct:      receitaOrcadaPeriodo > 0 ? meta / receitaOrcadaPeriodo * 100 : 0,
+              realizadoPct: receitaRealPeriodo   > 0 ? real / receitaRealPeriodo   * 100 : 0,
+              _excede: real > meta && meta > 0,
+            });
+          }
+        });
+      });
+    });
+    return list.sort((a, b) => b.realizadoValor - a.realizadoValor);
+  }, [gastoTree, tx, year, visMonths, orcMap, receitaOrcadaPeriodo, receitaRealPeriodo]);
+
+  const grupoChartData = useMemo(() => grupoComparativo.map(g => ({
+    name: g.name,
+    Meta:      grupoChartMode === 'pct' ? +g.metaPct.toFixed(1)      : +(g.metaValor / 1000).toFixed(1),
+    Realizado: grupoChartMode === 'pct' ? +g.realizadoPct.toFixed(1) : +(g.realizadoValor / 1000).toFixed(1),
+    _excede: g._excede,
+  })), [grupoComparativo, grupoChartMode]);
 
   const breakeven = orcMap.breakeven > 0 ? +(orcMap.breakeven / 1000).toFixed(1) : null;
 
-  function OrcTooltip({ active, payload, label }) {
+  function OrcTooltip({ active, payload, label, formatValue }) {
     if (!active || !payload?.length) return null;
+    const fmtV = formatValue || (v => `R$${v}K`);
     return (
       <div style={{ background: '#1C1C1C', borderRadius: 6, padding: '8px 12px', fontSize: 11 }}>
         <div style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</div>
@@ -212,7 +283,7 @@ export default function Orcamento() {
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#aaa', marginTop: 2 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.fill || p.color, display: 'inline-block', flexShrink: 0 }} />
             <span>{p.name}:</span>
-            <span style={{ color: '#fff' }}>R${p.value}K</span>
+            <span style={{ color: '#fff' }}>{fmtV(p.value)}</span>
           </div>
         ))}
       </div>
@@ -230,7 +301,7 @@ export default function Orcamento() {
     // Saídas operacionais reais no mês
     const despOpNode = findGastoNode(gastoTree.children, 'gastos-op');
     const despOpReal = despOpNode ? sumNodeMes(despOpNode, tx, year, m) : 0;
-    const despOpMeta = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
+    const despOpMeta = orcMap.metaDespesa?.op?.[m] ?? nodeMetaAnual(despOpNode) / 12;
 
     // Margem operacional
     const mgOpReal = recReal > 0 ? ((recReal - despOpReal) / recReal * 100) : 0;
@@ -239,7 +310,7 @@ export default function Orcamento() {
     // Saídas não operacionais
     const nopNode  = findGastoNode(gastoTree.children, 'gastos-nop');
     const nopReal  = nopNode ? sumNodeMes(nopNode, tx, year, m) : 0;
-    const nopMeta  = orcMap.metaDespesa?.nop?.[m] ?? (orcMap.metaCat['gastos-nop'] ?? 0) / 12;
+    const nopMeta  = orcMap.metaDespesa?.nop?.[m] ?? nodeMetaAnual(nopNode) / 12;
 
     // Resultado líquido
     const resReal  = recReal - despOpReal - nopReal;
@@ -282,8 +353,8 @@ export default function Orcamento() {
 
     const despOpNode = findGastoNode(gastoTree.children, 'gastos-op');
     const despOpRealMes = despOpNode ? sumNodeMes(despOpNode, tx, year, m) : 0;
-    const despOpMeta    = orcMap.metaDespesa?.op?.[m] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12;
-    const despOpMetaAno = ALL_MES.reduce((s, i) => s + (orcMap.metaDespesa?.op?.[i] ?? (orcMap.metaCat['gastos-op'] ?? 0) / 12), 0);
+    const despOpMeta    = orcMap.metaDespesa?.op?.[m] ?? nodeMetaAnual(despOpNode) / 12;
+    const despOpMetaAno = ALL_MES.reduce((s, i) => s + (orcMap.metaDespesa?.op?.[i] ?? nodeMetaAnual(despOpNode) / 12), 0);
 
     // Custos reais no mês — encontra a categoria de nível "Custo" pelo nome,
     // em vez de assumir que é sempre o primeiro filho (a ordem não é garantida).
@@ -292,7 +363,7 @@ export default function Orcamento() {
     const custoReal  = custoNode ? sumNodeMes(custoNode, tx, year, m) : 0;
     const custoMeta  = orcMap.metaCustoPct
       ? (recOrcMes * orcMap.metaCustoPct / 100)
-      : custoNode ? (orcMap.metaCat[custoNode.id] ?? 0) / 12 : 0;
+      : custoNode ? nodeMetaAnual(custoNode) / 12 : 0;
 
     const mgBReal = recRealMes - custoReal;
     const mgBMeta = recOrcMes - custoMeta;
@@ -328,7 +399,10 @@ export default function Orcamento() {
 
     function walk(nodes) {
       nodes.forEach(node => {
-        const metaAnual = Number(orcMap.metaCat[node.id]) || 0;
+        // nodeMetaAnual soma até as folhas — para um nó com filhos (Categoria/Grupo),
+        // é a meta agregada de tudo dentro dele, no mesmo escopo que sumNode() já usa
+        // para o realizado (via node.filter, que também cobre toda a subárvore).
+        const metaAnual = nodeMetaAnual(node);
         if (metaAnual > 0) {
           const metaRitmo = metaAnual * mesesDecorridos / 12;
           const realizado = sumNode(node, tx, mesesAteAgora, year);
@@ -584,45 +658,75 @@ export default function Orcamento() {
         </div>
       </div>
 
-      {/* ── Gráfico: Gastos por Categoria ── */}
+      {/* ── Gráfico: Gastos por Grupo ── */}
       <div className="panel mb-3.5">
         <div className="panel-hdr">
-          <div>
-            <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-              Gastos por Categoria — Meta vs Realizado
-              <InfoPopover
-                title="Gastos por Categoria — Meta vs Realizado"
-                description={'Compara a meta anual de cada grupo de gastos com o valor acumulado até agora no ano.\n\n• Cinza: meta definida na aba Metas.\n• Verde: realizado abaixo da meta (dentro do orçamento).\n• Vermelho: realizado acima da meta (estouro do orçamento).\n\nClique em uma barra para detalhar o grupo por categoria. Use "← Voltar" para subir um nível na hierarquia.'}
-              />
-            </div>
-            {gastoStack.length > 1 && (
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <button onClick={() => setGastoStack(s => s.slice(0, -1))} className="text-[10px] text-accent underline cursor-pointer">← Voltar</button>
-                <span className="text-[10px] text-text-3">› {gastoLabel}</span>
-              </div>
-            )}
+          <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
+            Gastos por Grupo — Orçado x Realizado
+            <InfoPopover
+              title="Gastos por Grupo — Orçado x Realizado"
+              description={'Compara a meta de cada Grupo de gastos (ex: Despesa com Pessoal, Estrutura, Impostos) com o valor realizado — juntando Custos Diretos, Despesas Operacionais e Despesas Não Operacionais numa lista única.\n\nSegue o filtro "Período" selecionado no topo da tela: com "Todos" marcado, soma o ano inteiro; com meses específicos marcados, Meta e Realizado somam só esses meses.\n\nBotão R$ / %: alterna entre valor absoluto e percentual da receita do período — Meta contra a receita orçada, Realizado contra a receita realizada.\n\n• Azul: meta orçada (definida em Metas por Categoria).\n• Verde: realizado dentro do orçamento.\n• Vermelho: realizado acima da meta (estouro).\n\nSó aparecem grupos com meta ou valor realizado no período. Ordenado do maior para o menor realizado.'}
+            />
           </div>
-          <span className="text-[9.5px] text-text-3">Clique para detalhar</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-full border border-slate-200 dark:border-slate-600 overflow-hidden text-[10px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setGrupoChartMode('valor')}
+                className={`px-2.5 py-1 cursor-pointer transition-colors ${grupoChartMode === 'valor' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
+              >
+                R$
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrupoChartMode('pct')}
+                className={`px-2.5 py-1 cursor-pointer transition-colors ${grupoChartMode === 'pct' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
+              >
+                %
+              </button>
+            </div>
+            <span className="text-[9.5px] font-bold px-2.5 py-1 rounded-full" style={{ background: 'rgba(43,108,176,.12)', color: BL }}>{periodoLabel}</span>
+          </div>
         </div>
-        <div className="p-4" style={{ height: 240 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={gastoData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid {...gridProps} />
-              <XAxis dataKey="name" {...axisProps} />
-              <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
-              <RcTooltip content={<OrcTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
-              <Bar dataKey="Meta" fill={GY} radius={[4,4,0,0]} />
-              <Bar dataKey="Realizado" radius={[4,4,0,0]}
-                onClick={(entry, index) => { if (gastoItems[index]?.hasChildren) setGastoStack(s => [...s, gastoItems[index].node.id]); }}
-                style={{ cursor: 'pointer' }}>
-                {gastoData.map((entry, i) => (
-                  <Cell key={i} fill={entry._excede ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {grupoComparativo.length > 0 ? (
+          <>
+            {/* Legenda customizada — a <Legend> padrão do Recharts só mostra 1 cor fixa por
+                Bar, então não dá pra explicar que "Realizado" muda de cor conforme estoura
+                a meta ou não. */}
+            <div className="flex items-center gap-4 px-4 pt-3 text-[10px]" style={{ color: tc }}>
+              <span className="flex items-center gap-1.5">
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: BL, opacity: 0.7, display: 'inline-block' }} />
+                Meta
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(109,191,69,.8)', display: 'inline-block' }} />
+                Realizado — dentro do orçamento
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(229,62,62,.8)', display: 'inline-block' }} />
+                Realizado — acima da meta
+              </span>
+            </div>
+            <div className="p-4 pt-2" style={{ height: Math.max(200, grupoChartData.length * 34) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={grupoChartData} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid {...gridProps} horizontal={false} />
+                  <XAxis type="number" tickFormatter={v => grupoChartMode === 'pct' ? v + '%' : 'R$' + v + 'K'} {...axisProps} />
+                  <YAxis type="category" dataKey="name" {...axisProps} width={140} />
+                  <RcTooltip content={<OrcTooltip formatValue={grupoChartMode === 'pct' ? (v => `${v}%`) : undefined} />} />
+                  <Bar dataKey="Meta" fill={BL} fillOpacity={0.7} radius={[0,4,4,0]} />
+                  <Bar dataKey="Realizado" radius={[0,4,4,0]}>
+                    {grupoChartData.map((entry, i) => (
+                      <Cell key={i} fill={entry._excede ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        ) : (
+          <div className="text-[11px] text-text-3 p-4">Nenhum grupo de gastos com meta ou realizado no período.</div>
+        )}
       </div>
 
       {/* ── Tabela de acompanhamento ── */}

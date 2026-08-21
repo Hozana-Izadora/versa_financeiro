@@ -15,6 +15,9 @@ const initialState = {
   importHistory: [],
   orcamento: [],
   currentPage: 'caixa',
+  // Filtro a aplicar em Lançamentos quando chegamos lá vindo de um drill-down (ex:
+  // clicar numa categoria do demonstrativo) — lido e limpo pela própria página.
+  pendingLancamentosFilter: null,
   filterState: {
     year: new Date().getFullYear(),
     months: new Set(),
@@ -41,6 +44,8 @@ function reducer(state, action) {
       return { ...state, importHistory: action.payload };
     case 'SET_ORCAMENTO':
       return { ...state, orcamento: action.payload };
+    case 'SET_LANCAMENTOS_FILTER':
+      return { ...state, pendingLancamentosFilter: action.payload };
     case 'SET_PAGE':
       return {
         ...state,
@@ -85,6 +90,13 @@ export function AppProvider({ children }) {
 
   const setPage = useCallback((page) => {
     dispatch({ type: 'SET_PAGE', payload: page });
+  }, []);
+
+  // Drill-down navigation: leva para Lançamentos já filtrado pela categoria/grupo/tipo
+  // e movimento clicados no demonstrativo, em vez de cair na lista inteira sem filtro.
+  const goToLancamentos = useCallback((filter) => {
+    dispatch({ type: 'SET_LANCAMENTOS_FILTER', payload: filter });
+    dispatch({ type: 'SET_PAGE', payload: 'lancamentos' });
   }, []);
 
   const applyFilter = useCallback((updates) => {
@@ -144,6 +156,7 @@ export function AppProvider({ children }) {
     openModal,
     closeModal,
     setPage,
+    goToLancamentos,
     applyFilter,
     refreshAll,
     refreshTransactions,

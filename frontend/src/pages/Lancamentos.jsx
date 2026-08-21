@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useDeferredValue } from 'r
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { fmt, fmtK } from '../utils/formatters.js';
+import { confirmDialog } from '../utils/alerts.js';
 import Icon from '../components/ui/Icon.jsx';
 
 // ── Transaction form ─────────────────────────────────────────────────────────
@@ -285,6 +286,21 @@ export default function Lancamentos() {
     api.setPreference('lancamentos_columns', cols).catch(() => {});
   }
 
+  // Drill-down vindo do demonstrativo (clique numa Categoria/Grupo do DRE): aplica o
+  // filtro correspondente assim que a página chega e limpa o pedido, para não reaplicar
+  // ao navegar para fora e voltar depois sem um novo clique.
+  useEffect(() => {
+    const f = state.pendingLancamentosFilter;
+    if (!f) return;
+    if (f.cat)    setFilterCat(f.cat);
+    if (f.grp)    setFilterGrp(f.grp);
+    if (f.tipo)   setFilterTipo(f.tipo);
+    if (f.mov)    setFilterMov(f.mov);
+    if (f.regime) setFilterRegime(f.regime);
+    setShowFilters(true);
+    actions.dispatch({ type: 'SET_LANCAMENTOS_FILTER', payload: null });
+  }, [state.pendingLancamentosFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Defer search input so keystrokes stay responsive with large datasets
   const deferredSearch = useDeferredValue(search);
 
@@ -428,7 +444,7 @@ export default function Lancamentos() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Excluir este lançamento?')) return;
+    if (!await confirmDialog('Excluir este lançamento?', { danger: true, confirmText: 'Excluir' })) return;
     try {
       await api.deleteTransaction(id);
       await actions.refreshTransactions();

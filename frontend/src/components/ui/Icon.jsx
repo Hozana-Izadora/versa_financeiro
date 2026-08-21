@@ -6,7 +6,7 @@ import {
   CreditCard, FolderPlus, Folder, ChevronDown, Plus, Info, AlertTriangle,
   ArrowLeftRight, AlertCircle, FolderOpen, CheckCircle2, Dices, ListX,
   Trash, RefreshCw, Check, History, SlidersHorizontal, XCircle, ArrowLeft,
-  Eye, EyeOff, Mail, Lock, LogIn, Building2, ShieldCheck, UserPlus, Users,
+  Eye, EyeOff, Mail, Lock, Unlock, LogIn, Building2, ShieldCheck, UserPlus, Users,
   MinusCircle, Target, Search, Columns3, ExternalLink, Copy,
 } from 'lucide-react';
 
@@ -47,6 +47,7 @@ const MAP = {
   visibility_off: EyeOff,
   mail: Mail,
   lock: Lock,
+  lock_open: Unlock,
   login: LogIn,
   person_add: UserPlus,
   group: Users,
