@@ -16,6 +16,7 @@ import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
 import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
 import ValuesBtn from '../components/ui/ValuesBtn.jsx';
+import MinimizeBtn from '../components/ui/MinimizeBtn.jsx';
 import { calcCicloSeries } from '../utils/cicloCalc.js';
 import { useChartFilter } from '../hooks/useChartFilter.js';
 import { usePermissions } from '../hooks/usePermissions.js';
@@ -116,6 +117,14 @@ export default function Caixa() {
   const [showVAcum,  setShowVAcum]  = useState(false);
   const [showVCiclo, setShowVCiclo] = useState(false);
   const [showVMarg,  setShowVMarg]  = useState(false);
+  const [collapsedCharts, setCollapsedCharts] = useState(new Set());
+  function toggleChartCollapse(key) {
+    setCollapsedCharts(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
 
   const tx     = transactions.caixa;
   const txComp = transactions.competencia;
@@ -135,8 +144,8 @@ export default function Caixa() {
   }, [tx, filterState]);
 
   const dre = useMemo(() =>
-    buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais),
-    [filteredTx, plano, visMonths, filterState, saldosIniciais]);
+    buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais, tx),
+    [filteredTx, plano, visMonths, filterState, saldosIniciais, tx]);
 
   const filteredTxComp = useMemo(() => txComp.filter(r => {
     const d = new Date(r.data + 'T12:00');
@@ -164,8 +173,8 @@ export default function Caixa() {
 
   const drePrev = useMemo(() => {
     if (!filteredTxPrev) return null;
-    return buildDRE(filteredTxPrev, plano, visMonths, 'caixa', { ...filterState, year: compareYear }, saldosIniciais);
-  }, [filteredTxPrev, plano, visMonths, filterState, compareYear, saldosIniciais]);
+    return buildDRE(filteredTxPrev, plano, visMonths, 'caixa', { ...filterState, year: compareYear }, saldosIniciais, tx);
+  }, [filteredTxPrev, plano, visMonths, filterState, compareYear, saldosIniciais, tx]);
 
   const filteredTxPrevComp = useMemo(() => {
     if (!compareYear) return null;
@@ -201,27 +210,27 @@ export default function Caixa() {
 
   const recDre = useMemo(() =>
     recCF.isOverriding
-      ? buildDRE(recCF.effectiveTx, plano, recCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      ? buildDRE(recCF.effectiveTx, plano, recCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais, tx)
       : dre,
-    [recCF.isOverriding, recCF.effectiveTx, recCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+    [recCF.isOverriding, recCF.effectiveTx, recCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre, tx]);
 
   const flowDre = useMemo(() =>
     flowCF.isOverriding
-      ? buildDRE(flowCF.effectiveTx, plano, flowCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      ? buildDRE(flowCF.effectiveTx, plano, flowCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais, tx)
       : dre,
-    [flowCF.isOverriding, flowCF.effectiveTx, flowCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+    [flowCF.isOverriding, flowCF.effectiveTx, flowCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre, tx]);
 
   const acumDre = useMemo(() =>
     acumCF.isOverriding
-      ? buildDRE(acumCF.effectiveTx, plano, acumCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      ? buildDRE(acumCF.effectiveTx, plano, acumCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais, tx)
       : dre,
-    [acumCF.isOverriding, acumCF.effectiveTx, acumCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+    [acumCF.isOverriding, acumCF.effectiveTx, acumCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre, tx]);
 
   const margDreCaixa = useMemo(() =>
     margCF.isOverriding
-      ? buildDRE(margCF.effectiveTx, plano, margCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais)
+      ? buildDRE(margCF.effectiveTx, plano, margCF.effectiveVisMonths, 'caixa', filterState, saldosIniciais, tx)
       : dre,
-    [margCF.isOverriding, margCF.effectiveTx, margCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre]);
+    [margCF.isOverriding, margCF.effectiveTx, margCF.effectiveVisMonths, plano, filterState, saldosIniciais, dre, tx]);
 
   const margEffTxComp = useMemo(() => {
     if (!margCF.isOverriding) return filteredTxComp;
@@ -534,9 +543,12 @@ export default function Caixa() {
                   <ChartFilterPicker tx={tx} override={recCF.override} setOverride={recCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVRec} onToggle={() => setShowVRec(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução da Receita Bruta — Caixa', renderRec('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('rec')} onToggle={() => toggleChartCollapse('rec')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderRec('100%')}</div>
+              {!collapsedCharts.has('rec') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderRec('100%')}</div>
+              )}
             </div>
           )}
 
@@ -555,9 +567,12 @@ export default function Caixa() {
                   <ChartFilterPicker tx={tx} override={flowCF.override} setOverride={flowCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVFlow} onToggle={() => setShowVFlow(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Líquido — Caixa', renderFlow('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('flow')} onToggle={() => toggleChartCollapse('flow')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderFlow('100%')}</div>
+              {!collapsedCharts.has('flow') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderFlow('100%')}</div>
+              )}
             </div>
           )}
 
@@ -576,9 +591,12 @@ export default function Caixa() {
                   <ChartFilterPicker tx={tx} override={acumCF.override} setOverride={acumCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVAcum} onToggle={() => setShowVAcum(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Saldo Acumulado', renderAcum('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('acum')} onToggle={() => toggleChartCollapse('acum')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderAcum('100%')}</div>
+              {!collapsedCharts.has('acum') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderAcum('100%')}</div>
+              )}
             </div>
           )}
 
@@ -597,9 +615,12 @@ export default function Caixa() {
                   <ChartFilterPicker tx={tx} override={cicloCF.override} setOverride={cicloCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVCiclo} onToggle={() => setShowVCiclo(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Ciclo Financeiro', renderCiclo('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('ciclo')} onToggle={() => toggleChartCollapse('ciclo')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderCiclo('100%')}</div>
+              {!collapsedCharts.has('ciclo') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderCiclo('100%')}</div>
+              )}
             </div>
           )}
 
@@ -618,9 +639,12 @@ export default function Caixa() {
                   <ChartFilterPicker tx={tx} override={margCF.override} setOverride={margCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVMarg} onToggle={() => setShowVMarg(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Margem Operacional — Caixa vs Competência', renderMargComp('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('marg')} onToggle={() => toggleChartCollapse('marg')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMargComp('100%')}</div>
+              {!collapsedCharts.has('marg') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMargComp('100%')}</div>
+              )}
             </div>
           )}
 
@@ -664,9 +688,9 @@ export default function Caixa() {
               </button>
             </div>
           </div>
-          <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null}
-            onDrillItem={() => actions.setPage('lancamentos')}
-            onDrillGroup={() => actions.setPage('lancamentos')} />
+          <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null} regime="Caixa"
+            onDrillItem={actions.goToLancamentos}
+            onDrillGroup={actions.goToLancamentos} />
         </div>
       )}
     </motion.div>

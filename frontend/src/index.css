@@ -102,6 +102,8 @@
   .dr-group td:first-child { padding-left: 24px; color: #374151; font-size: 12px; }
   .dr-item { cursor: pointer; }
   .dr-item:hover td { background: rgba(16,185,129,0.04) !important; }
+  .dr-cat td { font-weight: 600; }
+  .dr-cat td:first-child { color: #1f2937; font-size: 11.5px; }
   .dr-subtotal td {
     border-top: 1px solid var(--border-med) !important;
     font-weight: 600 !important;
@@ -422,6 +424,7 @@ html.dark .dr-section td { background: #0d1117 !important; color: #8b949e !impor
 html.dark .dr-section td:first-child { background: #0d1117 !important; }
 html.dark .dr-group td { background: #21262d !important; color: #e6edf3 !important; }
 html.dark .dr-group td:first-child { background: #21262d !important; color: #e6edf3 !important; }
+html.dark .dr-cat td:first-child { color: #cbd5e1 !important; }
 html.dark .dr-total td { background: rgba(16,185,129,0.10) !important; color: #6ee7b7 !important; }
 html.dark .dr-total td:first-child { background: #152b2c !important; }
 html.dark .dr-saldo td { color: #6ee7b7 !important; }

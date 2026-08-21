@@ -16,6 +16,7 @@ import DrillChart from '../components/ui/DrillChart.jsx';
 import InfoPopover from '../components/ui/InfoPopover.jsx';
 import ChartFilterPicker from '../components/ui/ChartFilterPicker.jsx';
 import ValuesBtn from '../components/ui/ValuesBtn.jsx';
+import MinimizeBtn from '../components/ui/MinimizeBtn.jsx';
 import { useChartFilter } from '../hooks/useChartFilter.js';
 import { usePermissions } from '../hooks/usePermissions.js';
 
@@ -102,6 +103,14 @@ export default function Competencia() {
   const [showVRec, setShowVRec] = useState(false);
   const [showVDre, setShowVDre] = useState(false);
   const [showVMg,  setShowVMg]  = useState(false);
+  const [collapsedCharts, setCollapsedCharts] = useState(new Set());
+  function toggleChartCollapse(key) {
+    setCollapsedCharts(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
 
   const tx = transactions.competencia;
 
@@ -396,9 +405,12 @@ export default function Competencia() {
                   <ChartFilterPicker tx={tx} override={recCF.override} setOverride={recCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVRec} onToggle={() => setShowVRec(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução da Receita Bruta — Competência', renderRec('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('rec')} onToggle={() => toggleChartCollapse('rec')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderRec('100%')}</div>
+              {!collapsedCharts.has('rec') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderRec('100%')}</div>
+              )}
             </div>
           )}
 
@@ -417,9 +429,12 @@ export default function Competencia() {
                   <ChartFilterPicker tx={tx} override={dreChartCF.override} setOverride={dreChartCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVDre} onToggle={() => setShowVDre(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Resultado Operacional — Competência', renderDreChart('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('dre_chart')} onToggle={() => toggleChartCollapse('dre_chart')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderDreChart('100%')}</div>
+              {!collapsedCharts.has('dre_chart') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderDreChart('100%')}</div>
+              )}
             </div>
           )}
 
@@ -438,9 +453,12 @@ export default function Competencia() {
                   <ChartFilterPicker tx={tx} override={mgChartCF.override} setOverride={mgChartCF.setOverride} globalFilterState={filterState} />
                   <ValuesBtn show={showVMg} onToggle={() => setShowVMg(v => !v)} />
                   <span className="text-[9.5px] text-text-3 cursor-pointer" onClick={() => openModal('Evolução das Margens', renderMgChart('100%'))}>⤢ ampliar</span>
+                  <MinimizeBtn collapsed={collapsedCharts.has('mg_chart')} onToggle={() => toggleChartCollapse('mg_chart')} />
                 </div>
               </div>
-              <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMgChart('100%')}</div>
+              {!collapsedCharts.has('mg_chart') && (
+                <div className="p-4 h-[200px] sm:h-[260px] lg:h-[300px]">{renderMgChart('100%')}</div>
+              )}
             </div>
           )}
 
@@ -478,9 +496,9 @@ export default function Competencia() {
               </button>
             </div>
           </div>
-          <DreTable dre={dre} showPct={showPct}
-            onDrillItem={() => actions.setPage('lancamentos')}
-            onDrillGroup={() => actions.setPage('lancamentos')} />
+          <DreTable dre={dre} showPct={showPct} regime="Competência"
+            onDrillItem={actions.goToLancamentos}
+            onDrillGroup={actions.goToLancamentos} />
         </div>
       )}
     </motion.div>

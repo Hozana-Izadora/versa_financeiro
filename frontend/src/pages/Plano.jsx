@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { COLOR_VAR } from '../utils/formatters.js';
+import { confirmDialog } from '../utils/alerts.js';
 import Icon from '../components/ui/Icon.jsx';
 
 const NIVEL_CONFIG = {
@@ -262,7 +263,7 @@ export default function Plano() {
   }
 
   async function deleteCat(cat) {
-    if (!confirm(`Remover "${cat}" e todas as suas categorias?`)) return;
+    if (!await confirmDialog(`Remover "${cat}" e todas as suas categorias?`, { danger: true, confirmText: 'Remover' })) return;
     try {
       const data = await api.deleteCategoria(cat);
       refresh(data);
@@ -348,7 +349,7 @@ export default function Plano() {
   }
 
   async function deleteTipo(tipo) {
-    if (!confirm(`Remover "${tipo}"?`)) return;
+    if (!await confirmDialog(`Remover "${tipo}"?`, { danger: true, confirmText: 'Remover' })) return;
     try {
       const updated = await api.deletePlanoItem(tipo);
       actions.dispatch({ type: 'SET_PLANO', payload: { plano: updated, planoCores } });

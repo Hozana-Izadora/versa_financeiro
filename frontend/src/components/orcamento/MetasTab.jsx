@@ -48,10 +48,30 @@ function SectionTotal({ label, value }) {
   ) : null;
 }
 
+// Botão que trava/destrava a edição de um campo já salvo — protege metas confirmadas
+// de edição acidental: o usuário precisa destravar de propósito antes de ajustar o valor.
+function LockToggle({ locked, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={locked ? 'Valor já salvo — clique para editar' : 'Editando — ajuste e clique em Salvar'}
+      className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9.5px] font-semibold cursor-pointer transition-colors ${
+        locked
+          ? 'border-slate-200 dark:border-slate-600 text-text-3 hover:border-accent hover:text-accent'
+          : 'border-accent text-accent bg-accent/10'
+      }`}
+    >
+      <Icon name={locked ? 'lock' : 'lock_open'} size="text-[11px]" />
+      {locked ? 'Editar' : 'Editando'}
+    </button>
+  );
+}
+
 // Controlled grid of 12 monthly inputs. Each filled month shows a small "replicate"
 // icon that copies its value into the other 11 months — a quick way to set one value
 // and reuse it everywhere, without giving up per-month editing.
-function MonthGrid({ values, onChange, max }) {
+function MonthGrid({ values, onChange, max, disabled }) {
   function replicate(m) {
     const v = values[m];
     if (v === '' || v == null) return;
@@ -66,7 +86,7 @@ function MonthGrid({ values, onChange, max }) {
           <div key={m}>
             <div className="flex items-center justify-between gap-1 mb-1">
               <span className="text-[9px] uppercase tracking-widest text-text-3">{mes}</span>
-              {filled && (
+              {filled && !disabled && (
                 <button
                   type="button"
                   title={`Repetir valor de ${mes} para todos os meses`}
@@ -82,7 +102,8 @@ function MonthGrid({ values, onChange, max }) {
               type="number"
               min="0"
               max={max}
-              className="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+              disabled={disabled}
+              className="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800"
               placeholder="0"
               value={values[m] === '' || values[m] == null ? '' : values[m]}
               onChange={e => onChange(m, e.target.value)}
@@ -100,13 +121,29 @@ function isCustoDireto(node, plano) {
   return !!node.filter?.cat && !!plano?.some(p => p.cat === node.filter.cat && p.nivel === 'Custo');
 }
 
+// Total de um nó da árvore de metas: se tem filhos, é sempre a soma recursiva dos filhos
+// (nunca um valor digitado direto nele — evita contar a mesma meta duas vezes); só os
+// nós-folha (sem filhos) guardam um valor próprio, em R$ ou % da receita do mês.
+function computeNodeTotal(node, metaCat, metaCatPct, metaCatMode, receitaMensal) {
+  if (node.children?.length) {
+    return node.children.reduce((s, c) => s + computeNodeTotal(c, metaCat, metaCatPct, metaCatMode, receitaMensal), 0);
+  }
+  const mode = metaCatMode[node.id] || 'valor';
+  if (mode === 'pct') {
+    const arr = metaCatPct[node.id] || emptyMonths();
+    return arr.reduce((s, v, m) => s + (Number(v) || 0) / 100 * (Number(receitaMensal?.[m]) || 0), 0);
+  }
+  const arr = metaCat[node.id] || emptyMonths();
+  return arr.reduce((s, v) => s + (Number(v) || 0), 0);
+}
+
 // Uma linha da árvore de metas por categoria — recursiva, então funciona em qualquer
 // profundidade do Plano de Contas: Categoria → Grupo → Tipo (tipo só existe como filho
 // quando o grupo tem mais de um tipo cadastrado). Cada nível tem seu próprio grid de
 // 12 meses (Jan a Dez), para preenchimento detalhado mês a mês.
 function MetaCategoriaNode({
   node, depth, metaCat, metaCatPct, metaCatMode, onMetaChange, onPctChange, onModeChange,
-  collapsedCats, onToggleCollapse, tx, year, plano, receitaMensal,
+  collapsedCats, onToggleCollapse, tx, year, plano, receitaMensal, savedLeafIds, unlockedRows, onToggleUnlock,
 }) {
   const hasChildren = node.children?.length > 0;
   const isCollapsed = collapsedCats.has(node.id);
@@ -116,9 +153,8 @@ function MetaCategoriaNode({
   const mode        = isCusto ? (metaCatMode[node.id] || 'valor') : 'valor';
   const values       = metaCat[node.id] || emptyMonths();
   const pctValues    = metaCatPct[node.id] || emptyMonths();
-  const totalValor    = values.reduce((s, v) => s + (Number(v) || 0), 0);
-  const totalPctImpl  = pctValues.reduce((s, v, m) => s + (Number(v) || 0) / 100 * (Number(receitaMensal?.[m]) || 0), 0);
-  const totalNode      = mode === 'pct' ? totalPctImpl : totalValor;
+  const totalNode    = computeNodeTotal(node, metaCat, metaCatPct, metaCatMode, receitaMensal);
+  const isLocked      = !hasChildren && savedLeafIds.has(node.id) && !unlockedRows.has(node.id);
 
   return (
     <div className={isTop ? 'rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden transition-shadow hover:shadow-sm' : ''}>
@@ -143,46 +179,60 @@ function MetaCategoriaNode({
           <span className="text-[10px] text-text-3 whitespace-nowrap">· realizado {fmtBrl(realizado)}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
-          {isCusto && (
-            <div className="flex items-center rounded-full border border-slate-200 dark:border-slate-600 overflow-hidden text-[9.5px] font-semibold">
+          {!hasChildren && isCusto && (
+            <div className={`flex items-center rounded-full border border-slate-200 dark:border-slate-600 overflow-hidden text-[9.5px] font-semibold ${isLocked ? 'opacity-50' : ''}`}>
               <button
                 type="button"
+                disabled={isLocked}
                 title="Definir meta em valor (R$) por mês"
                 onClick={() => onModeChange(node.id, 'valor')}
-                className={`px-2 py-0.5 cursor-pointer transition-colors ${mode === 'valor' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
+                className={`px-2 py-0.5 transition-colors ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'} ${mode === 'valor' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
               >
                 R$
               </button>
               <button
                 type="button"
+                disabled={isLocked}
                 title="Definir meta em % da receita do mês"
                 onClick={() => onModeChange(node.id, 'pct')}
-                className={`px-2 py-0.5 cursor-pointer transition-colors ${mode === 'pct' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
+                className={`px-2 py-0.5 transition-colors ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'} ${mode === 'pct' ? 'bg-accent text-white' : 'text-text-3 hover:text-text-2'}`}
               >
                 %
               </button>
             </div>
           )}
+          {!hasChildren && savedLeafIds.has(node.id) && (
+            <LockToggle locked={isLocked} onClick={() => onToggleUnlock(node.id)} />
+          )}
           <span>
             <span className={`font-bold text-text-base ${isTop ? 'text-[12px]' : 'text-[11.5px]'}`}>
-              {mode === 'pct' ? '≈ ' : ''}{fmtBrl(totalNode)}
+              {!hasChildren && mode === 'pct' ? '≈ ' : ''}{fmtBrl(totalNode)}
             </span>
             <span className="text-[10px] text-text-3"> /ano</span>
           </span>
         </div>
       </div>
 
-      <div
-        className={isTop ? 'px-3 pb-2.5 pt-1' : 'pb-2 pt-1'}
-        style={{ paddingLeft: isTop ? undefined : 12 + depth * 18 + 20 }}
-        onClick={e => e.stopPropagation()}
-      >
-        {mode === 'pct' ? (
-          <MonthGrid values={pctValues} onChange={(m, v) => onPctChange(node.id, m, v)} max={100} />
-        ) : (
-          <MonthGrid values={values} onChange={(m, v) => onMetaChange(node.id, m, v)} />
-        )}
-      </div>
+      {hasChildren ? (
+        <div
+          className="text-[10px] text-text-3 italic"
+          style={{ paddingLeft: (isTop ? 12 : 12 + depth * 18 + 20), paddingBottom: 8, paddingTop: 2 }}
+        >
+          Soma dos itens abaixo: <span className="font-semibold not-italic text-text-2">{fmtBrl(totalNode)}</span>
+        </div>
+      ) : (
+        <div
+          className={isTop ? 'px-3 pb-2.5 pt-1' : 'pb-2 pt-1'}
+          style={{ paddingLeft: isTop ? undefined : 12 + depth * 18 + 20 }}
+          onClick={e => e.stopPropagation()}
+        >
+          {mode === 'pct' ? (
+            <MonthGrid values={pctValues} onChange={(m, v) => onPctChange(node.id, m, v)} max={100} disabled={isLocked} />
+          ) : (
+            <MonthGrid values={values} onChange={(m, v) => onMetaChange(node.id, m, v)} disabled={isLocked} />
+          )}
+        </div>
+      )}
 
       {hasChildren && !isCollapsed && (
         <div className={isTop ? 'divide-y divide-slate-100 dark:divide-slate-700' : 'space-y-0.5 pb-1'}>
@@ -203,6 +253,9 @@ function MetaCategoriaNode({
               year={year}
               plano={plano}
               receitaMensal={receitaMensal}
+              savedLeafIds={savedLeafIds}
+              unlockedRows={unlockedRows}
+              onToggleUnlock={onToggleUnlock}
             />
           ))}
         </div>
@@ -216,9 +269,6 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
 
   // ── Local state (controlled) ──────────────────────────────────
   const [receita,   setReceita]   = useState(empty12);
-  const [despOp,    setDespOp]    = useState(empty12);
-  const [despNop,   setDespNop]   = useState(empty12);
-  const [custoPct,  setCustoPct]  = useState('');
   const [deltas,    setDeltas]    = useState(() =>
     Object.fromEntries(DELTA_DEFS.map(d => [d.key, d.default]))
   );
@@ -229,13 +279,22 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
   const [metaCatMode, setMetaCatMode] = useState({}); // referencia → 'valor' | 'pct'
   const [collapsedCats, setCollapsedCats] = useState(new Set());
   const [saving,    setSaving]    = useState(false);
+  // Chaves ('receita', ou o nodeId de uma folha em Metas por Categoria) que o usuário
+  // destravou de propósito para editar um valor já salvo. Reseta a cada recarga do
+  // orçamento (inclusive logo após salvar), travando tudo de novo automaticamente.
+  const [unlockedRows, setUnlockedRows] = useState(new Set());
+
+  function toggleUnlock(key) {
+    setUnlockedRows(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
 
   // ── Populate from orcamento ───────────────────────────────────
   useEffect(() => {
     const r   = empty12();
-    const op  = empty12();
-    const nop = empty12();
-    let cPct  = '';
     const d   = Object.fromEntries(DELTA_DEFS.map(x => [x.key, x.default]));
     const mc  = {};
     const mcPct = {};
@@ -244,9 +303,6 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
 
     for (const e of orcamento) {
       if (e.tipo === 'receita'       && e.mes >= 0 && e.mes <= 11)  r[e.mes]   = e.valor ?? '';
-      if (e.tipo === 'meta_despesa'  && e.referencia === 'op'  && e.mes >= 0)  op[e.mes]  = e.valor ?? '';
-      if (e.tipo === 'meta_despesa'  && e.referencia === 'nop' && e.mes >= 0)  nop[e.mes] = e.valor ?? '';
-      if (e.tipo === 'meta_custo_pct')  cPct = e.valor != null ? String(e.valor) : '';
       if (e.tipo === 'cenario_delta')   d[e.referencia] = e.valor != null ? String(e.valor) : d[e.referencia];
       if (e.tipo === 'meta_cat') {
         if (e.mes == null) {
@@ -270,14 +326,31 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     });
 
     setReceita(r);
-    setDespOp(op);
-    setDespNop(nop);
-    setCustoPct(cPct);
     setDeltas(d);
     setMetaCat(mc);
     setMetaCatPct(mcPct);
     setMetaCatMode(modeInit);
+    // Toda recarga do orçamento reflete o que está salvo agora — trava tudo de novo,
+    // inclusive o campo que acabou de ser editado e salvo.
+    setUnlockedRows(new Set());
   }, [orcamento]);
+
+  // Chaves com valor já salvo (> 0) no servidor — usadas para decidir o que nasce
+  // travado. 'receita' representa a Meta de Receita; os demais ids são folhas de
+  // Metas por Categoria.
+  const savedLeafIds = useMemo(() => {
+    const ids = new Set();
+    for (const e of orcamento) {
+      if ((e.tipo === 'meta_cat' || e.tipo === 'meta_cat_pct') && Number(e.valor) > 0) ids.add(e.referencia);
+    }
+    return ids;
+  }, [orcamento]);
+
+  const receitaSaved = useMemo(
+    () => orcamento.some(e => e.tipo === 'receita' && Number(e.valor) > 0),
+    [orcamento]
+  );
+  const receitaLocked = receitaSaved && !unlockedRows.has('receita');
 
   // ── Árvore do Plano de Contas (mesma usada no gráfico "Gastos por Categoria") ──
   const gastoTree = useMemo(() => plano?.length ? buildDrillTree(plano) : { children: [] }, [plano]);
@@ -310,24 +383,20 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     setMetaCatMode(m => ({ ...m, [nodeId]: mode }));
   }
 
-  const metaCatNodeIds = useMemo(
-    () => new Set([...Object.keys(metaCat), ...Object.keys(metaCatPct)]),
-    [metaCat, metaCatPct]
-  );
+  // Ids dos nós-folha (sem filhos) — só eles têm um valor próprio digitado; nós com
+  // filhos (Categoria/Grupo) são sempre a soma dos filhos, calculada por computeNodeTotal.
+  const leafNodeIds = useMemo(() => {
+    const ids = new Set();
+    (function walk(nodes) {
+      nodes.forEach(n => { n.children?.length ? walk(n.children) : ids.add(n.id); });
+    })(gastoTree.children ?? []);
+    return ids;
+  }, [gastoTree]);
 
-  const totalMetaCat = useMemo(() => {
-    let total = 0;
-    metaCatNodeIds.forEach(id => {
-      if (metaCatMode[id] === 'pct') {
-        const arr = metaCatPct[id] || emptyMonths();
-        total += arr.reduce((s, v, m) => s + (Number(v) || 0) / 100 * (Number(receita[m]) || 0), 0);
-      } else {
-        const arr = metaCat[id] || emptyMonths();
-        total += arr.reduce((s, v) => s + (Number(v) || 0), 0);
-      }
-    });
-    return total;
-  }, [metaCatNodeIds, metaCat, metaCatPct, metaCatMode, receita]);
+  const totalMetaCat = useMemo(
+    () => (gastoTree.children ?? []).reduce((s, macro) => s + computeNodeTotal(macro, metaCat, metaCatPct, metaCatMode, receita), 0),
+    [gastoTree, metaCat, metaCatPct, metaCatMode, receita]
+  );
 
   // ── Sazonal weights from historical actuals ───────────────────
   const sazonalWeights = useMemo(() => {
@@ -357,30 +426,23 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
 
   // ── Computed totals ───────────────────────────────────────────
   const totalRec     = receita.reduce((s, v) => s + (Number(v) || 0), 0);
-  const totalDespOp  = despOp.reduce((s, v) => s + (Number(v) || 0), 0);
-  const totalDespNop = despNop.reduce((s, v) => s + (Number(v) || 0), 0);
 
-  // ── Resumo geral (usado no cabeçalho da aba) ──────────────────
-  const totalCustoEstimado   = totalRec * (Number(custoPct) || 0) / 100;
-  const totalDespesasAnual   = totalDespOp + totalDespNop + totalCustoEstimado;
+  // ── Resumo geral (usado no cabeçalho da aba) ───────────────────
+  // Despesas Anual = soma de todas as metas por categoria (única fonte de meta de
+  // gastos agora que a aba "Metas de Gastos" foi removida em favor dela).
+  const totalDespesasAnual   = totalMetaCat;
   const resultadoProjetado   = totalRec - totalDespesasAnual;
 
-  const totalCategoriaNodes = useMemo(() => {
-    let count = 0;
-    (function walk(nodes) {
-      nodes.forEach(n => { count++; if (n.children?.length) walk(n.children); });
-    })(gastoTree.children ?? []);
-    return count;
-  }, [gastoTree]);
+  const totalCategoriaNodes = leafNodeIds.size;
 
   const categoriasComMeta = useMemo(() => {
     let count = 0;
-    metaCatNodeIds.forEach(id => {
+    leafNodeIds.forEach(id => {
       const arr = metaCatMode[id] === 'pct' ? metaCatPct[id] : metaCat[id];
       if (arr?.some(v => Number(v) > 0)) count++;
     });
     return count;
-  }, [metaCatNodeIds, metaCat, metaCatPct, metaCatMode]);
+  }, [leafNodeIds, metaCat, metaCatPct, metaCatMode]);
 
   // ── Scenario preview ─────────────────────────────────────────
   const cenarioPreview = useMemo(() => {
@@ -422,20 +484,15 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     saveSection(entries);
   }
 
-  function saveGastos() {
-    const entries = [];
-    despOp.forEach((v, m)  => { if (Number(v) > 0) entries.push({ mes: m, tipo: 'meta_despesa', referencia: 'op',  valor: Number(v) }); });
-    despNop.forEach((v, m) => { if (Number(v) > 0) entries.push({ mes: m, tipo: 'meta_despesa', referencia: 'nop', valor: Number(v) }); });
-    if (Number(custoPct) > 0) entries.push({ mes: null, tipo: 'meta_custo_pct', referencia: '', valor: Number(custoPct) });
-    saveSection(entries);
-  }
-
   async function saveMetaCategorias() {
     const entries = [];
     const valorNodeIds = new Set();
     const pctNodeIds = new Set();
 
+    // Só nós-folha têm valor próprio — nós com filhos (Categoria/Grupo) são sempre a
+    // soma dos filhos, então nunca entram aqui mesmo que tenham um valor antigo salvo.
     Object.entries(metaCat).forEach(([nodeId, arr]) => {
+      if (!leafNodeIds.has(nodeId)) return;
       if (metaCatMode[nodeId] === 'pct') return; // nó está em modo % agora — não salva o valor em R$ residual
       arr.forEach((v, mes) => {
         if (Number(v) > 0) { entries.push({ mes, tipo: 'meta_cat', referencia: nodeId, valor: Number(v) }); valorNodeIds.add(nodeId); }
@@ -443,6 +500,7 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     });
 
     Object.entries(metaCatPct).forEach(([nodeId, arr]) => {
+      if (!leafNodeIds.has(nodeId)) return;
       if (metaCatMode[nodeId] !== 'pct') return;
       arr.forEach((v, mes) => {
         if (Number(v) > 0) { entries.push({ mes, tipo: 'meta_cat_pct', referencia: nodeId, valor: Number(v) }); pctNodeIds.add(nodeId); }
@@ -452,13 +510,15 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     if (!entries.length) { actions.notify('Nenhum valor para salvar.', 'ni'); return; }
     setSaving(true);
     try {
-      // Remove formatos obsoletos: meta anual antiga (mes = null) e, quando o modo
-      // R$/% de um nó foi trocado, os valores do modo anterior — evita contagem
-      // duplicada nos totais do Acompanhamento.
+      // Remove formatos obsoletos: meta anual antiga (mes = null); quando o modo R$/%
+      // de um nó foi trocado, os valores do modo anterior; e qualquer meta salva antes
+      // direto num nível que não é mais editável (Categoria/Grupo com filhos) — evita
+      // contagem duplicada nos totais do Acompanhamento.
       const legacy = orcamento.filter(e =>
         (e.tipo === 'meta_cat'     && e.mes == null && valorNodeIds.has(e.referencia)) ||
         (e.tipo === 'meta_cat'     && pctNodeIds.has(e.referencia)) ||
-        (e.tipo === 'meta_cat_pct' && valorNodeIds.has(e.referencia))
+        (e.tipo === 'meta_cat_pct' && valorNodeIds.has(e.referencia)) ||
+        ((e.tipo === 'meta_cat' || e.tipo === 'meta_cat_pct') && !leafNodeIds.has(e.referencia))
       );
       for (const e of legacy) await api.deleteOrcamentoEntry(e.id);
 
@@ -534,22 +594,25 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
             <div className="text-[10px] text-text-3 mt-0.5">Receita esperada mês a mês</div>
             </div>
           </div>
-          <button onClick={saveReceita} disabled={saving} className={btnCls}>
-            {saving ? 'Salvando…' : 'Salvar Receita'}
-          </button>
+          <div className="flex items-center gap-2">
+            {receitaSaved && <LockToggle locked={receitaLocked} onClick={() => toggleUnlock('receita')} />}
+            <button onClick={saveReceita} disabled={saving} className={btnCls}>
+              {saving ? 'Salvando…' : 'Salvar Receita'}
+            </button>
+          </div>
         </div>
 
         <div className="p-4 space-y-3">
           {/* Distribution mode */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className={`flex items-center gap-2 flex-wrap ${receitaLocked ? 'opacity-50' : ''}`}>
             <span className="text-[11px] font-semibold text-text-2">Distribuição:</span>
             {[
               { id: 'manual',   label: 'Manual',            icon: 'tune' },
               { id: 'linear',   label: 'Linear (÷12)',      icon: 'trending_up' },
               { id: 'sazonal',  label: 'Sazonal (histórico)', icon: 'insert_chart' },
             ].map(({ id, label, icon }) => (
-              <button key={id} onClick={() => setDistMode(id)}
-                className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              <button key={id} disabled={receitaLocked} onClick={() => setDistMode(id)}
+                className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all flex items-center gap-1.5 ${receitaLocked ? 'cursor-not-allowed' : 'cursor-pointer'} ${
                   distMode === id
                     ? 'bg-accent text-white border-accent shadow-[0_2px_10px_rgba(16,185,129,0.35)]'
                     : 'bg-bg-1 text-text-2 border-slate-200 dark:border-slate-600 hover:border-accent hover:text-accent'
@@ -562,18 +625,19 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
 
           {/* Annual input for linear/sazonal */}
           {distMode !== 'manual' && (
-            <div className="flex items-center gap-3 flex-wrap p-3 rounded bg-bg-2 border border-slate-100 dark:border-slate-700">
+            <div className={`flex items-center gap-3 flex-wrap p-3 rounded bg-bg-2 border border-slate-100 dark:border-slate-700 ${receitaLocked ? 'opacity-50' : ''}`}>
               <span className="text-[11px] font-semibold text-text-2">Meta Anual:</span>
               <input
                 type="number"
                 min="0"
-                className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
+                disabled={receitaLocked}
+                className="text-[11px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent disabled:cursor-not-allowed"
                 style={{ width: 160 }}
                 placeholder="R$ 0"
                 value={annualRec}
                 onChange={e => setAnnualRec(e.target.value)}
               />
-              <button onClick={applyDistribution} className={btnCls}>
+              <button onClick={applyDistribution} disabled={receitaLocked} className={btnCls}>
                 Distribuir
               </button>
               {distMode === 'sazonal' && !hasSazonalData && (
@@ -585,97 +649,11 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
             </div>
           )}
 
-          <MonthGrid values={receita} onChange={(m, v) => setReceita(r => { const n = [...r]; n[m] = v; return n; })} />
+          <MonthGrid values={receita} onChange={(m, v) => setReceita(r => { const n = [...r]; n[m] = v; return n; })} disabled={receitaLocked} />
           <SectionTotal label="Total anual:" value={totalRec} />
         </div>
       </div>
 
-      {/* ════ Metas de Gastos ════════════════════════════════════ */}
-      <div className="panel" style={{ borderTop: '3px solid #f59e0b' }}>
-        <div className="panel-hdr">
-          <div className="flex items-center gap-2.5">
-            <SectionIcon name="receipt_long" color="#f59e0b" bg="rgba(245,158,11,0.14)" />
-            <div>
-              <div className="font-inter font-semibold text-[13px] flex items-center gap-1.5">
-                Metas de Gastos
-                <InfoPopover
-                  title="Metas de Gastos"
-                  description={'Define os limites de custo e despesa para o ano.\n\n• Custo Direto %: percentual máximo da Receita Bruta que pode ser consumido por custos diretos (CPV/CMV). Ex: 30% significa que os custos não devem ultrapassar 30% do faturamento.\n\n• Despesas Operacionais: teto mensal em R$ para pessoal, aluguel, administrativo, comercial e similares.\n\n• Despesas Não Operacionais: teto mensal em R$ para financeiros, impostos, tributos e investimentos.\n\nOs valores são comparados ao realizado no card de KPI e na tabela de Acompanhamento.'}
-                />
-              </div>
-              <div className="text-[10px] text-text-3 mt-0.5">Limites mensais por categoria de gasto</div>
-            </div>
-          </div>
-          <button onClick={saveGastos} disabled={saving} className={btnCls}>
-            {saving ? 'Salvando…' : 'Salvar Gastos'}
-          </button>
-        </div>
-
-        <div className="p-4 space-y-5">
-          {/* Custo Direto % */}
-          <div className="flex items-center gap-3 flex-wrap p-3 rounded bg-bg-2 border border-slate-100 dark:border-slate-700">
-            <span className="text-[11px] font-semibold text-text-2 shrink-0 flex items-center gap-1">
-              Custo Direto — % da Receita Bruta
-              <InfoPopover
-                title="Custo Direto (%)"
-                description={'Percentual máximo que os custos diretos (matéria-prima, serviços prestados, CPV) podem representar sobre a receita bruta.\n\nExemplo: com meta de 30% e receita de R$ 100.000, o custo direto não deve ultrapassar R$ 30.000.\n\nEsse indicador é comparado com o realizado no KPI de Acompanhamento.'}
-              />
-            </span>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="number" min="0" max="100" step="0.5"
-                className="text-[12px] font-bold border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 bg-bg-1 text-text-base focus:outline-none focus:ring-1 focus:ring-accent"
-                style={{ width: 72 }}
-                placeholder="0"
-                value={custoPct}
-                onChange={e => setCustoPct(e.target.value)}
-              />
-              <span className="text-[12px] font-semibold text-text-2">%</span>
-            </div>
-            {custoPct && totalRec > 0 && (
-              <span className="text-[10px] text-text-3">
-                ≈ {fmtBrl(totalRec * Number(custoPct) / 100 / 12)} / mês em média
-              </span>
-            )}
-          </div>
-
-          {/* Despesas Operacionais */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-semibold text-text-2 flex items-center gap-1">
-                Despesas Operacionais (R$ / mês)
-                <InfoPopover
-                  title="Meta — Despesas Operacionais"
-                  description={'Teto mensal em R$ para o total de despesas operacionais: pessoal, aluguel, energia, administrativo, comercial, tecnologia e similares.\n\nDefina um valor por mês para refletir sazonalidade (ex: 13º salário em dezembro). Meses iguais indicam custo fixo planejado.\n\nComparado com o realizado no KPI "Desp. Operacionais" e na tabela de Acompanhamento.'}
-                />
-              </span>
-              {totalDespOp > 0 && <span className="text-[10px] text-text-3">Total anual: {fmtBrl(totalDespOp)}</span>}
-            </div>
-            <MonthGrid
-              values={despOp}
-              onChange={(m, v) => setDespOp(r => { const n = [...r]; n[m] = v; return n; })}
-            />
-          </div>
-
-          {/* Despesas Não Operacionais */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-semibold text-text-2 flex items-center gap-1">
-                Despesas Não Operacionais (R$ / mês)
-                <InfoPopover
-                  title="Meta — Despesas Não Operacionais"
-                  description={'Teto mensal em R$ para despesas fora da operação principal: juros, tarifas bancárias, impostos sobre lucro (IRPJ/CSLL), tributos e investimentos.\n\nEsse grupo impacta o Resultado Líquido mas não a Margem Operacional (EBIT).\n\nComparado com o realizado no KPI "Gastos Não Operacionais".'}
-                />
-              </span>
-              {totalDespNop > 0 && <span className="text-[10px] text-text-3">Total anual: {fmtBrl(totalDespNop)}</span>}
-            </div>
-            <MonthGrid
-              values={despNop}
-              onChange={(m, v) => setDespNop(r => { const n = [...r]; n[m] = v; return n; })}
-            />
-          </div>
-        </div>
-      </div>
 
       {/* ════ Metas por Categoria ════════════════════════════════ */}
       <div className="panel" style={{ borderTop: '3px solid #8b5cf6' }}>
@@ -687,7 +665,7 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
                 Metas por Categoria
                 <InfoPopover
                   title="Metas por Categoria"
-                  description={'Define uma meta mês a mês (Jan a Dez) para qualquer nível do Plano de Contas — Categoria, Grupo ou Tipo — além dos tetos gerais de Despesas Operacionais/Não Operacionais definidos acima.\n\nClique numa linha com seta para expandir e ver os grupos/tipos dentro dela; cada nível tem seu próprio grid de 12 meses, independente dos demais. O total ao lado do nome soma os 12 meses preenchidos.\n\nQuando um nível tem meta própria, ela é usada no gráfico "Gastos por Categoria" e nas metas mais específicas do Acompanhamento — em vez de só ratear o teto geral.\n\nO valor "realizado" ao lado de cada linha é a soma do ano corrente, só para referência ao definir a meta.'}
+                  description={'Define uma meta mês a mês (Jan a Dez) no nível mais detalhado do Plano de Contas — Tipo, ou Grupo quando ele não se divide em Tipos.\n\nClique numa linha com seta para expandir e ver os grupos/tipos dentro dela. Categoria e Grupo (quando têm filhos) não têm campo próprio — o total mostrado é sempre a soma dos itens abaixo, para não contar a mesma meta duas vezes.\n\nO valor "realizado" ao lado de cada linha é a soma do ano corrente, só para referência ao definir a meta.'}
                 />
               </div>
               <div className="text-[10px] text-text-3 mt-0.5">Meta mês a mês (R$) por categoria, grupo ou tipo do plano de contas</div>
@@ -727,6 +705,9 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
                     year={year}
                     plano={plano}
                     receitaMensal={receita}
+                    savedLeafIds={savedLeafIds}
+                    unlockedRows={unlockedRows}
+                    onToggleUnlock={toggleUnlock}
                   />
                 ))}
               </div>
