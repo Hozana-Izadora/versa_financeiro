@@ -2,14 +2,30 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fmt, fmtSigned, fmtPct, pct, MONTHS } from '../../utils/formatters.js';
 import Icon from '../ui/Icon.jsx';
 
+// Rounds to cents before comparing to zero — a value like -0.0001 is float dust left
+// over from summing many transactions, displays as "0,00", and must read as neutral,
+// not red.
+function roundedSign(v) {
+  const r = Math.round(v * 100) / 100;
+  return r === 0 ? 0 : (r > 0 ? 1 : -1);
+}
+
 // `isPos` reflects the row's usual direction (Entrada vs. Saída), but a value can still
 // come out negative — e.g. the "não classificadas" reconciliation rows, which are a
 // subtraction rather than a sum of (always non-negative) transaction amounts. Whenever
 // that happens the actual sign must win, red, regardless of the row's normal convention.
 function cellColorCls(v, isPos) {
-  if (v === 0) return 'cv-neu';
-  if (v < 0) return 'cv-neg';
+  const s = roundedSign(v);
+  if (s === 0) return 'cv-neu';
+  if (s < 0) return 'cv-neg';
   return isPos ? 'cv-pos' : 'cv-neg';
+}
+
+// For rows whose color must follow the value's own sign (Margem, Lucro Líquido, Saldo)
+// rather than a fixed row-level direction — zero stays neutral, not green.
+function signCls(v) {
+  const s = roundedSign(v);
+  return s === 0 ? 'cv-neu' : (s > 0 ? 'cv-pos' : 'cv-neg');
 }
 
 function CellValue({ v, refV, isPos, showPct }) {
@@ -206,14 +222,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-total">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>
+                    <td key={mi} className={signCls(v)}>
                       {fmtSigned(v)}
                       {row.showPct && showPct && row.refValues?.[mi] > 0 && (
                         <span className="cv-pct">{fmtPct(pct(v, row.refValues[mi]))}</span>
                       )}
                     </td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>
+                  <td className={signCls(row.total)}>
                     {fmtSigned(row.total)}
                     {row.showPct && showPct && row.totRef > 0 && (
                       <span className="cv-pct">{fmtPct(pct(row.total, row.totRef))}</span>
@@ -228,9 +244,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-saldo">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(v)}</td>
+                    <td key={mi} className={signCls(v)}>{fmtSigned(v)}</td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(row.total)}</td>
+                  <td className={signCls(row.total)}>{fmtSigned(row.total)}</td>
                 </tr>
               );
             }
@@ -240,9 +256,9 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-saldo-acum">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(v)}</td>
+                    <td key={mi} className={signCls(v)}>{fmtSigned(v)}</td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>{fmtSigned(row.total)}</td>
+                  <td className={signCls(row.total)}>{fmtSigned(row.total)}</td>
                 </tr>
               );
             }
@@ -252,14 +268,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                 <tr key={i} className="dr-ll">
                   <td>{row.label}</td>
                   {row.monthValues.map((v, mi) => (
-                    <td key={mi} className={v >= 0 ? 'cv-pos' : 'cv-neg'}>
+                    <td key={mi} className={signCls(v)}>
                       {fmtSigned(v)}
                       {row.showPct && showPct && row.refValues?.[mi] > 0 && (
                         <span className="cv-pct">{fmtPct(pct(v, row.refValues[mi]))}</span>
                       )}
                     </td>
                   ))}
-                  <td className={row.total >= 0 ? 'cv-pos' : 'cv-neg'}>
+                  <td className={signCls(row.total)}>
                     {fmtSigned(row.total)}
                     {row.showPct && showPct && row.totRef > 0 && (
                       <span className="cv-pct">{fmtPct(pct(row.total, row.totRef))}</span>
