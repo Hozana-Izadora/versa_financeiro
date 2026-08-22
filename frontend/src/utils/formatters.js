@@ -6,8 +6,10 @@ export function fmt(v) {
 
 // Like fmt(), but keeps the minus sign for genuinely negative totals (Margem, Lucro
 // Líquido, Saldo) — fmt() alone strips it, leaving only color to signal direction.
+// Rounds to cents before checking the sign so float dust (e.g. -0.0001) that displays
+// as "0,00" doesn't get a spurious "-" in front of it.
 export function fmtSigned(v) {
-  return v < 0 ? `-${fmt(v)}` : fmt(v);
+  return Math.round(v * 100) / 100 < 0 ? `-${fmt(v)}` : fmt(v);
 }
 
 export function fmtK(v) {

@@ -114,7 +114,6 @@
     font-family: 'Inter', sans-serif !important;
     font-weight: 700 !important;
     font-size: 12.5px !important;
-    color: #10b981 !important;
     border-top: 1.5px solid rgba(16,185,129,0.20) !important;
   }
   /* Sticky first column must use opaque backgrounds — rgba would let scrolled columns bleed through */
@@ -425,9 +424,8 @@ html.dark .dr-section td:first-child { background: #0d1117 !important; }
 html.dark .dr-group td { background: #21262d !important; color: #e6edf3 !important; }
 html.dark .dr-group td:first-child { background: #21262d !important; color: #e6edf3 !important; }
 html.dark .dr-cat td:first-child { color: #cbd5e1 !important; }
-html.dark .dr-total td { background: rgba(16,185,129,0.10) !important; color: #6ee7b7 !important; }
+html.dark .dr-total td { background: rgba(16,185,129,0.10) !important; }
 html.dark .dr-total td:first-child { background: #152b2c !important; }
-html.dark .dr-saldo td { color: #6ee7b7 !important; }
 html.dark .dr-saldo td:first-child { background: #16272a !important; color: #6ee7b7 !important; }
 html.dark .dr-saldo-acum td:first-child { background: #152b2c !important; color: #6ee7b7 !important; }
 html.dark .dr-ll td:first-child { background: #1f2033 !important; color: #c4b5fd !important; }
