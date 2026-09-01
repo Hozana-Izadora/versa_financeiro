@@ -6,7 +6,7 @@ import {
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
 import { DRILL_TREE, buildDrillTree, sumNode } from '../utils/drillHierarchy.js';
-import { getAvailableMonths } from '../utils/formatters.js';
+import { getAvailableMonths, fmt } from '../utils/formatters.js';
 import ChartModal from '../components/ui/ChartModal.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import MetasTab from '../components/orcamento/MetasTab.jsx';
@@ -87,12 +87,10 @@ export default function Orcamento() {
     const metaCatMonthly = {};   // nodeId → { mes → valor } — permite somar só os meses do filtro
     const metaDespesa    = {};   // 'op'|'nop' → { mes → valor }
     const cenarioDelta   = {};   // 'pessimista'|'otimista'|'muito_otimista' → %
-    let breakeven      = 0;
     let metaCustoPct   = null;
 
     for (const e of orcamento) {
       if (e.tipo === 'receita')        receita[e.mes] = e.valor;
-      if (e.tipo === 'breakeven')      breakeven = e.valor;
       if (e.tipo === 'cenario') {
         if (!cenarios[e.referencia]) cenarios[e.referencia] = {};
         cenarios[e.referencia][e.mes] = e.valor;
@@ -142,7 +140,7 @@ export default function Orcamento() {
       }
     }
 
-    return { receita, cenarios, metaCat, metaCatMonthly, metaDespesa, metaCustoPct, cenarioDelta, breakeven };
+    return { receita, cenarios, metaCat, metaCatMonthly, metaDespesa, metaCustoPct, cenarioDelta };
   }, [orcamento]);
 
   // Meta de uma categoria/grupo somada apenas nos meses informados — usado para comparar
@@ -271,7 +269,30 @@ export default function Orcamento() {
     _excede: g._excede,
   })), [grupoComparativo, grupoChartMode]);
 
-  const breakeven = orcMap.breakeven > 0 ? +(orcMap.breakeven / 1000).toFixed(1) : null;
+  // ── Ponto de Equilíbrio ──────────────────────────────────────────
+  // PE = Custos Fixos / (1 − (Custos Variáveis / Receita)) — regra clássica de ponto de
+  // equilíbrio em receita. Custos Variáveis = Custos Diretos (variam com a produção/
+  // venda); Custos Fixos = Despesas Operacionais + Despesas Não Operacionais (não
+  // variam com o volume vendido). Tudo calculado sobre a meta orçada do período
+  // selecionado (mesmo critério de "Meta" usado no resto da página), não sobre o
+  // realizado — o ponto de equilíbrio é uma referência de planejamento.
+  const breakevenAnual = useMemo(() => {
+    const despOpNode = findGastoNode(gastoTree.children ?? [], 'gastos-op');
+    const nopNode     = findGastoNode(gastoTree.children ?? [], 'gastos-nop');
+    const custoCatName = plano?.find(p => p.nivel === 'Custo')?.cat;
+    const custoNode  = custoCatName ? despOpNode?.children?.find(c => c.label === custoCatName) : null;
+    const despOpOnlyNodes = (despOpNode?.children ?? []).filter(c => c !== custoNode);
+
+    const custosVariaveisMeta = custoNode ? nodeMetaPeriodo(custoNode, visMonths) : 0;
+    const custosFixosMeta = despOpOnlyNodes.reduce((s, c) => s + nodeMetaPeriodo(c, visMonths), 0)
+      + nodeMetaPeriodo(nopNode, visMonths);
+
+    const pctCustoVariavel = receitaOrcadaPeriodo > 0 ? custosVariaveisMeta / receitaOrcadaPeriodo : 0;
+    if (pctCustoVariavel >= 1) return null; // margem de contribuição zero/negativa — PE não atingível
+    return custosFixosMeta / (1 - pctCustoVariavel);
+  }, [gastoTree, plano, visMonths, receitaOrcadaPeriodo, orcMap]);
+
+  const breakeven = breakevenAnual > 0 ? +(breakevenAnual / 1000).toFixed(1) : null;
 
   function OrcTooltip({ active, payload, label, formatValue }) {
     if (!active || !payload?.length) return null;
@@ -621,25 +642,36 @@ export default function Orcamento() {
             Receita Bruta — Realizado vs Orçado
             <InfoPopover
               title="Receita Bruta — Realizado vs Orçado"
-              description={'Comparativo mensal entre três séries:\n\n• Realizado (verde): receita efetivamente obtida, com base nos lançamentos de Competência.\n• Orçado (cinza): meta de receita definida na aba Metas.\n• Cenário (cor variável): projeção calculada como Meta × variação % do cenário selecionado.\n\nA linha laranja tracejada representa o Ponto de Equilíbrio anual configurado.\n\nUse o seletor de cenário acima para alternar entre Pessimista, Moderado, Otimista e Muito Otimista.'}
+              description={'Comparativo mensal entre três séries:\n\n• Realizado (verde): receita efetivamente obtida, com base nos lançamentos de Competência.\n• Orçado (cinza): meta de receita definida na aba Metas.\n• Cenário (cor variável): projeção calculada como Meta × variação % do cenário selecionado.\n\nA linha laranja tracejada representa o Ponto de Equilíbrio do período, calculado automaticamente como Custos Fixos ÷ (1 − % de Custos Variáveis sobre a Receita), a partir das metas cadastradas em "Metas por Categoria".\n\nUse o seletor de cenário acima para alternar entre Pessimista, Moderado, Otimista e Muito Otimista.'}
             />
           </div>
-          <span className="text-[9.5px] text-text-3 cursor-pointer"
-            onClick={() => openModal('Receita Bruta — Realizado vs Orçado',
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={orcAnualData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid {...gridProps} />
-                  <XAxis dataKey="month" {...axisProps} />
-                  <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
-                  <RcTooltip content={<OrcTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
-                  <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
-                  <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
-                  <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
-                  {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
-                </BarChart>
-              </ResponsiveContainer>
-            )}>⤢ ampliar</span>
+          <div className="flex items-center gap-2">
+            {breakevenAnual > 0 && (
+              <span
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap"
+                style={{ borderColor: OR, color: OR }}
+                title="Ponto de Equilíbrio do período selecionado — Custos Fixos ÷ (1 − % Custos Variáveis)"
+              >
+                Equilíbrio: {fmt(breakevenAnual)}
+              </span>
+            )}
+            <span className="text-[9.5px] text-text-3 cursor-pointer"
+              onClick={() => openModal('Receita Bruta — Realizado vs Orçado',
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={orcAnualData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="month" {...axisProps} />
+                    <YAxis tickFormatter={v => 'R$' + v + 'K'} {...axisProps} width={56} />
+                    <RcTooltip content={<OrcTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
+                    <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
+                    <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
+                    <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
+                    {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}>⤢ ampliar</span>
+          </div>
         </div>
         <div className="p-4" style={{ height: 240 }}>
           <ResponsiveContainer width="100%" height="100%">

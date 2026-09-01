@@ -102,7 +102,7 @@
   .dr-group td:first-child { padding-left: 24px; color: #374151; font-size: 12px; }
   .dr-item { cursor: pointer; }
   .dr-item:hover td { background: rgba(16,185,129,0.04) !important; }
-  .dr-cat td { font-weight: 600; }
+  .dr-subgroup td { font-weight: 600; }
   .dr-cat td:first-child { color: #1f2937; font-size: 11.5px; }
   .dr-subtotal td {
     border-top: 1px solid var(--border-med) !important;
@@ -126,6 +126,15 @@
     border-top: 2px solid rgba(16,185,129,0.22) !important;
   }
   .dr-saldo td:first-child { background: #f3fbf9 !important; color: #10b981 !important; }
+  .dr-ajuste { background: rgba(245,158,11,0.05) !important; }
+  .dr-ajuste td {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 11.5px !important;
+    font-style: italic;
+    border-top: 1px dashed rgba(245,158,11,0.35) !important;
+  }
+  .dr-ajuste td:first-child { background: #fffbeb !important; color: #b45309 !important; font-style: normal; }
   .dr-saldo-acum { background: rgba(16,185,129,0.07) !important; }
   .dr-saldo-acum td {
     font-family: 'Inter', sans-serif !important;
@@ -427,6 +436,7 @@ html.dark .dr-cat td:first-child { color: #cbd5e1 !important; }
 html.dark .dr-total td { background: rgba(16,185,129,0.10) !important; }
 html.dark .dr-total td:first-child { background: #152b2c !important; }
 html.dark .dr-saldo td:first-child { background: #16272a !important; color: #6ee7b7 !important; }
+html.dark .dr-ajuste td:first-child { background: #2a2110 !important; color: #fbbf24 !important; }
 html.dark .dr-saldo-acum td:first-child { background: #152b2c !important; color: #6ee7b7 !important; }
 html.dark .dr-ll td:first-child { background: #1f2033 !important; color: #c4b5fd !important; }
 

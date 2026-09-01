@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
@@ -52,7 +52,7 @@ function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cm
   const tone = KPI_TONE[color];
   return (
     <div className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''} ${tone ? `kpi-tone-${tone}` : ''}`}>
-      <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
+      <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 min-h-[3em]">{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
       {delta && (
@@ -99,6 +99,14 @@ export default function Competencia() {
   const { canChart, canSubtab } = usePermissions();
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
+
+  // Volta direto para a sub-aba do Demonstrativo ao retornar de um drill-down em Lançamentos.
+  useEffect(() => {
+    if (state.pendingSubTab == null) return;
+    setSubTab(state.pendingSubTab);
+    actions.dispatch({ type: 'SET_PENDING_SUBTAB', payload: null });
+  }, [state.pendingSubTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [modalChart, setModalChart] = useState(null);
   const [showVRec, setShowVRec] = useState(false);
   const [showVDre, setShowVDre] = useState(false);
@@ -342,8 +350,8 @@ export default function Competencia() {
     );
   }
 
-  function openModal(title, element) {
-    setModalChart({ title, element });
+  function openModal(title, element, opts) {
+    setModalChart({ title, element, ...opts });
   }
 
   function exportDRE() {
@@ -484,7 +492,7 @@ export default function Competencia() {
           <div className="panel-hdr">
             <div>
               <div className="font-inter font-semibold text-[13px]">DRE Gerencial — Demonstrativo Completo</div>
-              <div className="text-[10px] text-text-3 mt-0.5">Clique nos grupos para recolher · Clique nos itens para ver lançamentos</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Clique para expandir/recolher · duplo clique para ver lançamentos</div>
             </div>
             <div className="flex gap-1.5 items-center">
               <label className="text-[11px] text-text-3 flex items-center gap-1 cursor-pointer">
@@ -494,6 +502,15 @@ export default function Competencia() {
               <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
                 <Icon name="download" size="text-[14px]" /> Exportar
               </button>
+              <span
+                className="text-[9.5px] text-text-3 cursor-pointer"
+                onClick={() => openModal('Demonstrativo — Competência', (
+                  <DreTable dre={dre} showPct={showPct} regime="Competência"
+                    onDrillItem={actions.goToLancamentos}
+                    onDrillGroup={actions.goToLancamentos}
+                    maxHeight="100%" />
+                ), { wide: true })}
+              >⤢ ampliar</span>
             </div>
           </div>
           <DreTable dre={dre} showPct={showPct} regime="Competência"

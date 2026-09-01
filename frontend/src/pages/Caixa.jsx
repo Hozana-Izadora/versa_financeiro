@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
-import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths, linearTrend, matchesCostCenter } from '../utils/formatters.js';
+import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonthsWithAjustes, linearTrend, matchesCostCenter } from '../utils/formatters.js';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
@@ -45,7 +45,7 @@ const KPI_TONE = {
   '#8b5cf6': 'purple',
 };
 
-function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp }) {
+function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp, labelNoWrap }) {
   const cmpDelta = cmp != null && rawValue != null && Math.abs(cmp.prev) > 0.01
     ? ((rawValue - cmp.prev) / Math.abs(cmp.prev) * 100) : null;
   const cmpUp = cmp != null && rawValue != null ? rawValue >= cmp.prev : null;
@@ -53,7 +53,7 @@ function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cm
   const tone = KPI_TONE[color];
   return (
     <div className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''} ${tone ? `kpi-tone-${tone}` : ''}`}>
-      <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
+      <div className={`text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 ${labelNoWrap ? 'whitespace-nowrap' : ''}`}>{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
       {delta && (
@@ -106,6 +106,13 @@ export default function Caixa() {
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
 
+  // Volta direto para a sub-aba do Demonstrativo ao retornar de um drill-down em Lançamentos.
+  useEffect(() => {
+    if (state.pendingSubTab == null) return;
+    setSubTab(state.pendingSubTab);
+    actions.dispatch({ type: 'SET_PENDING_SUBTAB', payload: null });
+  }, [state.pendingSubTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const subtabs = [
     canSubtab('caixa', 'subtab_overview') && { idx: 0, label: 'Visão Geral' },
     canSubtab('caixa', 'subtab_dre')      && { idx: 1, label: 'Demonstrativo' },
@@ -139,9 +146,9 @@ export default function Caixa() {
 
   const visMonths = useMemo(() => {
     if (filterState.months.size > 0) return [...filterState.months].sort((a, b) => a - b);
-    const avail = getAvailableMonths(tx, filterState.year);
+    const avail = getAvailableMonthsWithAjustes(tx, filterState.year, saldosIniciais);
     return avail.length ? avail : [new Date().getMonth()];
-  }, [tx, filterState]);
+  }, [tx, filterState, saldosIniciais]);
 
   const dre = useMemo(() =>
     buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais, tx),
@@ -203,7 +210,7 @@ export default function Caixa() {
   // ── Per-chart filter hooks ────────────────────────────────────────
   const recCF   = useChartFilter(tx, filterState);
   const flowCF  = useChartFilter(tx, filterState);
-  const acumCF  = useChartFilter(tx, filterState);
+  const acumCF  = useChartFilter(tx, filterState, saldosIniciais);
   const cicloCF = useChartFilter(tx, filterState);
   const margCF  = useChartFilter(tx, filterState);
   const drillCF = useChartFilter(tx, filterState);
@@ -482,8 +489,8 @@ export default function Caixa() {
     );
   }
 
-  function openModal(title, element) {
-    setModalChart({ title, element });
+  function openModal(title, element, opts) {
+    setModalChart({ title, element, ...opts });
   }
 
   function exportDRE() {
@@ -509,7 +516,7 @@ export default function Caixa() {
         <>
           {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
-            <CNode label="Entrada Operacional" value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
+            <CNode label="Entrada Operacional" labelNoWrap value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
             <CSep symbol="−" />
             <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecOp)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="−" />
@@ -670,7 +677,7 @@ export default function Caixa() {
           <div className="panel-hdr">
             <div>
               <div className="font-inter font-semibold text-[13px]">Demonstrativo do Fluxo de Caixa Estruturado (DFCE)</div>
-              <div className="text-[10px] text-text-3 mt-0.5">Clique nos grupos para recolher · Clique nos itens para ver lançamentos</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Clique para expandir/recolher · duplo clique para ver lançamentos</div>
             </div>
             <div className="flex gap-2 items-center flex-wrap justify-end">
               <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
@@ -686,6 +693,15 @@ export default function Caixa() {
               <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
                 <Icon name="download" size="text-[14px]" /> Exportar
               </button>
+              <span
+                className="text-[9.5px] text-text-3 cursor-pointer"
+                onClick={() => openModal('Demonstrativo — Caixa', (
+                  <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null} regime="Caixa"
+                    onDrillItem={actions.goToLancamentos}
+                    onDrillGroup={actions.goToLancamentos}
+                    maxHeight="100%" />
+                ), { wide: true })}
+              >⤢ ampliar</span>
             </div>
           </div>
           <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null} regime="Caixa"

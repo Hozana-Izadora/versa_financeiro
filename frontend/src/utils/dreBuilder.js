@@ -162,9 +162,24 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     return saldoAbertura(y - 1) + movimentoAno(y - 1);
   }
 
+  // Recupera o movimento dos meses do ano corrente anteriores ao primeiro mês visível
+  // (quando o filtro de período não começa em Janeiro) a partir de `historyTx`, não de
+  // `byMov` — `byMov` vem de `tx`, que a página chamadora já filtrou pelos mesmos meses
+  // selecionados no período, então não contém os meses que ficaram de fora do filtro.
+  // Usar `byMov` aqui fazia esse catch-up sempre somar zero de movimento real para os
+  // meses pulados (só o Ajuste Mensal, lido direto de `saldosIniciais`, entrava certo).
+  const byMovAno = new Map(); // `${m}|${mov}` → soma, ano inteiro, sem o corte de mês do filtro
+  for (const r of historyTx) {
+    const d = new Date(r.data + 'T12:00');
+    if (d.getFullYear() !== year) continue;
+    if (!matchesCostCenter(r, filterState)) continue;
+    const kMov = `${d.getMonth()}|${r.mov}`;
+    byMovAno.set(kMov, (byMovAno.get(kMov) ?? 0) + r.valor);
+  }
+
   let saldoAcum = saldoAbertura(year);
   for (let m = 0; m < (visMonths[0] ?? 0); m++) {
-    saldoAcum += (byMov.get(`${m}|Entrada`) ?? 0) - (byMov.get(`${m}|Saída`) ?? 0);
+    saldoAcum += (byMovAno.get(`${m}|Entrada`) ?? 0) - (byMovAno.get(`${m}|Saída`) ?? 0);
     saldoAcum += ajusteMensal(year, m);
   }
   const mAcum = visMonths.map((m, i) => {
@@ -349,13 +364,23 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   } else {
     // ── FIX 2 & 4: totSaldo now = sum of (all entries − all exits) per month ──
     const totSaldo = mSaldo.reduce((a, b) => a + b, 0);
-    rows.push({ type: 'saldo', label: 'SALDO DO PERÍODO', monthValues: mSaldo, total: totSaldo, isPos: totSaldo >= 0 });
+    rows.push({ type: 'saldo', label: 'SALDO DO PERÍODO', monthValues: mSaldo, total: totSaldo, isPos: totSaldo >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+
+    // Ajuste Mensal cadastrado em Saldos Iniciais — antes só entrava (invisível) no
+    // Saldo Acumulado; agora aparece como linha própria, para o usuário conseguir ver
+    // em qual mês um ajuste manual foi aplicado, e de quanto.
+    const mAjustes = visMonths.map(m => ajusteMensal(year, m));
+    const totAjustes = mAjustes.reduce((a, b) => a + b, 0);
+    if (mAjustes.some(v => v !== 0)) {
+      rows.push({ type: 'ajuste', label: 'AJUSTES MANUAIS', monthValues: mAjustes, total: totAjustes });
+    }
+
     const lastAcum = mAcum[mAcum.length - 1] || 0;
-    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0 });
+    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
   }
 
   return {
-    rows, visMonths,
+    rows, visMonths, year,
     mRec, mRecOp, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
     totRec, totRecOp, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
   };

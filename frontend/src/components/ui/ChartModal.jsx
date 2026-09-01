@@ -24,13 +24,13 @@ export default function ChartModal({ chart, onClose }) {
     >
       <div
         className="bg-card rounded-card p-6 flex flex-col gap-4 relative"
-        style={{ width: '88vw', maxWidth: 1100, height: '76vh' }}
+        style={{ width: '88vw', maxWidth: chart.wide ? 1600 : 1100, height: '76vh' }}
       >
         <div className="flex items-center justify-between flex-shrink-0">
           <div className="font-inter font-bold text-[15px] text-text-base">{chart.title}</div>
           <button onClick={onClose} className="text-text-3 hover:text-text-base text-2xl leading-none transition-colors">✕</button>
         </div>
-        <div className="flex-1" style={{ minHeight: 0 }}>
+        <div className="flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
           {chart.element}
         </div>
       </div>

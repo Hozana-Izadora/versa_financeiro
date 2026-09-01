@@ -286,17 +286,25 @@ export default function Lancamentos() {
     api.setPreference('lancamentos_columns', cols).catch(() => {});
   }
 
+  // De onde veio o drill-down (página + sub-aba do Demonstrativo) — mostra o botão
+  // "voltar ao demonstrativo" enquanto o usuário permanece nesta página.
+  const [returnTo, setReturnTo] = useState(null);
+
   // Drill-down vindo do demonstrativo (clique numa Categoria/Grupo do DRE): aplica o
-  // filtro correspondente assim que a página chega e limpa o pedido, para não reaplicar
-  // ao navegar para fora e voltar depois sem um novo clique.
+  // filtro correspondente (incluindo o período de datas do demonstrativo) assim que a
+  // página chega e limpa o pedido, para não reaplicar ao navegar para fora e voltar
+  // depois sem um novo clique.
   useEffect(() => {
     const f = state.pendingLancamentosFilter;
     if (!f) return;
-    if (f.cat)    setFilterCat(f.cat);
-    if (f.grp)    setFilterGrp(f.grp);
-    if (f.tipo)   setFilterTipo(f.tipo);
-    if (f.mov)    setFilterMov(f.mov);
-    if (f.regime) setFilterRegime(f.regime);
+    if (f.cat)      setFilterCat(f.cat);
+    if (f.grp)      setFilterGrp(f.grp);
+    if (f.tipo)     setFilterTipo(f.tipo);
+    if (f.mov)      setFilterMov(f.mov);
+    if (f.regime)   setFilterRegime(f.regime);
+    if (f.dateFrom) setFilterDateFrom(f.dateFrom);
+    if (f.dateTo)   setFilterDateTo(f.dateTo);
+    if (f.returnTo) setReturnTo(f.returnTo);
     setShowFilters(true);
     actions.dispatch({ type: 'SET_LANCAMENTOS_FILTER', payload: null });
   }, [state.pendingLancamentosFilter]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -499,6 +507,11 @@ export default function Lancamentos() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {returnTo && (
+            <button className="btn btn-ghost btn-sm" onClick={() => actions.goToPage(returnTo.page, returnTo.subTab)}>
+              <Icon name="arrow_back" size="text-[14px]" /> Voltar ao demonstrativo
+            </button>
+          )}
           {/* Search box */}
           <div className="relative">
             <Icon name="search" size="text-[13px]" className="absolute top-1/2 -translate-y-1/2 text-text-3 pointer-events-none" style={{ left: 12 }} />

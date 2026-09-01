@@ -75,6 +75,20 @@ export function getAvailableMonths(transactions, year) {
   return [...ms].sort((a, b) => a - b);
 }
 
+// Como getAvailableMonths, mas também inclui qualquer mês do ano que tenha um Ajuste
+// Mensal cadastrado em Saldos Iniciais — senão um ajuste num mês sem nenhum lançamento
+// (ex.: uma correção lançada num mês futuro, antes de existir movimento nele) nunca
+// ganha uma coluna no demonstrativo/gráficos, mesmo estando salvo corretamente.
+export function getAvailableMonthsWithAjustes(transactions, year, saldosIniciais) {
+  const ms = new Set(getAvailableMonths(transactions, year));
+  if (saldosIniciais) {
+    for (let m = 0; m < 12; m++) {
+      if (saldosIniciais[`${year}-${String(m + 1).padStart(2, '0')}`] != null) ms.add(m);
+    }
+  }
+  return [...ms].sort((a, b) => a - b);
+}
+
 export function getYears(txBase) {
   const ys = new Set([...txBase.caixa, ...txBase.competencia]
     .map(r => new Date(r.data + 'T12:00').getFullYear()));
