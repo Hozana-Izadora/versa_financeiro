@@ -22,17 +22,28 @@ Sistema de gerência financeira multi-cliente com DRE por Caixa e Competência.
 
 ## Funcionalidades
 
+> Descrição completa de cada tela e as fórmulas exatas usadas nos cálculos:
+> [`specs/FUNCIONALIDADES.md`](specs/FUNCIONALIDADES.md). Propostas de melhoria ainda
+> não implementadas (ou parcialmente implementadas) ficam nos demais arquivos de
+> [`specs/`](specs).
+
+### Multi-tenant e autenticação
+- Cada cliente tem um schema PostgreSQL isolado, provisionado via `admin.provision_tenant()`
+- Login com JWT (access token curto + refresh token em cookie httpOnly)
+- Controle de acesso em duas camadas: por módulo no backend (leitura/escrita) e por tela/gráfico/sub-aba no frontend, configuráveis via **Admin → Permissões**
+
 ### DRE — Demonstrativo de Resultado
 - Visão por **Caixa** (movimentação realizada) e **Competência** (regime de competência)
-- Filtros por ano, mês e grupo de contas
-- Gráficos de evolução mensal de receita, custo e resultado
-- Drill-down por categoria de despesa
-- Métricas de margem bruta, margem operacional e lucro líquido com comparativo vs. orçamento
-- Saldo inicial e acumulado de caixa
+- Filtros globais por ano, meses e centro de custo, com comparativo opcional contra um ano anterior
+- Gráficos de evolução mensal de receita, custo, resultado, ciclo financeiro (PMR/PMP) e margem Caixa vs. Competência — cada um com opção de ampliar (tela cheia) e minimizar
+- Demonstrativo (DFCE) com expand/collapse, visão por período agregado (mensal/bimestral/trimestral/quadrimestral/semestral/total) e drill-down: duplo clique numa linha abre os lançamentos já filtrados (categoria, grupo, movimento e datas do período)
+- Métricas de margem bruta, margem operacional e lucro líquido
+- Saldo do período, ajustes manuais e saldo acumulado de caixa, com herança automática do saldo final de um ano para o próximo
 
 ### Lançamentos
-- CRUD completo de transações com campos: data, descrição, categoria, valor, movimento e regime
+- CRUD completo de transações com campos: data, descrição, categoria, valor, movimento, regime, fornecedor, datas de emissão/vencimento e campos extras livres
 - Vinculação automática ao plano de contas
+- Seletor de colunas visíveis (preferência salva por usuário)
 
 ### Plano de Contas
 - Estrutura hierárquica: **Categoria → Grupo → Tipo**
@@ -41,12 +52,20 @@ Sistema de gerência financeira multi-cliente com DRE por Caixa e Competência.
 - Cores personalizáveis por categoria
 
 ### Orçamento
-- Planejamento por tipo e mês
-- Comparativo realizado vs. orçado no DRE
+- Metas por categoria em árvore (folhas do plano de contas), com soma automática nos níveis superiores — só a folha tem campo editável
+- Meta de receita com distribuição automática (linear ou sazonal, baseada no histórico) e cenários (pessimista/moderado/otimista/muito otimista)
+- Campos já salvos ficam travados contra edição acidental
+- Exportação/importação de planilha Excel para preencher metas em massa
+- Ponto de Equilíbrio calculado automaticamente a partir das metas cadastradas
+- Comparativo orçado × realizado (KPIs, gráfico por grupo, tabela de rolling forecast), respeitando o filtro de período global
 
 ### Saldos Iniciais
 - Saldo de abertura por ano e ajustes mensais para cálculo correto do acumulado de caixa
 - Histórico de alterações com auditoria
+
+### Administração
+- Gestão de empresas e usuários (soft-delete — nunca remove o registro do banco)
+- Papéis (roles) com permissões por módulo e por tela
 
 ### Importação de dados
 - Upload de planilhas `.xlsx` / `.xls` / `.csv` para as bases Caixa e Competência
