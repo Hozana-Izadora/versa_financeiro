@@ -228,25 +228,25 @@ export default function Competencia() {
   }, [dreChartCF.isOverriding, dreChartCF.effectiveVisMonths, visMonths, dreChartDre, compareYear, drePrev]);
 
   const mbPct = useMemo(() =>
-    mgChartDre.mMgB.map((v, i)  => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
+    mgChartDre.mMgB.map((v, i)  => mgChartDre.mRecLiq[i] > 0 ? +(v / mgChartDre.mRecLiq[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const moPct = useMemo(() =>
-    mgChartDre.mMgOp.map((v, i) => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
+    mgChartDre.mMgOp.map((v, i) => mgChartDre.mRecLiq[i] > 0 ? +(v / mgChartDre.mRecLiq[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const llPct = useMemo(() =>
-    mgChartDre.mLL.map((v, i)   => mgChartDre.mRecOp[i] > 0 ? +(v / mgChartDre.mRecOp[i] * 100).toFixed(1) : 0),
+    mgChartDre.mLL.map((v, i)   => mgChartDre.mRecLiq[i] > 0 ? +(v / mgChartDre.mRecLiq[i] * 100).toFixed(1) : 0),
     [mgChartDre]);
 
   const prevMbPct = useMemo(() =>
-    drePrev ? drePrev.mMgB.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mMgB.map((v, i) => drePrev.mRecLiq[i] > 0 ? +(v / drePrev.mRecLiq[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
   const prevMoPct = useMemo(() =>
-    drePrev ? drePrev.mMgOp.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mMgOp.map((v, i) => drePrev.mRecLiq[i] > 0 ? +(v / drePrev.mRecLiq[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
   const prevLlPct = useMemo(() =>
-    drePrev ? drePrev.mLL.map((v, i) => drePrev.mRecOp[i] > 0 ? +(v / drePrev.mRecOp[i] * 100).toFixed(1) : 0) : null,
+    drePrev ? drePrev.mLL.map((v, i) => drePrev.mRecLiq[i] > 0 ? +(v / drePrev.mRecLiq[i] * 100).toFixed(1) : 0) : null,
     [drePrev]);
 
   const mgChartData = useMemo(() => {
@@ -269,7 +269,7 @@ export default function Competencia() {
   function renderRec(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVRec)} width="100%" height={h}>
         <LineChart data={recChartData} margin={{ top: showVRec ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -277,7 +277,7 @@ export default function Competencia() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Receita Bruta" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
-            {showVRec && <LabelList dataKey="Receita Bruta" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+            {showVRec && <LabelList dataKey="Receita Bruta" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#10b981' }} />}
           </Line>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
           {!recCF.isOverriding && drePrev && (
@@ -291,7 +291,7 @@ export default function Competencia() {
   function renderDreChart(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVDre)} width="100%" height={h}>
         <ComposedChart data={dreChartData} margin={{ top: showVDre ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -299,13 +299,13 @@ export default function Competencia() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="Receita" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
-            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+            {showVDre && <LabelList dataKey="Receita" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#10b981' }} />}
           </Bar>
           <Bar dataKey="Custos+Desp" fill="rgba(239,68,68,.6)" radius={[4, 4, 0, 0]}>
-            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#ef4444' }} />}
+            {showVDre && <LabelList dataKey="Custos+Desp" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#ef4444' }} />}
           </Bar>
           <Line dataKey="Lucro Líq." type="monotone" stroke="rgba(139,92,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
-            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(139,92,246,.9)' }} />}
+            {showVDre && <LabelList dataKey="Lucro Líq." position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(139,92,246,.9)' }} />}
           </Line>
           {!dreChartCF.isOverriding && drePrev && (
             <>
@@ -322,7 +322,7 @@ export default function Competencia() {
   function renderMgChart(h) {
     const lbl = v => v !== 0 ? v + '%' : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVMg)} width="100%" height={h}>
         <LineChart data={mgChartData} margin={{ top: showVMg ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -330,13 +330,13 @@ export default function Competencia() {
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Mg. Bruta %" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(16,185,129,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Bruta %" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(16,185,129,1)' }} />}
           </Line>
           <Line dataKey="Mg. Op. %" type="monotone" stroke="rgba(6,182,212,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(6,182,212,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(6,182,212,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Op. %" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(6,182,212,1)' }} />}
           </Line>
           <Line dataKey="Mg. Líq. %" type="monotone" stroke="rgba(139,92,246,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(139,92,246,1)' }} activeDot={{ r: 5 }}>
-            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(139,92,246,1)' }} />}
+            {showVMg && <LabelList dataKey="Mg. Líq. %" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(139,92,246,1)' }} />}
           </Line>
           {!mgChartCF.isOverriding && prevMbPct && (
             <>
@@ -378,20 +378,26 @@ export default function Competencia() {
           {/* ── Cascade: DRE waterfall ── */}
           <div className="kpi-cascade mb-3.5">
             <CNode label="Receita Operacional" value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
+            {dre.totDeducao > 0 && <>
+              <CSep symbol="−" />
+              <CNode label="Deduções de Receita" value={fmtK(dre.totDeducao)} rawValue={dre.totDeducao} sub={fmtPct(pct(dre.totDeducao, dre.totRecLiq)) + ' da receita'} color="#fbbf24" cmp={cmpNode(drePrev?.totDeducao, false)} />
+              <CSep symbol="=" />
+              <CNode result label="Receita Líquida" value={fmtK(dre.totRecLiq)} rawValue={dre.totRecLiq} sub={fmtPct(pct(dre.totRecLiq, dre.totRecOp)) + ' da receita bruta'} color="#10b981" cmp={cmpNode(drePrev?.totRecLiq)} />
+            </>}
             <CSep symbol="−" />
-            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecOp)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
+            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecLiq)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="=" />
-            <CNode result label="Margem Bruta" value={fmtK(dre.totMgB)} rawValue={dre.totMgB} sub={fmtPct(pct(dre.totMgB, dre.totRecOp)) + ' de margem'} color={dre.totMgB >= 0 ? '#10b981' : '#ef4444'} cmp={cmpNode(drePrev?.totMgB)} />
+            <CNode result label="Margem Bruta" value={fmtK(dre.totMgB)} rawValue={dre.totMgB} sub={fmtPct(pct(dre.totMgB, dre.totRecLiq)) + ' de margem'} color={dre.totMgB >= 0 ? '#10b981' : '#ef4444'} cmp={cmpNode(drePrev?.totMgB)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecOp)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
+            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecLiq)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
             <CSep symbol="=" />
-            <CNode result label="Resultado Operacional (EBIT)" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecOp)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
+            <CNode result label="Resultado Operacional (EBIT)" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecLiq)) + ' de margem op.'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
             <CSep symbol="+" />
-            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecOp)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
+            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecLiq)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecOp)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
+            <CNode label="Desp. Não Operacionais" value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecLiq)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
             <CSep symbol="=" />
-            <CNode result label="Lucro Líquido" value={fmtK(dre.totLL)} rawValue={dre.totLL} sub={fmtPct(pct(dre.totLL, dre.totRecOp)) + ' de margem líquida'} color={dre.totLL >= 0 ? '#10b981' : '#ef4444'}
+            <CNode result label="Lucro Líquido" value={fmtK(dre.totLL)} rawValue={dre.totLL} sub={fmtPct(pct(dre.totLL, dre.totRecLiq)) + ' de margem líquida'} color={dre.totLL >= 0 ? '#10b981' : '#ef4444'}
               delta={dre.mLL.length > 1 ? fmtPct(pct(dre.mLL[dre.mLL.length - 1] - dre.mLL[dre.mLL.length - 2], Math.abs(dre.mLL[dre.mLL.length - 2] || 1))) + ' vs mês ant.' : undefined}
               deltaDir={dre.mLL.length > 1 && dre.mLL[dre.mLL.length - 1] >= dre.mLL[dre.mLL.length - 2] ? 'up' : 'down'}
               cmp={cmpNode(drePrev?.totLL)}

@@ -329,6 +329,45 @@ router.post('/switch-client', async (req, res, next) => {
   }
 });
 
+// ── PUT /api/auth/password ────────────────────────────────────────────────────
+// Self-service password change — any authenticated user (superadmin or not,
+// with or without a client context) can change their own password, given the
+// current one. Does not require requirePermission — a user always owns their
+// own credentials regardless of module-level roles.
+router.put('/password', async (req, res, next) => {
+  const payload = getBearerPayload(req);
+  if (!payload) return res.status(401).json({ error: 'Autenticação necessária' });
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres.' });
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT id, password_hash FROM admin.users WHERE id = $1 AND active = true`,
+      [payload.sub]
+    );
+    const user = userResult.rows[0];
+    if (!user) return res.status(401).json({ error: 'Usuário inativo ou não encontrado' });
+
+    // 403, not 401 — a wrong current-password guess is a normal validation failure,
+    // not an invalid/expired auth token. The frontend's request helper treats 401
+    // specially (attempts a silent token refresh, then reloads the page if that also
+    // fails), which would be a confusing way to react to a typo in this field.
+    const currentMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!currentMatch) return res.status(403).json({ error: 'Senha atual incorreta' });
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await pool.query(`UPDATE admin.users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
+
+    res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/auth/refresh ────────────────────────────────────────────────────
 router.post('/refresh', async (req, res, next) => {
   const rawToken = req.cookies?.refresh_token;

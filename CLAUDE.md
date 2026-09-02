@@ -55,7 +55,7 @@ Both must run simultaneously. The Vite dev server proxies `/api/*` to `http://lo
 **Routes:**
 | File | Prefix | Responsibility |
 |------|--------|----------------|
-| `routes/auth.js` | `/api/auth` | Login, refresh, logout |
+| `routes/auth.js` | `/api/auth` | Login, refresh, logout, self-service password change (any authenticated user) |
 | `routes/transactions.js` | `/api/transactions` | CRUD for transactions; handles base switching on regime change |
 | `routes/plano.js` | `/api/plano` | CRUD for chart of accounts; `PUT /categoria/:cat` must be declared before `PUT /:tipo` |
 | `routes/saldos.js` | `/api/saldos` | CRUD for opening balances/monthly adjustments (keyed `"YYYY-MM"` or `"YYYY-abertura"`), with audit log |

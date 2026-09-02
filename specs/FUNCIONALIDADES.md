@@ -80,6 +80,18 @@ Dois tipos de sessão:
 - **Sessão de cliente** — usuário comum ou superadmin "dentro" de um cliente; todas as queries rodam no schema `tenant_<slug>` daquele cliente.
 - **Sessão de superadmin sem cliente** — só acessa `/api/admin/*` (gestão de clientes/usuários/roles); `tenantSchema = null`.
 
+### Trocar a própria senha
+
+Qualquer usuário autenticado — admin ou não — pode trocar sua própria senha pelo
+ícone de chave no rodapé da barra lateral (ao lado do avatar), sem precisar de
+nenhuma permissão de módulo: `PUT /api/auth/password` (`{ currentPassword,
+newPassword }`) verifica a senha atual antes de gravar a nova (bcrypt, mesmo custo
+usado na criação de usuário — 12). Retorna **403**, não 401, quando a senha atual
+está errada — 401 é reservado para token ausente/inválido, porque o `req()` do
+frontend trata 401 de forma especial (tenta um refresh silencioso e recarrega a
+página se falhar), o que seria uma reação confusa a um simples erro de digitação
+nesse campo.
+
 ### Controle de acesso — duas camadas
 
 1. **Backend, por módulo** (`requirePermission(module, 'read'|'write')`, em `middleware/permission.js`) — bloqueia no nível da API. Módulos: `lancamentos`, `plano`, `saldos`, `importar`. Um usuário **sem nenhuma role atribuída** tem acesso total (comportamento de "owner", cobre o primeiro usuário criado via `createUser.js`).
@@ -98,6 +110,9 @@ Ambas as camadas são configuradas na tela **Admin → Permissões** (ver [Secç
 ```
 Nível 1 — Nível Financeiro (campo: nivel)
   Receita
+  Dedução de Receita     — abatida da Receita Bruta antes do Custo (impostos sobre
+                            vendas, devoluções, descontos incondicionais); lançada como
+                            Saída, igual Custo/Despesa
   Custo
   Despesa Operacional
   Despesa Não Operacional
@@ -182,6 +197,8 @@ Cada gráfico da Visão Geral tem um botão **"⤢ ampliar"** (abre em modal de 
 
 ```
 Entradas / Receita
+  ( − Deduções de Receita → % da receita   — só aparece se houver Tipo cadastrado )
+  ( = Receita Líquida     → % da receita bruta )
   − Custos Diretos        → % da receita
   − Despesas Operacionais → % da receita
   = Caixa Operacional     → % de margem
@@ -189,11 +206,13 @@ Entradas / Receita
 
 ```
 Entradas / Receita    = Σ mRec[i]      para os meses visíveis
+Deduções de Receita   = Σ mDeducao[i]  (0 quando não há Tipo cadastrado no nível)
+Receita Líquida       = Receita Operacional − Deduções de Receita
 Custos Diretos        = Σ mCost[i]
 Despesas Operacionais = Σ mDespOp[i]
-Caixa Operacional     = Σ mMgOp[i]     = Receita − Custos − Desp.Op.
+Caixa Operacional     = Σ mMgOp[i]     = Receita Líquida − Custos − Desp.Op.
 
-% de cada item = valor_item ÷ Receita × 100
+% de Custos/Despesas/margem = valor_item ÷ Receita Líquida × 100
 ```
 
 O rótulo "Entrada Operacional" do primeiro card não quebra linha (`whitespace-nowrap`), para que o valor não fique deslocado em relação aos demais cards da cascata.
@@ -205,15 +224,19 @@ O rótulo "Entrada Operacional" do primeiro card não quebra linha (`whitespace-
 Três cartões lado a lado com valor absoluto, percentual e barra de progresso.
 
 ```
-Margem Bruta (R$)       = totRec − totCost
-Margem Bruta (%)        = Margem Bruta ÷ totRec × 100
+Receita Líquida (R$)    = totRecOp − totDeducao   (= totRecOp quando não há Deduções de Receita cadastradas)
+
+Margem Bruta (R$)       = totRecLiq − totCost
+Margem Bruta (%)        = Margem Bruta ÷ totRecLiq × 100
 
 Margem Operacional (R$) = totMgB − totDespOp
-Margem Operacional (%)  = Margem Operacional ÷ totRec × 100
+Margem Operacional (%)  = Margem Operacional ÷ totRecLiq × 100
 
 Resultado Líquido (R$)  = totMgOp + totEntNop − totDespNop
-Resultado Líquido (%)   = Resultado Líquido ÷ totRec × 100
+Resultado Líquido (%)   = Resultado Líquido ÷ totRecLiq × 100
 ```
+
+Todo percentual do painel usa **Receita Líquida** como base de 100% (análise vertical padrão do DRE) — quando o cliente não usa o nível "Dedução de Receita", `totRecLiq === totRecOp` e nada muda na prática.
 
 > **Nota:** o Resultado Líquido do MarginsPanel inclui `totEntNop` (Entradas Não Operacionais), diferente do `totLL` retornado por `buildDRE`.
 
@@ -283,14 +306,25 @@ Margem Op. Competência[i] = mMgOp_comp[i]  ÷ mRec_comp[i]  × 100
 
 ### 5.8 DrillChart — Composição das Saídas
 
-Gráfico de rosca com drill-down dinâmico, usando `drillHierarchy.js` (ver [Secção 10](#10-hierarquia-de-drill-down-saídas)).
+**Arquivo:** `frontend/src/components/ui/DrillChart.jsx`
+
+Três painéis lado a lado, usando `drillHierarchy.js` (ver [Secção 10](#10-hierarquia-de-drill-down-saídas)) achatada direto no nível de Grupo — sem navegação em profundidade, sempre dois níveis fixos (Grupo → Tipo):
+
+- **Lista de Grupos** (esquerda) — todos os Grupos com movimento no período, em ordem alfabética; um clique seleciona. Restrito aos níveis que já formavam a árvore de Saídas (Custo, Despesa Operacional, Despesa Não Operacional) — Dedução de Receita não entra aqui. O Grupo selecionado nasce como o de maior valor no período; se deixar de existir (ex. mudou o filtro), volta a cair no de maior valor
+- **Evolução mensal do Grupo selecionado** (topo direita) — gráfico combinado, barra (R$) + linha (%), um ponto por mês do período filtrado
+- **Composição por Tipo do Grupo selecionado** (baixo direita) — barras por Tipo, valor somado do período filtrado inteiro, ordenadas do maior para o menor, com % ao lado
 
 ```
-valor_nó = Σ tx.valor
-  onde tx.data ∈ ano × meses_visíveis, tx.mov = 'Saída', tx satisfaz o filtro do nó
+valor_grupo[m] = sumNode(grupo, transactions, [m], year)
+%_grupo[m]     = valor_grupo[m] ÷ receita[m] × 100
 
-percentual_nó = valor_nó ÷ total_nível_atual × 100
+valor_tipo     = sumNode({filter: {...grupo.filter, tipo}}, transactions, visMonths, year)
+%_tipo         = valor_tipo ÷ Σreceita(período) × 100
+
+receita[m]     = Σ valor onde mov='Entrada' no mês m (faturamento bruto, não Receita Líquida)
 ```
+
+Mantém o `ChartFilterPicker` próprio (período independente do filtro global), igual aos demais gráficos de Caixa.
 
 ---
 
@@ -305,7 +339,7 @@ Tabela expandível com a estrutura completa do DRE em regime de caixa (ver estru
 - **Clique simples** numa linha de Categoria ou Grupo expande/recolhe seus filhos
 - **Duplo clique** numa linha de Grupo ou Tipo navega para Lançamentos já filtrado (ver [Secção 4](#4-lançamentos))
 - **Cor por sinal, não por convenção fixa** — cada célula é colorida pelo sinal real do valor (arredondado a centavos, para não marcar ruído de ponto flutuante como negativo); zero é sempre neutro (cinza), nunca verde nem vermelho
-- **% da receita operacional** aparece como sub-linha em toda linha de total/margem, incluindo Saldo do Período e Saldo Acumulado
+- **% da Receita Líquida** (Receita Operacional − Deduções de Receita) aparece como sub-linha em toda linha de total/margem, incluindo Saldo do Período e Saldo Acumulado — a linha "DEDUÇÕES DE RECEITA", quando existir, fica entre "= TOTAL RECEITA BRUTA" e "= RECEITA LÍQUIDA", antes de Custos Diretos
 
 ---
 
@@ -320,7 +354,9 @@ Estrutura equivalente à tela Caixa (mesmo componente `DreTable`, mesmos botões
 
 ```
 Receita Bruta
-  − Custos Diretos   → % da receita
+  ( − Deduções de Receita → % da receita   — só aparece se houver Tipo cadastrado )
+  ( = Receita Líquida     → % da receita bruta )
+  − Custos Diretos   → % da receita (líquida)
   = Margem Bruta     → % de margem
   − Desp. Operacionais
   = EBIT             → % de margem operacional
@@ -341,10 +377,10 @@ Os rótulos dos cards do cascade reservam altura para até duas linhas de texto 
 
 | Cartão | Fórmula |
 |---|---|
-| **Margem Bruta** | `totMgB ÷ totRec × 100` |
-| **Margem Operacional** | `totMgOp ÷ totRec × 100` |
-| **Margem Líquida** | `totLL ÷ totRec × 100` |
-| **% Custo s/ Receita** | `totCost ÷ totRec × 100` |
+| **Margem Bruta** | `totMgB ÷ totRecLiq × 100` |
+| **Margem Operacional** | `totMgOp ÷ totRecLiq × 100` |
+| **Margem Líquida** | `totLL ÷ totRecLiq × 100` |
+| **% Custo s/ Receita** | `totCost ÷ totRecLiq × 100` |
 
 ### 6.4 Gráficos — Resultado Operacional mês a mês / Evolução das Margens
 
@@ -353,10 +389,10 @@ Receita (barras)       = mRec[i]
 Custos+Desp (barras)   = mCost[i] + mDespOp[i] + mDespNop[i]
 Lucro Líquido (linha)  = mLL[i]
 
-Margem Bruta %   = mMgB[i]  ÷ mRec[i] × 100
-Margem Op. %     = mMgOp[i] ÷ mRec[i] × 100
-Margem Líquida % = mLL[i]   ÷ mRec[i] × 100
-  (todos retornam 0 quando mRec[i] = 0)
+Margem Bruta %   = mMgB[i]  ÷ mRecLiq[i] × 100
+Margem Op. %     = mMgOp[i] ÷ mRecLiq[i] × 100
+Margem Líquida % = mLL[i]   ÷ mRecLiq[i] × 100
+  (todos retornam 0 quando mRecLiq[i] = 0)
 ```
 
 ---
@@ -524,8 +560,10 @@ buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais, allTx)
 | `mAllSaidas[i]` | `Σ valor` onde `mov='Saída'` (todas as saídas) |
 | `mCost[i]` / `mDespOp[i]` / `mDespNop[i]` | `Σ valor` de Saídas classificadas em Custo / Despesa Operacional / Despesa Não Operacional |
 | `mEntNop[i]` | `Σ valor` de Entradas classificadas em Entrada Não Operacional |
-| `mRecOp[i]` | `mRec[i] − mEntNop[i]` (receita operacional, exclui entradas não operacionais) |
-| `mMgB[i]` / `mMgOp[i]` / `mLL[i]` | Margem Bruta / Operacional / Lucro Líquido, cascata usual |
+| `mRecOp[i]` | `mRec[i] − mEntNop[i]` (receita bruta operacional, exclui entradas não operacionais) |
+| `mDeducao[i]` | `Σ valor` de Saídas classificadas em Dedução de Receita |
+| `mRecLiq[i]` | `mRecOp[i] − mDeducao[i]` (receita líquida — base de 100% de todo "% da receita" no demonstrativo; igual a `mRecOp[i]` quando não há Deduções de Receita cadastradas) |
+| `mMgB[i]` / `mMgOp[i]` / `mLL[i]` | Margem Bruta (`mRecLiq[i] − mCost[i]`) / Operacional / Lucro Líquido, cascata usual |
 | `mSaldo[i]` | `mRec[i] − mAllSaidas[i]` (fluxo puro, **não** inclui Ajuste Mensal) |
 | `mAcum[i]` | Acumulado progressivo, ver abaixo |
 
@@ -533,7 +571,7 @@ buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais, allTx)
 
 ```
 mEntNaoClass[i]   = mRec[i]       − mClassRec[i]
-mSaidaNaoClass[i] = mAllSaidas[i] − mCost[i] − mDespOp[i] − mDespNop[i]
+mSaidaNaoClass[i] = mAllSaidas[i] − mCost[i] − mDespOp[i] − mDespNop[i] − mDeducao[i]
 ```
 
 Linhas com valor > 0 aparecem no demonstrativo como "Entradas/Saídas não classificadas", garantindo que o total do DRE bata com o saldo real mesmo com lançamentos fora do plano.
@@ -573,8 +611,8 @@ mAcum[i] = saldoAcum += mSaldo[i] + ajusteMensal(year, i)
 
 ```
 totRec = Σ mRec   totCost = Σ mCost   totDespOp = Σ mDespOp   totDespNop = Σ mDespNop
-totEntNop = Σ mEntNop
-totMgB = totRecOp − totCost   totMgOp = totMgB − totDespOp   totLL = totMgOp + totEntNop − totDespNop
+totEntNop = Σ mEntNop   totDeducao = Σ mDeducao   totRecLiq = totRecOp − totDeducao
+totMgB = totRecLiq − totCost   totMgOp = totMgB − totDespOp   totLL = totMgOp + totEntNop − totDespNop
 ```
 
 ### Estrutura das linhas do demonstrativo
@@ -585,14 +623,16 @@ totMgB = totRecOp − totCost   totMgOp = totMgB − totDespOp   totLL = totMgOp
 | `group` | `dr-group` | Total de uma Categoria (negrito) | Ambos |
 | `subgroup` | `dr-subgroup` | Total de um Grupo (negrito) | Ambos |
 | `item` | `dr-cat` | Total de um Tipo (peso normal) | Ambos |
-| `subtotal` | `dr-subtotal` | Linha de soma parcial | Ambos |
-| `total` | `dr-total` | Linha de resultado principal (Margem Bruta, Margem Operacional) | Ambos |
+| `subtotal` | `dr-subtotal` | Linha de soma parcial (inclui "( − ) Total Deduções de Receita", só quando houver algum Tipo cadastrado nesse nível) | Ambos |
+| `total` | `dr-total` | Linha de resultado principal (Total Receita Bruta, Receita Líquida, Margem Bruta, Margem Operacional) | Ambos |
 | `ll` | `dr-ll` | Lucro Líquido | Só Competência |
 | `saldo` | `dr-saldo` | Saldo do Período | Só Caixa |
 | `ajuste` | `dr-ajuste` | Ajustes Manuais (só aparece se houver algum ajuste no período visível) | Só Caixa |
 | `saldo-acum` | `dr-saldo-acum` | Saldo Acumulado | Só Caixa |
 
 A cor de cada célula segue o **sinal real do valor** (arredondado a centavos), não uma convenção fixa por linha — evita, por exemplo, uma Margem Bruta negativa aparecer em verde. Zero é sempre neutro.
+
+Todo "% da receita" exibido no demonstrativo — Custos, Despesas, Margem Bruta, Margem Operacional, Saldo, Ajustes, Saldo Acumulado, e a própria linha "= TOTAL RECEITA BRUTA" — usa **Receita Líquida** (`mRecLiq`/`totRecLiq`) como base de 100% (análise vertical padrão do DRE). Quando não há nenhum Tipo cadastrado no nível "Dedução de Receita", `mRecLiq === mRecOp` e os percentuais não mudam em relação a antes desse nível existir.
 
 ---
 

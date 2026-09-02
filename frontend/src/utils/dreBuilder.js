@@ -59,6 +59,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   }
   const groupedByNivel = {
     'Receita': groupByNivel('Receita'),
+    'Dedução de Receita': groupByNivel('Dedução de Receita'),
     'Custo': groupByNivel('Custo'),
     'Despesa Operacional': groupByNivel('Despesa Operacional'),
     'Despesa Não Operacional': groupByNivel('Despesa Não Operacional'),
@@ -67,6 +68,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
   // Per-category level sets by nivel
   const entradaCats = [...new Set(plano.filter(p => p.nivel === 'Receita').map(p => p.cat))];
+  const deducaoCats = [...new Set(plano.filter(p => p.nivel === 'Dedução de Receita').map(p => p.cat))];
   const custoCats   = [...new Set(plano.filter(p => p.nivel === 'Custo').map(p => p.cat))];
   const despOpCats  = [...new Set(plano.filter(p => p.nivel === 'Despesa Operacional').map(p => p.cat))];
   const despNopCats = [...new Set(plano.filter(p => p.nivel === 'Despesa Não Operacional').map(p => p.cat))];
@@ -77,6 +79,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     return cats.length === 1 ? cats[0] : fallback;
   }
   const entradaLabel = sectionLabel(entradaCats, 'RECEITA BRUTA');
+  const deducaoLabel = sectionLabel(deducaoCats, 'DEDUÇÕES DE RECEITA');
   const custoLabel   = sectionLabel(custoCats,   'CUSTOS DIRETOS');
   const despOpLabel  = sectionLabel(despOpCats,  'DESPESAS OPERACIONAIS');
   const entNopLabel  = sectionLabel(entNopCats,  'ENTRADAS NÃO OPERACIONAIS');
@@ -101,12 +104,20 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   const mCost    = visMonths.map(m => catTotal(custoCats,   'Saída', m, 'Custo'));
   const mDespOp  = visMonths.map(m => catTotal(despOpCats,  'Saída', m, 'Despesa Operacional'));
   const mDespNop = visMonths.map(m => catTotal(despNopCats, 'Saída', m, 'Despesa Não Operacional'));
+  // Deduções de Receita (impostos sobre vendas, devoluções, descontos incondicionais) —
+  // registradas como Saída, igual Custo/Despesa, mas abatidas da Receita Bruta antes do
+  // Custo, não misturadas com as demais saídas.
+  const mDeducao = visMonths.map(m => catTotal(deducaoCats, 'Saída', m, 'Dedução de Receita'));
 
   // Classified non-operational entries
   const mEntNop = visMonths.map(m => catTotal(entNopCats, 'Entrada', m, 'Entrada Não Operacional'));
 
   // Operational revenue only (excludes classified non-operational entries like loans)
   const mRecOp = visMonths.map((_, i) => mRec[i] - mEntNop[i]);
+
+  // Receita Líquida = Receita Operacional − Deduções de Receita. Quando não há nenhum
+  // Tipo cadastrado no nível "Dedução de Receita", mDeducao é sempre 0 e mRecLiq === mRecOp.
+  const mRecLiq = visMonths.map((_, i) => mRecOp[i] - mDeducao[i]);
 
   // Classified entries (to detect orphaned entrada transactions)
   const mClassRec = visMonths.map(m =>
@@ -115,12 +126,13 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // Reconciliation buckets — non-zero means transactions exist outside the plano
   const mEntNaoClass   = visMonths.map((_, i) => mRec[i] - mClassRec[i]);
   const mSaidaNaoClass = visMonths.map((_, i) =>
-    mAllSaidas[i] - mCost[i] - mDespOp[i] - mDespNop[i]
+    mAllSaidas[i] - mCost[i] - mDespOp[i] - mDespNop[i] - mDeducao[i]
   );
 
-  // Analytical margins — operational margins are based on operational revenue only (mRecOp),
-  // non-operational entries (e.g. loans) are added after Resultado Operacional, not before.
-  const mMgB  = visMonths.map((_, i) => mRecOp[i] - mCost[i]);
+  // Analytical margins — a análise vertical padrão do DRE parte da Receita Líquida
+  // (Receita Operacional já descontadas as Deduções de Receita), não da Receita Bruta.
+  // Entradas não-operacionais (ex. empréstimos) só entram depois do Resultado Operacional.
+  const mMgB  = visMonths.map((_, i) => mRecLiq[i] - mCost[i]);
   const mMgOp = visMonths.map((_, i) => mMgB[i] - mDespOp[i]);
   const mLL   = visMonths.map((_, i) => mMgOp[i] + mEntNop[i] - mDespNop[i]);
 
@@ -190,12 +202,14 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   // Totals
   const totRec       = mRec.reduce((a, b) => a + b, 0);
   const totRecOp     = mRecOp.reduce((a, b) => a + b, 0);
+  const totDeducao   = mDeducao.reduce((a, b) => a + b, 0);
+  const totRecLiq    = mRecLiq.reduce((a, b) => a + b, 0);
   const totAllSaidas = mAllSaidas.reduce((a, b) => a + b, 0);
   const totCost    = mCost.reduce((a, b) => a + b, 0);
   const totDespOp  = mDespOp.reduce((a, b) => a + b, 0);
   const totDespNop = mDespNop.reduce((a, b) => a + b, 0);
   const totEntNop  = mEntNop.reduce((a, b) => a + b, 0);
-  const totMgB     = totRecOp - totCost;
+  const totMgB     = totRecLiq - totCost;
   const totMgOp    = totMgB - totDespOp;
   const totLL      = totMgOp + totEntNop - totDespNop;
 
@@ -225,10 +239,11 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
 
       const isPos = movFilter === 'Entrada';
       const gid = 'cat-' + cat.replace(/\s/g, '-');
-      // % reference is always Receita Operacional — matches the dashboard, where every
-      // KPI (custos, despesas, margens) is expressed as a % of revenue, not of total exits.
-      const rowRef    = mRecOp;
-      const rowTotRef = totRecOp;
+      // % reference is always Receita Líquida (Receita Operacional − Deduções de
+      // Receita) — a análise vertical padrão do DRE usa a receita líquida como base de
+      // 100%; quando não há Deduções cadastradas, mRecLiq === mRecOp e nada muda.
+      const rowRef    = mRecLiq;
+      const rowTotRef = totRecLiq;
 
       rows.push({
         type: 'group', label: cat, gid, cat,
@@ -267,7 +282,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     rows.push({
       type: 'group', label: 'Entradas não classificadas', gid: 'naoclass-ent',
       monthValues: mEntNaoClass, total: totEntNaoClass, isPos: true,
-      refValues: mRecOp, totRef: totRecOp,
+      refValues: mRecLiq, totRef: totRecLiq,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Receita / Entrada Não Op.
@@ -295,38 +310,48 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-ent',
           monthValues: mv, total, isPos: true,
-          refValues: mRecOp, totRef: totRecOp, movFilter: 'Entrada',
+          refValues: mRecLiq, totRef: totRecLiq, movFilter: 'Entrada',
         });
       });
   }
-  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true, showPct: true, refValues: mRecOp, totRef: totRecOp });
+  rows.push({ type: 'total', label: `= TOTAL ${entradaLabel}`, monthValues: mRecOp, total: totRecOp, isPos: true, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
+
+  // ── Deduções de Receita (impostos sobre vendas, devoluções, descontos incondicionais) ──
+  // Só aparece quando existir algum Tipo cadastrado nesse nível — clientes que não usam
+  // Deduções de Receita não veem nenhuma mudança no demonstrativo.
+  if (deducaoCats.length) {
+    addSection(deducaoLabel);
+    buildSection(deducaoCats, 'Saída', 'Dedução de Receita');
+    rows.push({ type: 'subtotal', label: `( − ) Total ${deducaoLabel}`, monthValues: mDeducao, total: totDeducao, isPos: false, refValues: mRecLiq, totRef: totRecLiq });
+    rows.push({ type: 'total', label: '= RECEITA LÍQUIDA', monthValues: mRecLiq, total: totRecLiq, isPos: true, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
+  }
 
   if (custoCats.length) addSection(custoLabel);
   buildSection(custoCats, 'Saída', 'Custo');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false, refValues: mRecOp, totRef: totRecOp });
-  rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${custoLabel}`, monthValues: mCost, total: totCost, isPos: false, refValues: mRecLiq, totRef: totRecLiq });
+  rows.push({ type: 'total', label: '= MARGEM BRUTA', monthValues: mMgB, total: totMgB, isPos: totMgB >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
 
   if (despOpCats.length) addSection(despOpLabel);
   buildSection(despOpCats, 'Saída', 'Despesa Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false, refValues: mRecOp, totRef: totRecOp });
-  rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despOpLabel}`, monthValues: mDespOp, total: totDespOp, isPos: false, refValues: mRecLiq, totRef: totRecLiq });
+  rows.push({ type: 'total', label: '= MARGEM OPERACIONAL (EBIT)', monthValues: mMgOp, total: totMgOp, isPos: totMgOp >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
 
   if (entNopCats.length) addSection(entNopLabel);
   buildSection(entNopCats, 'Entrada', 'Entrada Não Operacional');
   if (totEntNop > 0) {
-    rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true, refValues: mRecOp, totRef: totRecOp });
+    rows.push({ type: 'subtotal', label: `( + ) Total ${entNopLabel}`, monthValues: mEntNop, total: totEntNop, isPos: true, refValues: mRecLiq, totRef: totRecLiq });
   }
 
   if (despNopCats.length) addSection(despNopLabel);
   buildSection(despNopCats, 'Saída', 'Despesa Não Operacional');
-  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false, refValues: mRecOp, totRef: totRecOp });
+  rows.push({ type: 'subtotal', label: `( − ) Total ${despNopLabel}`, monthValues: mDespNop, total: totDespNop, isPos: false, refValues: mRecLiq, totRef: totRecLiq });
 
   // ── FIX 1b: show unclassified exits so no cash movement is silently lost ───
   if (totSaidaNaoClass > 0) {
     rows.push({
       type: 'group', label: 'Saídas não classificadas', gid: 'naoclass-saida',
       monthValues: mSaidaNaoClass, total: totSaidaNaoClass, isPos: false,
-      refValues: mRecOp, totRef: totRecOp,
+      refValues: mRecLiq, totRef: totRecLiq,
     });
 
     // Drill-down: one item row per tipo not present in the plano as Custo / Despesa Operacional / Despesa Não Op.
@@ -354,17 +379,17 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
         rows.push({
           type: 'item', label, parentGid: 'naoclass-saida',
           monthValues: mv, total, isPos: false,
-          refValues: mRecOp, totRef: totRecOp, movFilter: 'Saída',
+          refValues: mRecLiq, totRef: totRecLiq, movFilter: 'Saída',
         });
       });
   }
 
   if (mode === 'competencia') {
-    rows.push({ type: 'll', label: 'LUCRO LÍQUIDO', monthValues: mLL, total: totLL, isPos: totLL >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+    rows.push({ type: 'll', label: 'LUCRO LÍQUIDO', monthValues: mLL, total: totLL, isPos: totLL >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
   } else {
     // ── FIX 2 & 4: totSaldo now = sum of (all entries − all exits) per month ──
     const totSaldo = mSaldo.reduce((a, b) => a + b, 0);
-    rows.push({ type: 'saldo', label: 'SALDO DO PERÍODO', monthValues: mSaldo, total: totSaldo, isPos: totSaldo >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+    rows.push({ type: 'saldo', label: 'SALDO DO PERÍODO', monthValues: mSaldo, total: totSaldo, isPos: totSaldo >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
 
     // Ajuste Mensal cadastrado em Saldos Iniciais — antes só entrava (invisível) no
     // Saldo Acumulado; agora aparece como linha própria, para o usuário conseguir ver
@@ -376,12 +401,12 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     }
 
     const lastAcum = mAcum[mAcum.length - 1] || 0;
-    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0, showPct: true, refValues: mRecOp, totRef: totRecOp });
+    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
   }
 
   return {
     rows, visMonths, year,
-    mRec, mRecOp, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
-    totRec, totRecOp, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
+    mRec, mRecOp, mDeducao, mRecLiq, mCost, mDespOp, mDespNop, mEntNop, mMgB, mMgOp, mLL, mSaldo, mAcum,
+    totRec, totRecOp, totDeducao, totRecLiq, totCost, totDespOp, totDespNop, totEntNop, totMgB, totMgOp, totLL,
   };
 }

@@ -166,7 +166,7 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
   // vertical scroll the header has nothing to stick against.
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
-      <div className="flex items-center justify-between gap-3 mb-1.5 px-0.5 flex-wrap flex-shrink-0">
+      <div className="flex items-center justify-between gap-3 mb-1.5 px-4 flex-wrap flex-shrink-0">
         <div className="flex items-center gap-1 flex-wrap">
           {PERIOD_OPTIONS.map(opt => (
             <button

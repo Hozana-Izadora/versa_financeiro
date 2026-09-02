@@ -57,7 +57,7 @@ function MarginCard({ label, value, base, color, lines, info }) {
 }
 
 export default function MarginsPanel({ dre }) {
-  const { totRecOp, totCost, totMgB, totDespOp, totMgOp, totEntNop, totDespNop, totLL } = dre;
+  const { totRecOp, totDeducao, totRecLiq, totCost, totMgB, totDespOp, totMgOp, totEntNop, totDespNop, totLL } = dre;
 
   if (totRecOp === 0) return null;
 
@@ -74,26 +74,30 @@ export default function MarginsPanel({ dre }) {
         <MarginCard
           label="Margem Bruta"
           value={totMgB}
-          base={totRecOp}
+          base={totRecLiq}
           color="#10b981"
           lines={[
             `Receita Operacional: ${fmt(totRecOp)}`,
-            `(−) Custos Diretos: ${fmtPct(pct(totCost, totRecOp))} · ${fmt(totCost)}`,
+            ...(totDeducao > 0 ? [
+              `(−) Deduções de Receita: ${fmtPct(pct(totDeducao, totRecOp))} · ${fmt(totDeducao)}`,
+              `(=) Receita Líquida: ${fmt(totRecLiq)}`,
+            ] : []),
+            `(−) Custos Diretos: ${fmtPct(pct(totCost, totRecLiq))} · ${fmt(totCost)}`,
           ]}
           info={{
             title: 'Margem Bruta',
-            description: 'Receita Bruta menos os Custos Diretos (mercadorias, serviços e produção).\n\nFórmula: Receita − Custos Diretos\n\nMede quanto sobra da receita depois de pagar o que foi diretamente consumido para gerar o produto/serviço.',
+            description: 'Receita Líquida (Receita Bruta menos Deduções de Receita, quando houver) menos os Custos Diretos (mercadorias, serviços e produção).\n\nFórmula: Receita Líquida − Custos Diretos\n\nMede quanto sobra da receita depois de pagar o que foi diretamente consumido para gerar o produto/serviço.',
           }}
         />
 
         <MarginCard
           label="Margem Operacional"
           value={totMgOp}
-          base={totRecOp}
+          base={totRecLiq}
           color="#2563eb"
           lines={[
-            `Margem Bruta: ${fmtPct(pct(totMgB, totRecOp))}`,
-            `(−) Desp. Operacionais: ${fmtPct(pct(totDespOp, totRecOp))} · ${fmt(totDespOp)}`,
+            `Margem Bruta: ${fmtPct(pct(totMgB, totRecLiq))}`,
+            `(−) Desp. Operacionais: ${fmtPct(pct(totDespOp, totRecLiq))} · ${fmt(totDespOp)}`,
           ]}
           info={{
             title: 'Margem Operacional (EBIT)',
@@ -104,12 +108,12 @@ export default function MarginsPanel({ dre }) {
         <MarginCard
           label="Resultado Líquido"
           value={totLL}
-          base={totRecOp}
+          base={totRecLiq}
           color="#7c3aed"
           lines={[
-            `Margem Op.: ${fmtPct(pct(totMgOp, totRecOp))}`,
-            ...(totEntNop > 0 ? [`(+) Ent. Não Op.: ${fmtPct(pct(totEntNop, totRecOp))}`] : []),
-            ...(totDespNop > 0 ? [`(−) Desp. Não Op.: ${fmtPct(pct(totDespNop, totRecOp))}`] : []),
+            `Margem Op.: ${fmtPct(pct(totMgOp, totRecLiq))}`,
+            ...(totEntNop > 0 ? [`(+) Ent. Não Op.: ${fmtPct(pct(totEntNop, totRecLiq))}`] : []),
+            ...(totDespNop > 0 ? [`(−) Desp. Não Op.: ${fmtPct(pct(totDespNop, totRecLiq))}`] : []),
           ]}
           info={{
             title: 'Resultado Líquido',
