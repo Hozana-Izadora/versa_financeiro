@@ -126,6 +126,8 @@ export const api = {
   // Auth — switch between companies without a full re-login
   myClients:    ()          => req('/api/auth/my-clients'),
   switchClient: (clientId)  => req('/api/auth/switch-client', { method: 'POST', ...json({ clientId }) }),
+  changePassword: (currentPassword, newPassword) =>
+    req('/api/auth/password', { method: 'PUT', ...json({ currentPassword, newPassword }) }),
 
   // Roles (funções de acesso)
   adminListRoles:   (clientId)       => req(clientId ? `/api/admin/roles?clientId=${clientId}` : '/api/admin/roles'),

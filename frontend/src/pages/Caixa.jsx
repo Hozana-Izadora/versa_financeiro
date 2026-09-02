@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { staggerContainer } from '../lib/utils.js';
 import {
@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { buildDRE } from '../utils/dreBuilder.js';
-import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonths, linearTrend, matchesCostCenter } from '../utils/formatters.js';
+import { MONTHS, fmt, fmtK, fmtPct, pct, getAvailableMonthsWithAjustes, linearTrend, matchesCostCenter } from '../utils/formatters.js';
 import DreTable from '../components/dre/DreTable.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import ChartModal from '../components/ui/ChartModal.jsx';
@@ -45,7 +45,7 @@ const KPI_TONE = {
   '#8b5cf6': 'purple',
 };
 
-function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp }) {
+function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cmp, labelNoWrap }) {
   const cmpDelta = cmp != null && rawValue != null && Math.abs(cmp.prev) > 0.01
     ? ((rawValue - cmp.prev) / Math.abs(cmp.prev) * 100) : null;
   const cmpUp = cmp != null && rawValue != null ? rawValue >= cmp.prev : null;
@@ -53,7 +53,7 @@ function CNode({ label, value, sub, color, result, delta, deltaDir, rawValue, cm
   const tone = KPI_TONE[color];
   return (
     <div className={`kpi-card flex-1 min-w-0 ${result ? 'kpi-result' : ''} ${tone ? `kpi-tone-${tone}` : ''}`}>
-      <div className="text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5">{label}</div>
+      <div className={`text-[10px] uppercase tracking-[1.2px] text-text-3 mb-1.5 min-h-[3em] ${labelNoWrap ? 'whitespace-nowrap' : ''}`}>{label}</div>
       <div className="font-inter font-bold text-[20px] tracking-tight mb-0.5" style={{ color }}>{value}</div>
       <div className="text-[11px] text-text-3">{sub}</div>
       {delta && (
@@ -106,6 +106,13 @@ export default function Caixa() {
   const [showPct, setShowPct] = useState(true);
   const [subTab, setSubTab] = useState(0);
 
+  // Volta direto para a sub-aba do Demonstrativo ao retornar de um drill-down em Lançamentos.
+  useEffect(() => {
+    if (state.pendingSubTab == null) return;
+    setSubTab(state.pendingSubTab);
+    actions.dispatch({ type: 'SET_PENDING_SUBTAB', payload: null });
+  }, [state.pendingSubTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const subtabs = [
     canSubtab('caixa', 'subtab_overview') && { idx: 0, label: 'Visão Geral' },
     canSubtab('caixa', 'subtab_dre')      && { idx: 1, label: 'Demonstrativo' },
@@ -139,9 +146,9 @@ export default function Caixa() {
 
   const visMonths = useMemo(() => {
     if (filterState.months.size > 0) return [...filterState.months].sort((a, b) => a - b);
-    const avail = getAvailableMonths(tx, filterState.year);
+    const avail = getAvailableMonthsWithAjustes(tx, filterState.year, saldosIniciais);
     return avail.length ? avail : [new Date().getMonth()];
-  }, [tx, filterState]);
+  }, [tx, filterState, saldosIniciais]);
 
   const dre = useMemo(() =>
     buildDRE(filteredTx, plano, visMonths, 'caixa', filterState, saldosIniciais, tx),
@@ -203,7 +210,7 @@ export default function Caixa() {
   // ── Per-chart filter hooks ────────────────────────────────────────
   const recCF   = useChartFilter(tx, filterState);
   const flowCF  = useChartFilter(tx, filterState);
-  const acumCF  = useChartFilter(tx, filterState);
+  const acumCF  = useChartFilter(tx, filterState, saldosIniciais);
   const cicloCF = useChartFilter(tx, filterState);
   const margCF  = useChartFilter(tx, filterState);
   const drillCF = useChartFilter(tx, filterState);
@@ -325,11 +332,11 @@ export default function Caixa() {
     [cicloCF.effectiveVisMonths, cicloSeries, cicloSeriesPrev, compareYear]);
 
   const moCaixaPct = useMemo(() =>
-    margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRecOp[i] > 0 ? +(v / margDreCaixa.mRecOp[i] * 100).toFixed(1) : 0),
+    margDreCaixa.mMgOp.map((v, i) => margDreCaixa.mRecLiq[i] > 0 ? +(v / margDreCaixa.mRecLiq[i] * 100).toFixed(1) : 0),
     [margDreCaixa]);
 
   const moCompPct = useMemo(() =>
-    margDreComp.mMgOp.map((v, i) => margDreComp.mRecOp[i] > 0 ? +(v / margDreComp.mRecOp[i] * 100).toFixed(1) : 0),
+    margDreComp.mMgOp.map((v, i) => margDreComp.mRecLiq[i] > 0 ? +(v / margDreComp.mRecLiq[i] * 100).toFixed(1) : 0),
     [margDreComp]);
 
   const margCompChartData = useMemo(() => {
@@ -340,10 +347,10 @@ export default function Caixa() {
       'Mg. Op. Caixa':       moCaixaPct[i],
       'Mg. Op. Competência': moCompPct[i],
       ...(!isOvr && drePrev && drePrevComp ? {
-        [`Mg. Caixa ${compareYear}`]: drePrev.mRecOp[i] > 0
-          ? +(drePrev.mMgOp[i] / drePrev.mRecOp[i] * 100).toFixed(1) : 0,
-        [`Mg. Comp. ${compareYear}`]: drePrevComp.mRecOp[i] > 0
-          ? +(drePrevComp.mMgOp[i] / drePrevComp.mRecOp[i] * 100).toFixed(1) : 0,
+        [`Mg. Caixa ${compareYear}`]: drePrev.mRecLiq[i] > 0
+          ? +(drePrev.mMgOp[i] / drePrev.mRecLiq[i] * 100).toFixed(1) : 0,
+        [`Mg. Comp. ${compareYear}`]: drePrevComp.mRecLiq[i] > 0
+          ? +(drePrevComp.mMgOp[i] / drePrevComp.mRecLiq[i] * 100).toFixed(1) : 0,
       } : {}),
     }));
   }, [margCF.isOverriding, margCF.effectiveVisMonths, visMonths, moCaixaPct, moCompPct, compareYear, drePrev, drePrevComp]);
@@ -352,7 +359,7 @@ export default function Caixa() {
   function renderRec(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVRec)} width="100%" height={h}>
         <LineChart data={recChartData} margin={{ top: showVRec ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -360,7 +367,7 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Receita Bruta" type="monotone" stroke="rgba(16,185,129,1)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(16,185,129,1)' }} activeDot={{ r: 5 }}>
-            {showVRec && <LabelList dataKey="Receita Bruta" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+            {showVRec && <LabelList dataKey="Receita Bruta" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#10b981' }} />}
           </Line>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
           {!recCF.isOverriding && drePrev && (
@@ -374,7 +381,7 @@ export default function Caixa() {
   function renderFlow(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVFlow)} width="100%" height={h}>
         <ComposedChart data={flowChartData} margin={{ top: showVFlow ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -382,13 +389,13 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="Entradas" fill="rgba(16,185,129,.7)" radius={[4, 4, 0, 0]}>
-            {showVFlow && <LabelList dataKey="Entradas" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+            {showVFlow && <LabelList dataKey="Entradas" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#10b981' }} />}
           </Bar>
           <Bar dataKey="Saídas" fill="rgba(239,68,68,.7)" radius={[4, 4, 0, 0]}>
-            {showVFlow && <LabelList dataKey="Saídas" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#ef4444' }} />}
+            {showVFlow && <LabelList dataKey="Saídas" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#ef4444' }} />}
           </Bar>
           <Line dataKey="Saldo" type="monotone" stroke="rgba(59,130,246,.9)" strokeWidth={2} dot={{ r: 4, fill: 'rgba(59,130,246,1)' }} activeDot={{ r: 5 }}>
-            {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(59,130,246,.9)' }} />}
+            {showVFlow && <LabelList dataKey="Saldo" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(59,130,246,.9)' }} />}
           </Line>
           {!flowCF.isOverriding && drePrev && (
             <>
@@ -405,7 +412,7 @@ export default function Caixa() {
   function renderAcum(h) {
     const lbl = v => Math.abs(v) > 0.01 ? fmtK(v) : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVAcum)} width="100%" height={h}>
         <ComposedChart data={acumChartData} margin={{ top: showVAcum ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -413,7 +420,7 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => fmt(v)} />} />
           <Legend {...legendStyle} />
           <Area dataKey="Acumulado" type="monotone" stroke="rgba(16,185,129,1)" fill="rgba(16,185,129,.12)" strokeWidth={2} dot={{ r: 5, fill: 'rgba(16,185,129,1)' }}>
-            {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#10b981' }} />}
+            {showVAcum && <LabelList dataKey="Acumulado" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#10b981' }} />}
           </Area>
           <Line dataKey="Tendência" type="monotone" stroke="rgba(59,130,246,.6)" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
           {!acumCF.isOverriding && drePrev && (
@@ -427,7 +434,7 @@ export default function Caixa() {
   function renderCiclo(h) {
     const lbl = v => v > 0 ? `${Math.round(v)}d` : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVCiclo)} width="100%" height={h}>
         <ComposedChart data={cicloChartData} margin={{ top: showVCiclo ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -435,13 +442,13 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => v != null ? `${v} dias` : 'N/A'} />} />
           <Legend {...legendStyle} />
           <Bar dataKey="PMR — Recebimento" fill="rgba(109,191,69,.7)" radius={[4, 4, 0, 0]}>
-            {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(109,191,69,1)' }} />}
+            {showVCiclo && <LabelList dataKey="PMR — Recebimento" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(109,191,69,1)' }} />}
           </Bar>
           <Bar dataKey="PMP — Pagamento" fill="rgba(43,108,176,.7)" radius={[4, 4, 0, 0]}>
-            {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 11, fill: 'rgba(43,108,176,1)' }} />}
+            {showVCiclo && <LabelList dataKey="PMP — Pagamento" position="top" formatter={lbl} style={{ fontSize: 13, fill: 'rgba(43,108,176,1)' }} />}
           </Bar>
           <Line dataKey="Ciclo Financeiro" type="monotone" stroke="#E53E3E" strokeWidth={2.5} dot={{ r: 4, fill: '#E53E3E' }} activeDot={{ r: 5 }}>
-            {showVCiclo && <LabelList dataKey="Ciclo Financeiro" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#E53E3E' }} />}
+            {showVCiclo && <LabelList dataKey="Ciclo Financeiro" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#E53E3E' }} />}
           </Line>
           {cicloSeriesPrev && (
             <>
@@ -458,7 +465,7 @@ export default function Caixa() {
   function renderMargComp(h) {
     const lbl = v => v !== 0 ? v + '%' : '';
     return (
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer key={String(showVMarg)} width="100%" height={h}>
         <LineChart data={margCompChartData} margin={{ top: showVMarg ? 22 : 4, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid {...gridProps} />
           <XAxis dataKey="month" {...axisProps} />
@@ -466,10 +473,10 @@ export default function Caixa() {
           <RcTooltip content={<ChartTip formatter={v => v + '%'} />} />
           <Legend {...legendStyle} />
           <Line dataKey="Mg. Op. Caixa" type="monotone" stroke="#6DBF45" strokeWidth={2.5} dot={{ r: 4, fill: '#6DBF45' }} activeDot={{ r: 5 }}>
-            {showVMarg && <LabelList dataKey="Mg. Op. Caixa" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#6DBF45' }} />}
+            {showVMarg && <LabelList dataKey="Mg. Op. Caixa" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#6DBF45' }} />}
           </Line>
           <Line dataKey="Mg. Op. Competência" type="monotone" stroke="#2B6CB0" strokeWidth={2.5} dot={{ r: 4, fill: '#2B6CB0' }} activeDot={{ r: 5 }}>
-            {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 11, fill: '#2B6CB0' }} />}
+            {showVMarg && <LabelList dataKey="Mg. Op. Competência" position="top" formatter={lbl} style={{ fontSize: 13, fill: '#2B6CB0' }} />}
           </Line>
           {!margCF.isOverriding && drePrev && drePrevComp && (
             <>
@@ -482,8 +489,8 @@ export default function Caixa() {
     );
   }
 
-  function openModal(title, element) {
-    setModalChart({ title, element });
+  function openModal(title, element, opts) {
+    setModalChart({ title, element, ...opts });
   }
 
   function exportDRE() {
@@ -510,16 +517,22 @@ export default function Caixa() {
           {/* ── Cascade ── */}
           <div className="kpi-cascade mb-3.5">
             <CNode label="Entrada Operacional" value={fmtK(dre.totRecOp)} rawValue={dre.totRecOp} sub={`${visMonths.length} mês(es)`} color="#10b981" cmp={cmpNode(drePrev?.totRecOp)} />
+            {dre.totDeducao > 0 && <>
+              <CSep symbol="−" />
+              <CNode label="Deduções de Receita" value={fmtK(dre.totDeducao)} rawValue={dre.totDeducao} sub={fmtPct(pct(dre.totDeducao, dre.totRecLiq)) + ' da receita'} color="#fbbf24" cmp={cmpNode(drePrev?.totDeducao, false)} />
+              <CSep symbol="=" />
+              <CNode result label="Receita Líquida" value={fmtK(dre.totRecLiq)} rawValue={dre.totRecLiq} sub={fmtPct(pct(dre.totRecLiq, dre.totRecOp)) + ' da receita bruta'} color="#10b981" cmp={cmpNode(drePrev?.totRecLiq)} />
+            </>}
             <CSep symbol="−" />
-            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecOp)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
+            <CNode label="Custos Diretos" value={fmtK(dre.totCost)} rawValue={dre.totCost} sub={fmtPct(pct(dre.totCost, dre.totRecLiq)) + ' da receita'} color="#ef4444" cmp={cmpNode(drePrev?.totCost, false)} />
             <CSep symbol="−" />
-            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecOp)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
+            <CNode label="Desp. Operacionais" value={fmtK(dre.totDespOp)} rawValue={dre.totDespOp} sub={fmtPct(pct(dre.totDespOp, dre.totRecLiq)) + ' da receita'} color="#f59e0b" cmp={cmpNode(drePrev?.totDespOp, false)} />
             <CSep symbol="=" />
-            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecOp)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
+            <CNode result label="Caixa Operacional" value={fmtK(dre.totMgOp)} rawValue={dre.totMgOp} sub={fmtPct(pct(dre.totMgOp, dre.totRecLiq)) + ' de margem'} color={dre.totMgOp >= 0 ? '#2563eb' : '#ef4444'} cmp={cmpNode(drePrev?.totMgOp)} />
             <CSep symbol="+" />
-            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecOp)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
+            <CNode label="Entradas Não Op." value={fmtK(dre.totEntNop)} rawValue={dre.totEntNop} sub={fmtPct(pct(dre.totEntNop, dre.totRecLiq)) + ' da receita'} color="#10b981" cmp={cmpNode(drePrev?.totEntNop)} />
             <CSep symbol="−" />
-            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecOp)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
+            <CNode label="Saídas Não Op." value={fmtK(dre.totDespNop)} rawValue={dre.totDespNop} sub={fmtPct(pct(dre.totDespNop, dre.totRecLiq)) + ' da receita'} color="#8b5cf6" cmp={cmpNode(drePrev?.totDespNop, false)} />
             <CSep symbol="=" />
             <CNode result label="Saldo do Período" value={fmtK(totSaldo)} rawValue={totSaldo} sub={totSaldo >= 0 ? 'Resultado positivo' : 'Resultado negativo'} color={totSaldo >= 0 ? '#10b981' : '#ef4444'}
               delta={dre.mSaldo.length > 1 ? fmtPct(pct(dre.mSaldo[dre.mSaldo.length - 1] - dre.mSaldo[dre.mSaldo.length - 2], Math.abs(dre.mSaldo[dre.mSaldo.length - 2] || 1))) + ' vs mês ant.' : undefined}
@@ -670,7 +683,7 @@ export default function Caixa() {
           <div className="panel-hdr">
             <div>
               <div className="font-inter font-semibold text-[13px]">Demonstrativo do Fluxo de Caixa Estruturado (DFCE)</div>
-              <div className="text-[10px] text-text-3 mt-0.5">Clique nos grupos para recolher · Clique nos itens para ver lançamentos</div>
+              <div className="text-[10px] text-text-3 mt-0.5">Clique para expandir/recolher · duplo clique para ver lançamentos</div>
             </div>
             <div className="flex gap-2 items-center flex-wrap justify-end">
               <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
@@ -686,6 +699,15 @@ export default function Caixa() {
               <button className="btn btn-ghost btn-sm" onClick={exportDRE}>
                 <Icon name="download" size="text-[14px]" /> Exportar
               </button>
+              <span
+                className="text-[9.5px] text-text-3 cursor-pointer"
+                onClick={() => openModal('Demonstrativo — Caixa', (
+                  <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null} regime="Caixa"
+                    onDrillItem={actions.goToLancamentos}
+                    onDrillGroup={actions.goToLancamentos}
+                    maxHeight="100%" />
+                ), { wide: true })}
+              >⤢ ampliar</span>
             </div>
           </div>
           <DreTable dre={dre} showPct={showPct} filterCat={filterCat || null} regime="Caixa"

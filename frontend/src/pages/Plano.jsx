@@ -8,12 +8,25 @@ import Icon from '../components/ui/Icon.jsx';
 const NIVEL_CONFIG = {
   'Receita':                 { group: 'Entradas',             color: '#10b981', bg: 'rgba(16,185,129,0.13)',  desc: 'Valores recebidos pela atividade principal da empresa' },
   'Entrada Não Operacional': { group: 'Entradas',             color: '#06b6d4', bg: 'rgba(6,182,212,0.13)',   desc: 'Receitas financeiras ou não relacionadas à operação' },
+  'Dedução de Receita':      { group: 'Deduções de Receita',  color: '#fbbf24', bg: 'rgba(251,191,36,0.13)',  desc: 'Impostos sobre vendas, devoluções e descontos incondicionais — abatidos da Receita Bruta antes do Custo' },
   'Custo':                   { group: 'Gasto Operacional',    color: '#f97316', bg: 'rgba(249,115,22,0.13)',  desc: 'Custo direto do produto ou serviço vendido (CMV, CSP)' },
   'Despesa Operacional':     { group: 'Gasto Operacional',    color: '#f59e0b', bg: 'rgba(245,158,11,0.13)',  desc: 'Gastos de estrutura e funcionamento da empresa' },
   'Despesa Não Operacional': { group: 'Gasto Não Operacional',color: '#8b5cf6', bg: 'rgba(139,92,246,0.13)', desc: 'Financeiro, tributário ou eventual (IR, juros, multas)' },
 };
 
 const NIVEL_GROUPS = [
+  {
+    label: 'Entradas',
+    icon: 'payments',
+    hint: 'Receitas operacionais e não operacionais',
+    niveis: ['Receita', 'Entrada Não Operacional'],
+  },
+  {
+    label: 'Deduções de Receita',
+    icon: 'remove_circle_outline',
+    hint: 'Abatimentos sobre a Receita Bruta — aparece entre Receita e Custos no demonstrativo',
+    niveis: ['Dedução de Receita'],
+  },
   {
     label: 'Gasto Operacional',
     icon: 'trending_up',
@@ -25,12 +38,6 @@ const NIVEL_GROUPS = [
     icon: 'account_balance',
     hint: 'Gastos financeiros, tributários e eventuais',
     niveis: ['Despesa Não Operacional'],
-  },
-  {
-    label: 'Entradas',
-    icon: 'payments',
-    hint: 'Receitas operacionais e não operacionais',
-    niveis: ['Receita', 'Entrada Não Operacional'],
   },
 ];
 

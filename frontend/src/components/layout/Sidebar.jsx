@@ -4,7 +4,9 @@ import { useApp } from '../../context/AppContext.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { usePermissions } from '../../hooks/usePermissions.js';
 import { api } from '../../api/index.js';
+import { confirmDialog } from '../../utils/alerts.js';
 import Icon from '../ui/Icon.jsx';
+import ChangePasswordModal from '../ui/ChangePasswordModal.jsx';
 import logo from '../../assets/logo.jpeg';
 
 const NAV_ITEMS = [
@@ -42,6 +44,17 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
   const [switching, setSwitching]   = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef();
+
+  // ── User "more options" menu (Trocar senha, …) ────────────────────────
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef();
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function onDown(e) { if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false); }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [userMenuOpen]);
 
   useEffect(() => {
     if (!user?.clientId) return;
@@ -81,6 +94,11 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
   const handleNav = (id) => { actions.setPage(id); setMobileOpen(false); };
+
+  async function handleLogout() {
+    if (!await confirmDialog('Deseja realmente sair?', { confirmText: 'Sair' })) return;
+    logout();
+  }
 
   let navIndex = 0;
 
@@ -394,67 +412,126 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
           padding: collapsed ? '10px 4px 12px' : '10px 12px 12px',
           borderTop: darkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.07)',
           display: 'flex',
-          alignItems: 'center',
-          gap: 9,
+          flexDirection: 'column',
+          gap: 8,
           flexShrink: 0,
-          flexDirection: collapsed ? 'column' : 'row',
         }}>
-          {/* Avatar */}
-          <div style={{
-            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 800, color: '#fff',
-          }}>
-            {initials}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexDirection: collapsed ? 'column' : 'row' }}>
+            {/* Avatar */}
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800, color: '#fff',
+            }}>
+              {initials}
+            </div>
+
+            {!collapsed && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#fff' : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user?.displayName || user?.email}
+                </div>
+                <div style={{ fontSize: 10, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.42)', marginTop: 1 }}>
+                  {user?.isSuperAdmin ? 'Administrador' : 'Usuário'}
+                </div>
+              </div>
+            )}
+
+            {/* "…" more options menu */}
+            <div ref={userMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                onClick={() => setUserMenuOpen(v => !v)}
+                title="Mais opções"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)', display: 'flex', flexShrink: 0, transition: 'color .15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = darkMode ? '#fff' : '#111827'}
+                onMouseLeave={e => e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)'}
+              >
+                <Icon name="more_vert" size="text-[16px]" />
+              </button>
+
+              <AnimatePresence>
+                {userMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.15 }}
+                    style={{
+                      position: 'absolute',
+                      ...(collapsed ? { left: '100%', bottom: 0, marginLeft: 6 } : { bottom: '100%', right: 0, marginBottom: 6 }),
+                      background: darkMode ? '#21262d' : '#fff',
+                      border: darkMode ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(0,0,0,0.10)',
+                      borderRadius: 8,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                      padding: 4,
+                      minWidth: 160,
+                      zIndex: 200,
+                    }}
+                  >
+                    <button
+                      onClick={() => { setUserMenuOpen(false); actions.openModal(<ChangePasswordModal />); }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 8px', borderRadius: 6, border: 'none', textAlign: 'left',
+                        cursor: 'pointer', fontFamily: 'inherit', fontSize: 12,
+                        background: 'transparent', color: darkMode ? '#e6edf3' : '#0f172a',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = darkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <Icon name="vpn_key" size="text-[14px]" style={{ color: darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)' }} />
+                      Trocar senha
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
-          {!collapsed && (
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: darkMode ? '#fff' : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user?.displayName || user?.email}
-              </div>
-              <div style={{ fontSize: 10, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.42)', marginTop: 1 }}>
-                {user?.isSuperAdmin ? 'Administrador' : 'Usuário'}
-              </div>
-            </div>
-          )}
-
-          {/* Dark mode toggle */}
+          {/* Logout — deliberately the most visible action in this block */}
           <button
-            onClick={actions.toggleDark}
-            title={darkMode ? 'Modo claro' : 'Modo escuro'}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)', display: 'flex', flexShrink: 0, transition: 'color .15s' }}
-            onMouseEnter={e => e.currentTarget.style.color = darkMode ? '#fff' : '#111827'}
-            onMouseLeave={e => e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)'}
-          >
-            <Icon name={darkMode ? 'light_mode' : 'dark_mode'} size="text-[16px]" />
-          </button>
-
-          {/* Logout */}
-          <button
-            onClick={logout}
+            onClick={handleLogout}
             title="Sair"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)', display: 'flex', flexShrink: 0, transition: 'color .15s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-            onMouseLeave={e => e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-start', gap: 8,
+              width: '100%', padding: '7px 10px', borderRadius: 8, cursor: 'pointer',
+              background: darkMode ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)',
+              border: darkMode ? '1px solid rgba(239,68,68,0.25)' : '1px solid rgba(239,68,68,0.18)',
+              color: '#ef4444', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+              transition: 'background .15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.20)' : 'rgba(239,68,68,0.14)'}
+            onMouseLeave={e => e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)'}
           >
-            <Icon name="logout" size="text-[16px]" />
-          </button>
-
-          {/* Collapse toggle */}
-          <button
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expandir' : 'Recolher'}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 6, color: darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)', display: 'flex', flexShrink: 0, transition: 'color .15s' }}
-            className="hidden lg:flex"
-            onMouseEnter={e => e.currentTarget.style.color = darkMode ? '#fff' : '#111827'}
-            onMouseLeave={e => e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)'}
-          >
-            <Icon name={collapsed ? 'chevron_right' : 'chevron_left'} size="text-[16px]" />
+            <Icon name="logout" size="text-[15px]" />
+            {!collapsed && <span>Sair</span>}
           </button>
         </div>
       </motion.nav>
+
+      {/* Collapse toggle — floats on the sidebar's right edge, vertically centered */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        className="hidden lg:flex"
+        style={{
+          position: 'fixed', top: '50%', left: collapsed ? 60 : 224,
+          transform: 'translate(-50%, -50%)',
+          alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, borderRadius: '50%', cursor: 'pointer',
+          background: darkMode ? '#21262d' : '#ffffff',
+          border: darkMode ? '1px solid rgba(255,255,255,0.16)' : '1px solid rgba(0,0,0,0.14)',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+          color: darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.55)',
+          transition: 'left 280ms cubic-bezier(0.4,0,0.2,1), background .15s, color .15s',
+          zIndex: 110,
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = darkMode ? '#30363d' : '#f3f4f6'; e.currentTarget.style.color = darkMode ? '#fff' : '#111827'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = darkMode ? '#21262d' : '#ffffff'; e.currentTarget.style.color = darkMode ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.55)'; }}
+      >
+        <Icon name={collapsed ? 'chevron_right' : 'chevron_left'} size="text-[13px]" />
+      </button>
     </>
   );
 }

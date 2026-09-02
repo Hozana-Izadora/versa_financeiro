@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { getAvailableMonths, matchesCostCenter } from '../utils/formatters.js';
+import { getAvailableMonthsWithAjustes, matchesCostCenter } from '../utils/formatters.js';
 
-export function useChartFilter(tx, globalFilterState) {
+export function useChartFilter(tx, globalFilterState, saldosIniciais) {
   const [override, setOverride] = useState(null);
 
   const effectiveYear   = override?.year   ?? globalFilterState.year;
@@ -19,9 +19,9 @@ export function useChartFilter(tx, globalFilterState) {
 
   const effectiveVisMonths = useMemo(() => {
     if (effectiveMonths.size > 0) return [...effectiveMonths].sort((a, b) => a - b);
-    const avail = getAvailableMonths(tx, effectiveYear);
+    const avail = getAvailableMonthsWithAjustes(tx, effectiveYear, saldosIniciais);
     return avail.length ? avail : [new Date().getMonth()];
-  }, [tx, effectiveYear, effectiveMonths]);
+  }, [tx, effectiveYear, effectiveMonths, saldosIniciais]);
 
   return {
     override,

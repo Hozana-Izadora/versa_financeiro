@@ -18,6 +18,9 @@ const initialState = {
   // Filtro a aplicar em Lançamentos quando chegamos lá vindo de um drill-down (ex:
   // clicar numa categoria do demonstrativo) — lido e limpo pela própria página.
   pendingLancamentosFilter: null,
+  // Sub-aba a selecionar assim que a página de destino montar — usado para voltar
+  // direto ao Demonstrativo depois de um drill-down para Lançamentos.
+  pendingSubTab: null,
   filterState: {
     year: new Date().getFullYear(),
     months: new Set(),
@@ -46,6 +49,8 @@ function reducer(state, action) {
       return { ...state, orcamento: action.payload };
     case 'SET_LANCAMENTOS_FILTER':
       return { ...state, pendingLancamentosFilter: action.payload };
+    case 'SET_PENDING_SUBTAB':
+      return { ...state, pendingSubTab: action.payload };
     case 'SET_PAGE':
       return {
         ...state,
@@ -94,9 +99,17 @@ export function AppProvider({ children }) {
 
   // Drill-down navigation: leva para Lançamentos já filtrado pela categoria/grupo/tipo
   // e movimento clicados no demonstrativo, em vez de cair na lista inteira sem filtro.
+  // `returnTo` guarda de onde veio (página + sub-aba do Demonstrativo), para o botão
+  // "voltar ao demonstrativo" em Lançamentos saber para onde navegar de volta.
   const goToLancamentos = useCallback((filter) => {
-    dispatch({ type: 'SET_LANCAMENTOS_FILTER', payload: filter });
+    dispatch({ type: 'SET_LANCAMENTOS_FILTER', payload: { ...filter, returnTo: { page: state.currentPage, subTab: 1 } } });
     dispatch({ type: 'SET_PAGE', payload: 'lancamentos' });
+  }, [state.currentPage]);
+
+  // Navega para outra página já selecionando uma sub-aba específica assim que ela montar.
+  const goToPage = useCallback((page, subTab) => {
+    if (subTab != null) dispatch({ type: 'SET_PENDING_SUBTAB', payload: subTab });
+    dispatch({ type: 'SET_PAGE', payload: page });
   }, []);
 
   const applyFilter = useCallback((updates) => {
@@ -157,6 +170,7 @@ export function AppProvider({ children }) {
     closeModal,
     setPage,
     goToLancamentos,
+    goToPage,
     applyFilter,
     refreshAll,
     refreshTransactions,

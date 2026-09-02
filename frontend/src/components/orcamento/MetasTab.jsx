@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { api } from '../../api/index.js';
 import InfoPopover from '../ui/InfoPopover.jsx';
 import Icon from '../ui/Icon.jsx';
@@ -393,6 +394,29 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     return ids;
   }, [gastoTree]);
 
+  // Mesmas folhas de leafNodeIds, mas com o caminho legível (Categoria/Grupo/Tipo) —
+  // usado para montar a planilha base de importação/exportação do orçamento.
+  const leafRows = useMemo(() => {
+    const rows = [];
+    (gastoTree.children ?? []).forEach(macro => {
+      (macro.children ?? []).forEach(catNode => {
+        (catNode.children ?? []).forEach(grpNode => {
+          if (grpNode.children?.length) {
+            grpNode.children.forEach(tipoNode => {
+              rows.push({ id: tipoNode.id, cat: catNode.label, grp: grpNode.label, tipo: tipoNode.label });
+            });
+          } else {
+            // Grupo com um único Tipo cadastrado: a folha é o próprio Grupo — busca o
+            // nome do Tipo no plano só para deixar a coluna "Tipo" da planilha legível.
+            const single = plano?.find(p => p.cat === catNode.label && p.grp === grpNode.label);
+            rows.push({ id: grpNode.id, cat: catNode.label, grp: grpNode.label, tipo: single?.tipo || grpNode.label });
+          }
+        });
+      });
+    });
+    return rows;
+  }, [gastoTree, plano]);
+
   const totalMetaCat = useMemo(
     () => (gastoTree.children ?? []).reduce((s, macro) => s + computeNodeTotal(macro, metaCat, metaCatPct, metaCatMode, receita), 0),
     [gastoTree, metaCat, metaCatPct, metaCatMode, receita]
@@ -533,6 +557,103 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
     }
   }
 
+  // ── Planilha base (Excel) — export/import em massa das Metas por Categoria ────
+  const fileInputRef = useRef(null);
+
+  function exportPlanilhaBase() {
+    const header = ['ID (não editar)', 'Categoria', 'Grupo', 'Tipo', ...MES12, 'Total'];
+    const rows = leafRows.map(leaf => {
+      const arr = metaCat[leaf.id] || emptyMonths();
+      const vals = MES12.map((_, m) => Number(arr[m]) || 0);
+      const total = vals.reduce((s, v) => s + v, 0);
+      return [leaf.id, leaf.cat, leaf.grp, leaf.tipo, ...vals, total];
+    });
+    // Linha de totais no rodapé: soma de cada coluna de mês (e do total geral) —
+    // é o "soma mensal em cada coluna" pedido, para servir de conferência ao preencher.
+    const totalsRow = [
+      '', '', '', 'TOTAL GERAL',
+      ...MES12.map((_, m) => rows.reduce((s, r) => s + r[4 + m], 0)),
+      rows.reduce((s, r) => s + r[16], 0),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows, totalsRow]);
+    ws['!cols'] = [
+      { wch: 4, hidden: true }, { wch: 26 }, { wch: 24 }, { wch: 24 },
+      ...MES12.map(() => ({ wch: 10 })), { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Orçamento');
+    XLSX.writeFile(wb, `orcamento-base-${year}.xlsx`);
+  }
+
+  async function importPlanilhaEntries(entries, touchedNodeIds) {
+    setSaving(true);
+    try {
+      // A planilha só grava em modo R$ — remove eventuais metas em % já salvas para as
+      // mesmas categorias, senão as duas coexistiriam e a soma contaria em dobro.
+      const legacyPct = orcamento.filter(e => e.tipo === 'meta_cat_pct' && touchedNodeIds.has(e.referencia));
+      for (const e of legacyPct) await api.deleteOrcamentoEntry(e.id);
+
+      await api.upsertOrcamento(entries.map(e => ({ ano: year, ...e })));
+      const fresh = await api.getOrcamento(year);
+      actions.dispatch({ type: 'SET_ORCAMENTO', payload: fresh });
+      actions.notify(`Planilha importada! ${touchedNodeIds.size} categoria(s) atualizada(s).`, 'ns');
+    } catch (err) {
+      actions.notify(err.message, 'ne');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleImportPlanilha(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permite selecionar o mesmo arquivo de novo depois
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        const [, ...dataRows] = aoa; // descarta o cabeçalho
+
+        const leafById = new Map(leafRows.map(l => [l.id, l]));
+        const entries = [];
+        const touchedNodeIds = new Set();
+        let unresolved = 0;
+
+        dataRows.forEach(row => {
+          const id = row[0];
+          if (id == null || String(id).trim() === '') return; // linha em branco/rodapé de total
+          if (!leafById.has(id)) { unresolved++; return; }
+          touchedNodeIds.add(id);
+          for (let m = 0; m < 12; m++) {
+            const raw = row[4 + m];
+            const valor = Number(raw);
+            if (raw !== '' && raw != null && !Number.isNaN(valor) && valor > 0) {
+              entries.push({ mes: m, tipo: 'meta_cat', referencia: id, valor });
+            }
+          }
+        });
+
+        if (!entries.length) {
+          actions.notify(
+            unresolved ? `Nenhum valor reconhecido (${unresolved} linha(s) não identificada(s) — a coluna ID foi alterada?).` : 'Planilha sem valores para importar.',
+            'ne'
+          );
+          return;
+        }
+
+        importPlanilhaEntries(entries, touchedNodeIds).then(() => {
+          if (unresolved) actions.notify(`${unresolved} linha(s) da planilha não foram reconhecidas e não entraram na importação.`, 'ni');
+        });
+      } catch (err) {
+        actions.notify('Não foi possível ler a planilha: ' + err.message, 'ne');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   function saveCenarios() {
     const entries = DELTA_DEFS
       .filter(def => parseFloat(deltas[def.key]) > 0)
@@ -671,9 +792,29 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
               <div className="text-[10px] text-text-3 mt-0.5">Meta mês a mês (R$) por categoria, grupo ou tipo do plano de contas</div>
             </div>
           </div>
-          <button onClick={saveMetaCategorias} disabled={saving} className={btnCls}>
-            {saving ? 'Salvando…' : 'Salvar Metas por Categoria'}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <input type="file" ref={fileInputRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportPlanilha} />
+            <button
+              type="button"
+              onClick={exportPlanilhaBase}
+              title="Baixa uma planilha Excel com uma linha por categoria e uma coluna por mês, para preencher e importar de volta"
+              className="btn text-[11px] px-3 py-1.5 cursor-pointer flex items-center gap-1"
+            >
+              <Icon name="download" size="text-[13px]" /> Planilha base
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={saving}
+              title="Importa uma planilha preenchida (mesmo formato da planilha base) para atualizar as metas em massa"
+              className="btn text-[11px] px-3 py-1.5 cursor-pointer flex items-center gap-1"
+            >
+              <Icon name="upload_file" size="text-[13px]" /> Importar
+            </button>
+            <button onClick={saveMetaCategorias} disabled={saving} className={btnCls}>
+              {saving ? 'Salvando…' : 'Salvar Metas por Categoria'}
+            </button>
+          </div>
         </div>
 
         <div className="p-4 space-y-4">

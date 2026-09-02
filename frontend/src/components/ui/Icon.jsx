@@ -7,7 +7,8 @@ import {
   ArrowLeftRight, AlertCircle, FolderOpen, CheckCircle2, Dices, ListX,
   Trash, RefreshCw, Check, History, SlidersHorizontal, XCircle, ArrowLeft,
   Eye, EyeOff, Mail, Lock, Unlock, LogIn, Building2, ShieldCheck, UserPlus, Users,
-  MinusCircle, Target, Search, Columns3, ExternalLink, Copy,
+  MinusCircle, Target, Search, Columns3, ExternalLink, Copy, KeyRound,
+  MoreVertical,
 } from 'lucide-react';
 
 const MAP = {
@@ -47,6 +48,8 @@ const MAP = {
   visibility_off: EyeOff,
   mail: Mail,
   lock: Lock,
+  vpn_key: KeyRound,
+  more_vert: MoreVertical,
   lock_open: Unlock,
   login: LogIn,
   person_add: UserPlus,

@@ -13,8 +13,8 @@ const PAGE_INFO = {
 };
 
 export default function Topbar({ onMenuClick }) {
-  const { state } = useApp();
-  const { currentPage } = state;
+  const { state, actions } = useApp();
+  const { currentPage, darkMode } = state;
   const info = PAGE_INFO[currentPage] || {};
 
   return (
@@ -70,17 +70,17 @@ export default function Topbar({ onMenuClick }) {
       {/* Divider */}
       <div className="flex-1" />
 
-      {/* Right area — breadcrumb / env */}
-      {/* <div
-        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9ca3af', fontFamily: 'Geist Mono, monospace' }}
-        className="hidden md:flex"
+      {/* Dark mode toggle */}
+      <button
+        onClick={actions.toggleDark}
+        title={darkMode ? 'Modo claro' : 'Modo escuro'}
+        className="flex-shrink-0 flex items-center justify-center text-text-3 hover:text-text-base transition-colors"
+        style={{ width: 32, height: 32, borderRadius: 8, background: 'transparent', border: 'none', cursor: 'pointer' }}
+        onMouseEnter={e => e.currentTarget.style.background = darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       >
-        <div style={{
-          width: 6, height: 6, borderRadius: '50%', background: '#10b981',
-          boxShadow: '0 0 6px rgba(16,185,129,0.6)',
-        }} />
-        Ao vivo
-      </div> */}
+        <Icon name={darkMode ? 'light_mode' : 'dark_mode'} size="text-[17px]" />
+      </button>
     </div>
   );
 }
