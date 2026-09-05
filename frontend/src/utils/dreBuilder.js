@@ -278,6 +278,11 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
   if (entradaCats.length) addSection(entradaLabel);
   buildSection(entradaCats, 'Entrada', 'Receita');
   // ── FIX 1a: show unclassified entries so detail rows sum to the total ──────
+  // These items skip the Grupo layer, attaching straight to the Categoria (gid) — the
+  // synthetic parentSid below gives DreTable's "recolher por Tipo" its own id to hide
+  // them by, independent from "recolher por Grupo" (which folds the gid itself). Sharing
+  // the gid between both levels would make expanding one level accidentally re-reveal
+  // rows the other level had folded.
   if (totEntNaoClass > 0) {
     rows.push({
       type: 'group', label: 'Entradas não classificadas', gid: 'naoclass-ent',
@@ -308,7 +313,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
       .sort((a, b) => b.total - a.total)
       .forEach(({ label, mv, total }) => {
         rows.push({
-          type: 'item', label, parentGid: 'naoclass-ent',
+          type: 'item', label, parentGid: 'naoclass-ent', parentSid: 'naoclass-ent::__tipo__',
           monthValues: mv, total, isPos: true,
           refValues: mRecLiq, totRef: totRecLiq, movFilter: 'Entrada',
         });
@@ -377,7 +382,7 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
       .sort((a, b) => b.total - a.total)
       .forEach(({ label, mv, total }) => {
         rows.push({
-          type: 'item', label, parentGid: 'naoclass-saida',
+          type: 'item', label, parentGid: 'naoclass-saida', parentSid: 'naoclass-saida::__tipo__',
           monthValues: mv, total, isPos: false,
           refValues: mRecLiq, totRef: totRecLiq, movFilter: 'Saída',
         });
@@ -401,7 +406,9 @@ export function buildDRE(tx, plano, visMonths, mode, filterState, saldosIniciais
     }
 
     const lastAcum = mAcum[mAcum.length - 1] || 0;
-    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0, showPct: true, refValues: mRecLiq, totRef: totRecLiq });
+    // Sem showPct: Saldo Acumulado é uma "foto" (saldo em caixa até aquele mês), não um
+    // fluxo do período — % da Receita Líquida não tem leitura útil aqui.
+    rows.push({ type: 'saldo-acum', label: 'SALDO ACUMULADO', monthValues: mAcum, total: lastAcum, isPos: lastAcum >= 0, refValues: mRecLiq, totRef: totRecLiq });
   }
 
   return {
