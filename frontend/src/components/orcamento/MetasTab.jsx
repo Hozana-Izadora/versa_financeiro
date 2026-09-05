@@ -618,34 +618,57 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
         const [, ...dataRows] = aoa; // descarta o cabeçalho
 
         const leafById = new Map(leafRows.map(l => [l.id, l]));
+        // O ID da planilha é um slug do nome (Categoria/Grupo/Tipo) gerado na exportação,
+        // não uma chave fixa do banco — se o Plano de Contas mudar depois (renomear,
+        // mesclar/dividir um Grupo), o ID antigo fica obsoleto mesmo a linha continuando
+        // "a mesma" pro usuário. Esse índice por caminho legível é o fallback: pega o
+        // caso mais comum, em que só a forma do nó mudou (um Grupo com 1 Tipo virou uma
+        // folha própria, por exemplo) mas Categoria/Grupo/Tipo continuam com o texto
+        // idêntico ao de quando a planilha foi gerada.
+        const leafByPath = new Map(leafRows.map(l => [`${l.cat}|||${l.grp}|||${l.tipo}`, l]));
         const entries = [];
         const touchedNodeIds = new Set();
         let unresolved = 0;
+        let matchedByName = 0;
 
         dataRows.forEach(row => {
           const id = row[0];
           if (id == null || String(id).trim() === '') return; // linha em branco/rodapé de total
-          if (!leafById.has(id)) { unresolved++; return; }
-          touchedNodeIds.add(id);
+          let leaf = leafById.get(id);
+          if (!leaf) {
+            leaf = leafByPath.get(`${row[1]}|||${row[2]}|||${row[3]}`);
+            if (leaf) matchedByName++;
+          }
+          if (!leaf) { unresolved++; return; }
+          // Salva sempre com o id ATUAL da folha — no caso do fallback por nome, o id do
+          // arquivo já está obsoleto; gravar com ele quebraria a exibição nas Metas/
+          // Acompanhamento, que buscam pelo id corrente da árvore.
+          touchedNodeIds.add(leaf.id);
           for (let m = 0; m < 12; m++) {
             const raw = row[4 + m];
             const valor = Number(raw);
-            if (raw !== '' && raw != null && !Number.isNaN(valor) && valor > 0) {
-              entries.push({ mes: m, tipo: 'meta_cat', referencia: id, valor });
+            // 0 é um valor válido e precisa ser importado — é como o usuário zera uma
+            // meta que existia antes (a planilha exportada, aliás, já escreve 0 em todo
+            // mês sem meta, então tratar 0 como "vazio" faria a maioria das células
+            // nunca serem reconhecidas). Só a célula em branco de verdade (raw === '')
+            // significa "não mexe nesse mês".
+            if (raw !== '' && raw != null && !Number.isNaN(valor) && valor >= 0) {
+              entries.push({ mes: m, tipo: 'meta_cat', referencia: leaf.id, valor });
             }
           }
         });
 
         if (!entries.length) {
           actions.notify(
-            unresolved ? `Nenhum valor reconhecido (${unresolved} linha(s) não identificada(s) — a coluna ID foi alterada?).` : 'Planilha sem valores para importar.',
+            unresolved ? `Nenhum valor reconhecido (${unresolved} linha(s) não identificada(s) — o Plano de Contas mudou desde que essa planilha foi gerada? Exporte uma nova planilha base.)` : 'Planilha sem valores para importar.',
             'ne'
           );
           return;
         }
 
         importPlanilhaEntries(entries, touchedNodeIds).then(() => {
-          if (unresolved) actions.notify(`${unresolved} linha(s) da planilha não foram reconhecidas e não entraram na importação.`, 'ni');
+          if (matchedByName) actions.notify(`${matchedByName} linha(s) casadas por Categoria/Grupo/Tipo (o Plano de Contas mudou desde a exportação da planilha).`, 'ni');
+          if (unresolved) actions.notify(`${unresolved} linha(s) da planilha não foram reconhecidas e não entraram na importação — o Plano de Contas mudou desde que essa planilha foi gerada. Exporte uma nova planilha base para essas categorias.`, 'ni');
         });
       } catch (err) {
         actions.notify('Não foi possível ler a planilha: ' + err.message, 'ne');

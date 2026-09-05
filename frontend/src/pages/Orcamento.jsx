@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RcTooltip,
-  Legend, ResponsiveContainer, ReferenceLine, Cell,
+  Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useApp } from '../context/AppContext.jsx';
 import { api } from '../api/index.js';
@@ -63,6 +63,10 @@ export default function Orcamento() {
   const [saving, setSaving]         = useState(false);
   const [alertsCollapsed, setAlertsCollapsed] = useState(false);
   const [grupoChartMode, setGrupoChartMode] = useState('valor'); // 'valor' | 'pct' — Gastos por Grupo
+  // Cliente pediu pra tirar a barra de Orçado do gráfico de Receita Bruta, mas a
+  // desenvolvedora considera importante manter disponível — nasce visível (default da
+  // dev) com um botão pra quem preferir a visão mais limpa pedida pelo cliente.
+  const [showOrcadoReceita, setShowOrcadoReceita] = useState(true);
 
   // O orçamento é sempre do ano selecionado no filtro — recarrega ao trocar o "Ano",
   // deixando o sistema pronto para consultar o histórico de anos anteriores.
@@ -269,6 +273,13 @@ export default function Orcamento() {
     _excede: g._excede,
   })), [grupoComparativo, grupoChartMode]);
 
+  // Maior valor entre Meta e Realizado de todas as linhas — escala comum pra todas as
+  // barras (0 a maxScale = 0% a 100% de largura), igual a um eixo X compartilhado.
+  const grupoChartMax = useMemo(
+    () => grupoChartData.reduce((m, g) => Math.max(m, g.Meta, g.Realizado), 0) || 1,
+    [grupoChartData]
+  );
+
   // ── Ponto de Equilíbrio ──────────────────────────────────────────
   // PE = Custos Fixos / (1 − (Custos Variáveis / Receita)) — regra clássica de ponto de
   // equilíbrio em receita. Custos Variáveis = Custos Diretos (variam com a produção/
@@ -305,6 +316,12 @@ export default function Orcamento() {
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.fill || p.color, display: 'inline-block', flexShrink: 0 }} />
             <span>{p.name}:</span>
             <span style={{ color: '#fff' }}>{fmtV(p.value)}</span>
+            {/* O gráfico não recolore mais a barra de Realizado quando estoura a meta (as
+                cores agora são fixas, no estilo pedido pelo cliente) — o aviso migrou pro
+                tooltip, pra não perder o sinal. */}
+            {p.name === 'Realizado' && p.payload?._excede && (
+              <span style={{ color: RD, fontWeight: 600 }}>⚠ acima da meta</span>
+            )}
           </div>
         ))}
       </div>
@@ -655,6 +672,19 @@ export default function Orcamento() {
                 Equilíbrio: {fmt(breakevenAnual)}
               </span>
             )}
+            <button
+              type="button"
+              onClick={() => setShowOrcadoReceita(v => !v)}
+              title={showOrcadoReceita ? 'Ocultar a barra de Orçado' : 'Exibir a barra de Orçado'}
+              className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                showOrcadoReceita
+                  ? 'text-accent border-accent/40 bg-accent/10'
+                  : 'text-text-3 border-transparent hover:text-text-base hover:border-slate-300 dark:hover:border-slate-600'
+              }`}
+            >
+              <Icon name={showOrcadoReceita ? 'visibility' : 'visibility_off'} size="text-[12px]" />
+              <span>Orçado</span>
+            </button>
             <span className="text-[9.5px] text-text-3 cursor-pointer"
               onClick={() => openModal('Receita Bruta — Realizado vs Orçado',
                 <ResponsiveContainer width="100%" height="100%">
@@ -665,7 +695,7 @@ export default function Orcamento() {
                     <RcTooltip content={<OrcTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
                     <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
-                    <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
+                    {showOrcadoReceita && <Bar dataKey="Orçado" fill={GY} radius={[4,4,0,0]} />}
                     <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
                     {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
                   </BarChart>
@@ -682,7 +712,7 @@ export default function Orcamento() {
               <RcTooltip content={<OrcTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, color: tc }} />
               <Bar dataKey="Realizado" fill={GR} radius={[4,4,0,0]} />
-              <Bar dataKey="Orçado"    fill={GY} radius={[4,4,0,0]} />
+              {showOrcadoReceita && <Bar dataKey="Orçado" fill={GY} radius={[4,4,0,0]} />}
               <Bar dataKey={sc.label + ' (proj)'} fill={sc.color} radius={[4,4,0,0]} />
               {breakeven && <ReferenceLine y={breakeven} stroke={OR} strokeDasharray="7 4" strokeWidth={2} label={{ value: 'Equilíbrio', fill: OR, fontSize: 10 }} />}
             </BarChart>
@@ -697,7 +727,7 @@ export default function Orcamento() {
             Gastos por Grupo — Orçado x Realizado
             <InfoPopover
               title="Gastos por Grupo — Orçado x Realizado"
-              description={'Compara a meta de cada Grupo de gastos (ex: Despesa com Pessoal, Estrutura, Impostos) com o valor realizado — juntando Custos Diretos, Despesas Operacionais e Despesas Não Operacionais numa lista única.\n\nSegue o filtro "Período" selecionado no topo da tela: com "Todos" marcado, soma o ano inteiro; com meses específicos marcados, Meta e Realizado somam só esses meses.\n\nBotão R$ / %: alterna entre valor absoluto e percentual da receita do período — Meta contra a receita orçada, Realizado contra a receita realizada.\n\n• Azul: meta orçada (definida em Metas por Categoria).\n• Verde: realizado dentro do orçamento.\n• Vermelho: realizado acima da meta (estouro).\n\nSó aparecem grupos com meta ou valor realizado no período. Ordenado do maior para o menor realizado.'}
+              description={'Compara a meta de cada Grupo de gastos (ex: Despesa com Pessoal, Estrutura, Impostos) com o valor realizado — juntando Custos Diretos, Despesas Operacionais e Despesas Não Operacionais numa lista única.\n\nSegue o filtro "Período" selecionado no topo da tela: com "Todos" marcado, soma o ano inteiro; com meses específicos marcados, Orçado e Realizado somam só esses meses.\n\nBotão R$ / %: alterna entre valor absoluto e percentual da receita do período — Orçado contra a receita orçada, Realizado contra a receita realizada.\n\nBarra azul: valor orçado. Barra vermelha: valor realizado — passe o mouse para ver se ficou acima da meta.\n\nSó aparecem grupos com meta ou valor realizado no período. Ordenado do maior para o menor realizado.'}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -722,38 +752,72 @@ export default function Orcamento() {
         </div>
         {grupoComparativo.length > 0 ? (
           <>
-            {/* Legenda customizada — a <Legend> padrão do Recharts só mostra 1 cor fixa por
-                Bar, então não dá pra explicar que "Realizado" muda de cor conforme estoura
-                a meta ou não. */}
+            {/* Legenda customizada — cores fixas (Orçado sempre azul, Realizado sempre
+                vermelho), sem variar conforme estourou a meta ou não (esse aviso agora só
+                aparece no title/tooltip nativo de cada linha). */}
             <div className="flex items-center gap-4 px-4 pt-3 text-[10px]" style={{ color: tc }}>
               <span className="flex items-center gap-1.5">
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: BL, opacity: 0.7, display: 'inline-block' }} />
-                Meta
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: BL, opacity: 0.45, display: 'inline-block' }} />
+                Orçado
               </span>
               <span className="flex items-center gap-1.5">
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(109,191,69,.8)', display: 'inline-block' }} />
-                Realizado — dentro do orçamento
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(229,62,62,.8)', display: 'inline-block' }} />
-                Realizado — acima da meta
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: RD, display: 'inline-block' }} />
+                Realizado
               </span>
             </div>
-            <div className="p-4 pt-2" style={{ height: Math.max(200, grupoChartData.length * 34) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={grupoChartData} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
-                  <CartesianGrid {...gridProps} horizontal={false} />
-                  <XAxis type="number" tickFormatter={v => grupoChartMode === 'pct' ? v + '%' : 'R$' + v + 'K'} {...axisProps} />
-                  <YAxis type="category" dataKey="name" {...axisProps} width={140} />
-                  <RcTooltip content={<OrcTooltip formatValue={grupoChartMode === 'pct' ? (v => `${v}%`) : undefined} />} />
-                  <Bar dataKey="Meta" fill={BL} fillOpacity={0.7} radius={[0,4,4,0]} />
-                  <Bar dataKey="Realizado" radius={[0,4,4,0]}>
-                    {grupoChartData.map((entry, i) => (
-                      <Cell key={i} fill={entry._excede ? 'rgba(229,62,62,.8)' : 'rgba(109,191,69,.8)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            {/* Barra "bullet": Orçado é a trilha larga e clara ao fundo, Realizado é a
+                barra sólida mais fina desenhada por dentro dela, a partir do mesmo ponto —
+                se Realizado passar do fim da trilha de Orçado, ela simplesmente continua
+                além, deixando o estouro visível (igual ao gráfico de referência do
+                cliente), sem precisar de duas barras lado a lado. */}
+            <div className="px-4 py-3 flex flex-col gap-3">
+              {grupoChartData.map(g => {
+                const fmtV = v => grupoChartMode === 'pct' ? `${v}%` : `R$${v}K`;
+                const metaPct = Math.min(100, (g.Meta / grupoChartMax) * 100);
+                const realPct = Math.min(100, (g.Realizado / grupoChartMax) * 100);
+                return (
+                  <div
+                    key={g.name}
+                    className="flex items-center gap-3"
+                    title={`${g.name}\nOrçado: ${fmtV(g.Meta)}\nRealizado: ${fmtV(g.Realizado)}${g._excede ? ' ⚠ acima da meta' : ''}`}
+                  >
+                    <div className="w-[140px] shrink-0 text-[10.5px] text-right truncate" style={{ color: tc }}>
+                      {g.name}
+                    </div>
+                    {/* Trilha com largura própria (não compartilha espaço com os rótulos) —
+                        assim um valor bem próximo do máximo da escala nunca empurra o texto
+                        pra fora da área visível do painel. */}
+                    <div className="flex-1 relative" style={{ height: 20 }}>
+                      <div className="absolute left-0 top-0 rounded" style={{ width: `${metaPct}%`, height: 20, background: BL, opacity: 0.45 }} />
+                      <div className="absolute left-0 rounded" style={{ width: `${Math.max(realPct, g.Realizado > 0 ? 1 : 0)}%`, height: 10, top: 5, background: g._excede ? RD : BL }} />
+                    </div>
+                    <div className="w-[130px] shrink-0 flex items-center gap-2 whitespace-nowrap">
+                      <span style={{ fontSize: 9.5, fontWeight: 600, color: BL }}>{fmtV(g.Meta)}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: g._excede ? RD : BL }}>{fmtV(g.Realizado)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Escala de referência (equivalente ao eixo X do gráfico anterior) — o
+                  espaçador da direita alinha com a coluna de rótulos das linhas acima. */}
+              <div className="flex items-center gap-3 pt-1">
+                <div className="w-[140px] shrink-0" />
+                <div className="flex-1 relative" style={{ height: 14 }}>
+                  {[0, 0.25, 0.5, 0.75, 1].map(f => (
+                    <span
+                      key={f}
+                      className="absolute text-[9.5px]"
+                      style={{
+                        left: `${f * 100}%`, color: tc,
+                        transform: f === 0 ? 'none' : f === 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                      }}
+                    >
+                      {grupoChartMode === 'pct' ? `${Math.round(grupoChartMax * f)}%` : `R$${Math.round(grupoChartMax * f)}K`}
+                    </span>
+                  ))}
+                </div>
+                <div className="w-[130px] shrink-0" />
+              </div>
             </div>
           </>
         ) : (

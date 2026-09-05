@@ -64,20 +64,33 @@ function aggregateCell(row, bucket, monthIdxMap) {
   return { v, refV };
 }
 
-function CellValue({ v, refV, isPos, showPct }) {
+// `onDoubleClick` drills into Lançamentos filtered to this exact cell's period — a
+// month cell drills to just that month, a bimestral/trimestral/etc. cell to its whole
+// span, so the filter the user lands on matches exactly what they double-clicked.
+function CellValue({ v, refV, isPos, showPct, onDoubleClick }) {
   const cls = cellColorCls(v, isPos);
   return (
-    <td className={cls}>
+    <td
+      className={cls}
+      onDoubleClick={onDoubleClick}
+      style={onDoubleClick ? { cursor: 'pointer' } : undefined}
+      title={onDoubleClick ? 'Duplo clique para ver lançamentos deste período' : undefined}
+    >
       {v === 0 ? '—' : fmtSigned(v)}
       {showPct && refV > 0 && <span className="cv-pct">{fmtPct(pct(v, refV))}</span>}
     </td>
   );
 }
 
-function TotalCell({ v, isPos, showPct, refV }) {
+function TotalCell({ v, isPos, showPct, refV, onDoubleClick }) {
   const cls = cellColorCls(v, isPos);
   return (
-    <td className={cls}>
+    <td
+      className={cls}
+      onDoubleClick={onDoubleClick}
+      style={onDoubleClick ? { cursor: 'pointer' } : undefined}
+      title={onDoubleClick ? 'Duplo clique para ver lançamentos do período total' : undefined}
+    >
       {v === 0 ? '—' : fmtSigned(v)}
       {showPct && refV > 0 && <span className="cv-pct">{fmtPct(pct(v, refV))}</span>}
     </td>
@@ -101,13 +114,26 @@ function visMonthsDateRange(year, visMonths) {
 export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filterCat, regime, maxHeight = '70vh' }) {
   const { dateFrom, dateTo } = visMonthsDateRange(dre.year, dre.visMonths);
 
-  // Every id that can be individually folded — group (Tipo) rows and subgroup (Grupo) rows.
-  const allCollapsibleIds = useMemo(
-    () => new Set(
-      dre.rows
-        .filter(r => r.type === 'group' || r.type === 'subgroup')
-        .map(r => r.type === 'group' ? r.gid : r.sid)
-    ),
+  // Dois níveis de recolhimento, cada um agindo sobre seu próprio conjunto de ids sem
+  // mexer no do outro nível (aditivo/subtrativo sobre `collapsed`, nunca substituindo o
+  // Set inteiro) — assim "Recolher Tipo" seguido de "Recolher Grupo" e depois só
+  // "Expandir Grupo" mantém os Tipos ainda fechados, como esperado numa hierarquia real.
+  //
+  // Nível Tipo: esconde só as linhas sem negrito (item, texto normal), recolhendo todo
+  // sid usado por algum item como parentSid — o sid de um Grupo (subgroup) de verdade,
+  // ou o sid sintético que categorias sem Grupo (ex.: "Entradas/Saídas não
+  // classificadas") usam só para isso. Nunca reaproveita o gid da Categoria, que
+  // pertence ao nível Grupo — ids compartilhados entre os dois níveis fariam expandir um
+  // nível re-revelar linhas que o outro tinha recolhido.
+  const tipoLevelIds = useMemo(
+    () => new Set(dre.rows.filter(r => r.type === 'item' && r.parentSid).map(r => r.parentSid)),
+    [dre.rows],
+  );
+
+  // Nível Grupo: recolhe a própria Categoria (group, via gid), escondendo Grupo e Tipo
+  // de uma vez — sobra só o cabeçalho em negrito da Categoria.
+  const grupoLevelIds = useMemo(
+    () => new Set(dre.rows.filter(r => r.type === 'group').map(r => r.gid)),
     [dre.rows],
   );
 
@@ -125,9 +151,22 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
     });
   }
 
+  function addIds(ids) {
+    setCollapsed(prev => new Set([...prev, ...ids]));
+  }
+  function removeIds(ids) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
+  }
+
   const isExpanded = (id) => !collapsed.has(id);
-  const collapseAll = () => setCollapsed(new Set(allCollapsibleIds));
-  const expandAll   = () => setCollapsed(new Set());
+  const collapseTipo  = () => addIds(tipoLevelIds);
+  const expandTipo    = () => removeIds(tipoLevelIds);
+  const collapseGrupo = () => addIds(grupoLevelIds);
+  const expandGrupo   = () => removeIds(grupoLevelIds);
 
   const { rows, visMonths } = dre;
 
@@ -150,6 +189,14 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
       .sort((a, b) => a[0] - b[0])
       .map(([key, months]) => ({ key, months: months.sort((a, b) => a - b) }));
   }, [visMonths, periodMode]);
+
+  // Date range per column — a drill-down double-click on a specific column (e.g. the
+  // "Janeiro" cell) must filter Lançamentos to just that column's months, not the whole
+  // demonstrativo period.
+  const columnRanges = useMemo(
+    () => columns.map(b => visMonthsDateRange(dre.year, b.months)),
+    [columns, dre.year],
+  );
 
   // When a category is filtered, only show that group tree (hide structural rows)
   const visibleRows = filterCat
@@ -183,22 +230,42 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={expandAll}
-            className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
-          >
-            Expandir tudo
-          </button>
-          <span className="text-[10px] text-text-3">·</span>
-          <button
-            type="button"
-            onClick={collapseAll}
-            className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
-          >
-            Recolher tudo
-          </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={expandGrupo}
+              className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
+            >
+              Expandir Grupo
+            </button>
+            <span className="text-[10px] text-text-3">·</span>
+            <button
+              type="button"
+              onClick={collapseGrupo}
+              className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
+            >
+              Recolher Grupo
+            </button>
+          </div>
+          <span className="text-[10px] text-text-3">|</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={expandTipo}
+              className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
+            >
+              Expandir Tipo
+            </button>
+            <span className="text-[10px] text-text-3">·</span>
+            <button
+              type="button"
+              onClick={collapseTipo}
+              className="text-[10px] font-semibold text-text-3 hover:text-accent transition-colors cursor-pointer"
+            >
+              Recolher Tipo
+            </button>
+          </div>
         </div>
       </div>
       <div className="overflow-x-auto max-w-full" style={{ maxHeight, minHeight: 0, flex: '1 1 auto', overflowY: 'auto' }}>
@@ -247,15 +314,18 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
             if (row.type === 'subgroup') {
               if (!isExpanded(row.parentGid)) return null;
               const sExp = isExpanded(row.sid);
+              const drillGroup = (range) => onDrillGroup?.({ cat: row.cat, grp: row.label, mov: row.movFilter, regime, dateFrom: range.dateFrom, dateTo: range.dateTo });
               return (
                 <tr
                   key={i}
                   className="dr-item dr-subgroup"
                   onClick={() => toggle(row.sid)}
-                  onDoubleClick={() => onDrillGroup?.({ cat: row.cat, grp: row.label, mov: row.movFilter, regime, dateFrom, dateTo })}
-                  title="Clique para expandir/recolher · duplo clique para ver lançamentos"
+                  title="Clique para expandir/recolher · duplo clique numa célula para ver os lançamentos daquele período"
                 >
-                  <td style={{ paddingLeft: '32px' }}>
+                  <td
+                    style={{ paddingLeft: '32px' }}
+                    onDoubleClick={(e) => { e.stopPropagation(); drillGroup({ dateFrom, dateTo }); }}
+                  >
                     <Icon
                       name="chevron_right"
                       size="text-[12px]"
@@ -266,9 +336,17 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
                   </td>
                   {columns.map((b, bi) => {
                     const { v, refV } = aggregateCell(row, b, monthIdxMap);
-                    return <CellValue key={bi} v={v} refV={refV} isPos={row.isPos} showPct={showPct} />;
+                    return (
+                      <CellValue
+                        key={bi} v={v} refV={refV} isPos={row.isPos} showPct={showPct}
+                        onDoubleClick={(e) => { e.stopPropagation(); drillGroup(columnRanges[bi]); }}
+                      />
+                    );
                   })}
-                  <TotalCell v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0} />
+                  <TotalCell
+                    v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0}
+                    onDoubleClick={(e) => { e.stopPropagation(); drillGroup({ dateFrom, dateTo }); }}
+                  />
                 </tr>
               );
             }
@@ -276,19 +354,26 @@ export default function DreTable({ dre, onDrillItem, onDrillGroup, showPct, filt
             if (row.type === 'item') {
               if (!isExpanded(row.parentGid)) return null;
               if (row.parentSid && !isExpanded(row.parentSid)) return null;
+              const drillItem = (range) => onDrillItem?.({ cat: row.cat, grp: row.grp, tipo: row.label, mov: row.movFilter, regime, dateFrom: range.dateFrom, dateTo: range.dateTo });
               return (
-                <tr
-                  key={i}
-                  className="dr-item dr-cat"
-                  onDoubleClick={() => onDrillItem?.({ cat: row.cat, grp: row.grp, tipo: row.label, mov: row.movFilter, regime, dateFrom, dateTo })}
-                  title="Duplo clique para ver lançamentos"
-                >
-                  <td style={{ paddingLeft: '52px' }}>{row.label}</td>
+                <tr key={i} className="dr-item dr-cat" title="Duplo clique numa célula para ver os lançamentos daquele período">
+                  <td
+                    style={{ paddingLeft: '52px' }}
+                    onDoubleClick={() => drillItem({ dateFrom, dateTo })}
+                  >{row.label}</td>
                   {columns.map((b, bi) => {
                     const { v, refV } = aggregateCell(row, b, monthIdxMap);
-                    return <CellValue key={bi} v={v} refV={refV} isPos={row.isPos} showPct={showPct} />;
+                    return (
+                      <CellValue
+                        key={bi} v={v} refV={refV} isPos={row.isPos} showPct={showPct}
+                        onDoubleClick={() => drillItem(columnRanges[bi])}
+                      />
+                    );
                   })}
-                  <TotalCell v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0} />
+                  <TotalCell
+                    v={row.total} isPos={row.isPos} showPct={showPct} refV={row.totRef || 0}
+                    onDoubleClick={() => drillItem({ dateFrom, dateTo })}
+                  />
                 </tr>
               );
             }
