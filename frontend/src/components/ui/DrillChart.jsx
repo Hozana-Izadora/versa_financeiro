@@ -226,8 +226,8 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
   });
 
   // Extraído para ser reaproveitado tanto no card normal quanto no modal "ampliar" —
-  // só muda a altura dos gráficos e o teto de altura da lista de grupos.
-  function renderBody(chartH, listMaxHClass, wide) {
+  // só muda a altura dos gráficos.
+  function renderBody(chartH, wide) {
     if (grupos.length === 0) {
       return (
         <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
@@ -245,13 +245,16 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
     return (
       <div className={`grid grid-cols-1 ${gridColsClass}`}>
         {/* ── Lista de Grupos (multi-seleção) ── */}
+        {/* Sem altura/max-height própria: um item de grid "esticado" (comportamento
+            padrão do CSS Grid) acompanha a altura natural da coluna dos gráficos ao
+            lado — só rola quando a lista de Grupos realmente não cabe nesse espaço,
+            em vez de um teto fixo que sobrava vazio ou obrigava rolagem cedo demais. */}
         <div
           style={{
             padding: '10px 8px',
             borderRight: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid #f1f5f9',
             overflowY: 'auto',
           }}
-          className={listMaxHClass}
         >
           {grupos.map(g => {
             const isChecked = selectedGrpIds.has(g.node.id);
@@ -453,12 +456,12 @@ export default function DrillChart({ transactions, visMonths, year, darkMode, pl
         </div>
       </div>
 
-      {!collapsed && renderBody(220, 'max-h-[260px] sm:max-h-[420px]', false)}
+      {!collapsed && renderBody(220, false)}
 
       {/* Modal próprio, não o de Caixa.jsx — renderBody() roda de novo a cada render
           daqui, então trocar de grupo/Valores dentro do modal continua reativo. */}
       <ChartModal
-        chart={fullscreen ? { title: 'Composição das Saídas', element: renderBody(320, '', true), wide: true } : null}
+        chart={fullscreen ? { title: 'Composição das Saídas', element: renderBody(320, true), wide: true } : null}
         onClose={() => setFullscreen(false)}
       />
     </div>
