@@ -652,8 +652,14 @@ export default function MetasTab({ orcamento, receitaReal, year, actions, plano,
             // mês sem meta, então tratar 0 como "vazio" faria a maioria das células
             // nunca serem reconhecidas). Só a célula em branco de verdade (raw === '')
             // significa "não mexe nesse mês".
-            if (raw !== '' && raw != null && !Number.isNaN(valor) && valor >= 0) {
-              entries.push({ mes: m, tipo: 'meta_cat', referencia: leaf.id, valor });
+            //
+            // Math.abs: meta é sempre uma grandeza (quanto planeja gastar), mas é comum o
+            // cliente preencher a planilha com o sinal negativo de saída (convenção de
+            // fluxo de caixa da própria contabilidade dele) — sem isso, toda a planilha
+            // era rejeitada silenciosamente e só as células em branco/zeradas entravam,
+            // dando a impressão de "importou mas não apareceu nada".
+            if (raw !== '' && raw != null && !Number.isNaN(valor)) {
+              entries.push({ mes: m, tipo: 'meta_cat', referencia: leaf.id, valor: Math.abs(valor) });
             }
           }
         });
