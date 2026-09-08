@@ -164,6 +164,15 @@ export default function Orcamento() {
     return -1;
   }, [receitaReal]);
 
+  // Mês usado pelos cards de KPI (Meta vs Realizado): segue o filtro "Período" do
+  // header quando ele isola um único mês (ex.: clicou em "Mar"); com "Todos" marcado
+  // ou mais de um mês selecionado, não há um único mês pra comparar — cai de volta no
+  // último mês com dado real, comportamento de sempre.
+  const kpiMes = useMemo(
+    () => (filterState.months.size === 1 ? [...filterState.months][0] : lastRealMes),
+    [filterState.months, lastRealMes]
+  );
+
   // Meses considerados no orçamento — segue o mesmo filtro "Período" usado em Caixa/
   // Competência: só os meses marcados, ou todos os meses com dados quando nenhum está
   // selecionado ("Todos").
@@ -328,10 +337,10 @@ export default function Orcamento() {
     );
   }
 
-  // ── KPI cards (último mês real vs meta mensal) ────────────────
+  // ── KPI cards (mês selecionado no header vs meta mensal) ───────
   const kpiCards = useMemo(() => {
     if (lastRealMes < 0) return [];
-    const m = lastRealMes;
+    const m = kpiMes;
 
     const recReal  = receitaReal[m] ?? 0;
     const recMeta  = orcMap.receita[m] ?? 0;
@@ -372,7 +381,7 @@ export default function Orcamento() {
       card('Gastos Não Operacionais', nopMeta,  nopReal,   false),
       card('Resultado Líquido',      resMeta,   resReal,   true),
     ];
-  }, [lastRealMes, receitaReal, tx, year, orcMap, gastoTree]);
+  }, [lastRealMes, kpiMes, receitaReal, tx, year, orcMap, gastoTree]);
 
   // ── Acompanhamento orçamentário (tabela) ──────────────────────
   const orcTable = useMemo(() => {
@@ -488,11 +497,11 @@ export default function Orcamento() {
   const KPI_INFO = {
     'Receita Bruta': {
       title: 'KPI — Receita Bruta',
-      description: 'Total faturado no último mês com dados reais, comparado à meta mensal definida na aba Metas.\n\nVerde = receita acima ou igual à meta.\nVermelho = receita abaixo da meta.',
+      description: 'Total faturado no mês marcado no filtro "Período" do topo (ou no último mês com dados reais, se nenhum estiver marcado), comparado à meta mensal definida na aba Metas.\n\nVerde = receita acima ou igual à meta.\nVermelho = receita abaixo da meta.',
     },
     'Desp. Operacionais': {
       title: 'KPI — Despesas Operacionais',
-      description: 'Soma de todos os gastos operacionais (pessoal, aluguel, administrativo, comercial, etc.) no último mês com dados, comparado à meta mensal.\n\nVerde = despesas abaixo da meta (bom).\nVermelho = despesas acima da meta (atenção).',
+      description: 'Soma de todos os gastos operacionais (pessoal, aluguel, administrativo, comercial, etc.) no mês marcado no filtro "Período" do topo (ou no último mês com dados, se nenhum estiver marcado), comparado à meta mensal.\n\nVerde = despesas abaixo da meta (bom).\nVermelho = despesas acima da meta (atenção).',
     },
     'Margem Operacional': {
       title: 'KPI — Margem Operacional (EBIT)',
@@ -500,11 +509,11 @@ export default function Orcamento() {
     },
     'Gastos Não Operacionais': {
       title: 'KPI — Gastos Não Operacionais',
-      description: 'Total de despesas fora da operação principal (impostos sobre lucro, juros, tarifas bancárias, investimentos) no último mês com dados.\n\nVerde = abaixo da meta (bom).\nVermelho = acima da meta (atenção).',
+      description: 'Total de despesas fora da operação principal (impostos sobre lucro, juros, tarifas bancárias, investimentos) no mês marcado no filtro "Período" do topo (ou no último mês com dados, se nenhum estiver marcado).\n\nVerde = abaixo da meta (bom).\nVermelho = acima da meta (atenção).',
     },
     'Resultado Líquido': {
       title: 'KPI — Resultado Líquido',
-      description: 'Receita Bruta menos todos os gastos (operacionais + não operacionais) no último mês com dados.\n\nFórmula: Receita − Desp. Op. − Desp. Não Op.\n\nVerde = resultado acima da meta.\nVermelho = resultado abaixo da meta.',
+      description: 'Receita Bruta menos todos os gastos (operacionais + não operacionais) no mês marcado no filtro "Período" do topo (ou no último mês com dados, se nenhum estiver marcado).\n\nFórmula: Receita − Desp. Op. − Desp. Não Op.\n\nVerde = resultado acima da meta.\nVermelho = resultado abaixo da meta.',
     },
   };
 
@@ -572,7 +581,7 @@ export default function Orcamento() {
                   {totalAlerts} alerta{totalAlerts !== 1 ? 's' : ''} de estouro de orçamento
                 </div>
                 <div className="text-[10px] text-text-3 mt-0.5">
-                  Comparado à meta de {MES12[lastRealMes]} {year} (indicadores) e ao ritmo esperado da meta anual (categorias)
+                  Comparado à meta de {MES12[kpiMes]} {year} (indicadores) e ao ritmo esperado da meta anual (categorias)
                 </div>
               </div>
             </div>
@@ -609,7 +618,14 @@ export default function Orcamento() {
 
       {/* ── KPIs Meta vs Realizado ── */}
       {kpiCards.length > 0 && (
-        <div className="flex gap-2.5 flex-wrap mb-3.5">
+        <>
+          <div className="text-[10px] text-text-3 mb-1.5">
+            Indicadores de <span className="font-semibold text-text-2">{MES12[kpiMes]} {year}</span>
+            {filterState.months.size !== 1 && (
+              <span> — marque um único mês no filtro "Período" do topo pra ver outro mês aqui</span>
+            )}
+          </div>
+          <div className="flex gap-2.5 flex-wrap mb-3.5">
           {kpiCards.map((k, i) => (
             <div key={i} className={`kpi-card flex-1 min-w-[155px] ${k.good ? 'kc-g' : 'kc-r'}`}>
               <div className="text-[9.5px] uppercase tracking-[1px] text-text-3 mb-2 flex items-center gap-1">
@@ -631,7 +647,8 @@ export default function Orcamento() {
               <div className="text-[9.5px] font-semibold" style={{ color: k.good ? '#059669' : RD }}>{k.delta}</div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {/* ── Seletor de cenários ── */}
